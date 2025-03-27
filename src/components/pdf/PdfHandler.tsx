@@ -74,7 +74,7 @@ export const loadPdfToCanvas = async (
       left: options.x || 0,
       top: options.y || 0,
       selectable: options.selectable ?? true, // Make selectable by default for movement
-      evented: true,
+      evented: options.selectable ?? true,
       opacity: options.opacity || 1,
       // Add border properties when selected for better visibility
       borderColor: '#0080ff',
@@ -104,6 +104,7 @@ export const loadPdfToCanvas = async (
     canvas.sendToBack(fabricImage);
     canvas.renderAll();
 
+    console.log('PDF loaded successfully', options);
     return fabricImage;
   } catch (error) {
     console.error('Error loading PDF:', error);
@@ -121,6 +122,7 @@ export const adjustPdfBackdrop = (
     opacity?: number;
     x?: number;
     y?: number;
+    selectable?: boolean;
   }
 ): void => {
   if (!canvas) return;
@@ -135,6 +137,11 @@ export const adjustPdfBackdrop = (
     backdrop.set('opacity', options.opacity);
   }
 
+  if (options.selectable !== undefined) {
+    backdrop.set('selectable', options.selectable);
+    backdrop.set('evented', options.selectable);
+  }
+
   if (options.scale !== undefined && backdrop.data.scale !== options.scale) {
     // We need to reload the PDF with new scale
     loadPdfToCanvas(canvas, backdrop.data.url, {
@@ -143,6 +150,7 @@ export const adjustPdfBackdrop = (
       x: options.x !== undefined ? options.x : backdrop.left,
       y: options.y !== undefined ? options.y : backdrop.top,
       page: backdrop.data.page,
+      selectable: options.selectable !== undefined ? options.selectable : backdrop.selectable,
     });
     return;
   }
@@ -169,4 +177,26 @@ export const removePdfBackdrop = (canvas: fabric.Canvas): void => {
     canvas.remove(backdrop);
     canvas.renderAll();
   }
+};
+
+/**
+ * Toggle the lock state of a PDF backdrop
+ */
+export const togglePdfBackdropLock = (canvas: fabric.Canvas, locked: boolean): void => {
+  if (!canvas) return;
+
+  const backdrop = canvas.getObjects().find(obj => obj.data?.type === 'pdfBackdrop');
+  if (!backdrop) return;
+
+  backdrop.set({
+    selectable: !locked,
+    evented: !locked,
+  });
+
+  // If locking, also reset the current selection if it's the PDF
+  if (locked && canvas.getActiveObject() === backdrop) {
+    canvas.discardActiveObject();
+  }
+
+  canvas.renderAll();
 };

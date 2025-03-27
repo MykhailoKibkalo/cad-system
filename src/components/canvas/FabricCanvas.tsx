@@ -1,12 +1,11 @@
 // src/components/canvas/FabricCanvas.tsx
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { fabric } from 'fabric';
 import styled from '@emotion/styled';
 import { useCad } from '@/context/CadContext';
 import { useHistory } from '@/context/HistoryContext';
-import { ActionType, Module, ModuleCategory, Opening, OpeningType, ToolType } from '@/types';
+import { ActionType, ModuleCategory, ToolType } from '@/types';
 import { loadPdfToCanvas } from '../pdf/PdfHandler';
-import { v4 as uuidv4 } from 'uuid';
 
 const CanvasContainer = styled.div`
   position: relative;
@@ -35,20 +34,22 @@ const FabricCanvas: React.FC = () => {
     setToolState,
   } = useCad();
 
-  const { addAction } = useHistory();
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null);
+  const { addAction, undo, redo } = useHistory();
   const activeFloor = floors.find(floor => floor.id === activeFloorId);
-  const [tempOpening, setTempOpening] = useState<{
-    moduleId: string;
-    wall: 'top' | 'right' | 'bottom' | 'left';
-    position: number;
-    type: OpeningType;
-  } | null>(null);
 
-  // Initialize Fabric.js canvas on component mount
+  // This will track the drawing state
+  const drawingRef = useRef({
+    isDrawing: false,
+    startX: 0,
+    startY: 0,
+    tempObject: null as fabric.Object | null,
+  });
+
+  // Initialize canvas just once
   useEffect(() => {
     if (canvasRef.current && !fabricCanvasRef.current) {
+      console.log('Initializing canvas');
+
       const canvas = new fabric.Canvas(canvasRef.current, {
         width: canvasSettings.width,
         height: canvasSettings.height,
@@ -58,18 +59,20 @@ const FabricCanvas: React.FC = () => {
 
       fabricCanvasRef.current = canvas;
 
-      // Set up event listeners
+      // Apply initial transformations
+      canvas.setZoom(canvasSettings.zoom);
+      canvas.absolutePan(new fabric.Point(canvasSettings.panX, canvasSettings.panY));
+
+      // Basic mouse handlers - don't modify these!
       canvas.on('mouse:down', handleMouseDown);
       canvas.on('mouse:move', handleMouseMove);
       canvas.on('mouse:up', handleMouseUp);
       canvas.on('object:modified', handleObjectModified);
       canvas.on('selection:created', handleSelectionCreated);
+      canvas.on('selection:updated', handleSelectionCreated);
       canvas.on('selection:cleared', handleSelectionCleared);
 
-      // Apply initial canvas transformations
-      canvas.setZoom(canvasSettings.zoom);
-      canvas.absolutePan(new fabric.Point(canvasSettings.panX, canvasSettings.panY));
-
+      // Cleanup on unmount
       return () => {
         canvas.dispose();
         fabricCanvasRef.current = null;
@@ -77,24 +80,14 @@ const FabricCanvas: React.FC = () => {
     }
   }, []);
 
-  // Update canvas when settings change
-  useEffect(() => {
-    if (fabricCanvasRef.current) {
-      const canvas = fabricCanvasRef.current;
-      canvas.setZoom(canvasSettings.zoom);
-      canvas.absolutePan(new fabric.Point(canvasSettings.panX, canvasSettings.panY));
-      canvas.renderAll();
-    }
-  }, [canvasSettings]);
-
-  // Draw or update grid
+  // Draw or update grid when settings change
   useEffect(() => {
     if (fabricCanvasRef.current) {
       drawGrid();
     }
   }, [gridSettings]);
 
-  // Sync modules with canvas
+  // Sync modules with canvas when floor changes
   useEffect(() => {
     if (fabricCanvasRef.current && activeFloor) {
       syncCanvasWithFloor();
@@ -151,186 +144,24 @@ const FabricCanvas: React.FC = () => {
   };
 
   // Snap point to grid
-  const snapToGrid = (point: { x: number; y: number }): { x: number; y: number } => {
-    if (!gridSettings.snapToGrid) return point;
+  const snapToGrid = (x: number, y: number): { x: number; y: number } => {
+    if (!gridSettings.snapToGrid) return { x, y };
 
     const gridSize = gridSettings.size;
     return {
-      x: Math.round(point.x / gridSize) * gridSize,
-      y: Math.round(point.y / gridSize) * gridSize,
+      x: Math.round(x / gridSize) * gridSize,
+      y: Math.round(y / gridSize) * gridSize,
     };
   };
 
-  // Create opening on module
-  const createOpening = (
-    moduleId: string,
-    wall: 'top' | 'right' | 'bottom' | 'left',
-    position: number,
-    type: OpeningType,
-    width: number,
-    height: number
-  ) => {
-    if (!activeFloor) return;
-
-    const module = activeFloor.modules.find(m => m.id === moduleId);
-    if (!module) return;
-
-    // Calculate position based on wall and relative position (0-1)
-    let x = 0;
-    let y = 0;
-    let rotation = 0;
-
-    switch (wall) {
-      case 'top':
-        x = module.position.x + module.width * position;
-        y = module.position.y;
-        rotation = 0;
-        break;
-      case 'right':
-        x = module.position.x + module.width;
-        y = module.position.y + module.height * position;
-        rotation = 90;
-        break;
-      case 'bottom':
-        x = module.position.x + module.width * position;
-        y = module.position.y + module.height;
-        rotation = 180;
-        break;
-      case 'left':
-        x = module.position.x;
-        y = module.position.y + module.height * position;
-        rotation = 270;
-        break;
-    }
-
-    // Create new opening
-    const newOpening: Opening = {
-      id: uuidv4(),
-      type,
-      width,
-      height,
-      position: { x, y },
-      rotation,
-      wall,
-    };
-
-    // Store the module before updating for history
-    const before = {
-      module: { ...module },
-      floorId: activeFloor.id,
-    };
-
-    // Update the module with the new opening
-    const updatedOpenings = [...module.openings, newOpening];
-    updateModule(moduleId, { openings: updatedOpenings });
-
-    // Get the updated module for history
-    const updatedModule = activeFloor.modules.find(m => m.id === moduleId);
-    const after = {
-      module: updatedModule,
-      floorId: activeFloor.id,
-    };
-
-    // Add to history
-    addAction({
-      type: ActionType.ADD_OPENING,
-      payload: {
-        before,
-        after,
-        id: newOpening.id,
-        floorId: activeFloor.id,
-      },
-    });
-  };
-
-  // Draw opening based on type
-  const drawOpening = (module: Module, opening: Opening) => {
-    if (!fabricCanvasRef.current) return;
-
-    const canvas = fabricCanvasRef.current;
-
-    let openingObject: fabric.Object;
-
-    if (opening.type === OpeningType.DOOR) {
-      // Create door representation
-      openingObject = new fabric.Rect({
-        left: opening.position.x,
-        top: opening.position.y,
-        width: opening.width,
-        height: opening.height,
-        fill: 'brown',
-        stroke: '#333333',
-        strokeWidth: 1,
-        angle: opening.rotation,
-      });
-
-      // Add door swing arc
-      const arcRadius = opening.width * 0.8;
-      const startAngle = opening.rotation * (Math.PI / 180);
-      const endAngle = startAngle + Math.PI / 2;
-
-      const arc = new fabric.Circle({
-        left: opening.position.x - arcRadius / 2,
-        top: opening.position.y - arcRadius / 2,
-        radius: arcRadius,
-        startAngle: startAngle,
-        endAngle: endAngle,
-        stroke: '#555555',
-        fill: 'transparent',
-        strokeWidth: 1,
-        selectable: false,
-      });
-
-      arc.data = {
-        type: 'doorArc',
-        openingId: opening.id,
-        moduleId: module.id,
-        floorId: activeFloor?.id,
-      };
-
-      canvas.add(arc);
-    } else if (opening.type === OpeningType.WINDOW) {
-      // Create window representation
-      openingObject = new fabric.Rect({
-        left: opening.position.x,
-        top: opening.position.y,
-        width: opening.width,
-        height: opening.height,
-        fill: 'lightblue',
-        stroke: '#333333',
-        strokeWidth: 1,
-        angle: opening.rotation,
-      });
-    } else {
-      // Generic opening (floor to ceiling)
-      openingObject = new fabric.Rect({
-        left: opening.position.x,
-        top: opening.position.y,
-        width: opening.width,
-        height: opening.height,
-        fill: 'white',
-        stroke: '#333333',
-        strokeWidth: 1,
-        angle: opening.rotation,
-      });
-    }
-
-    openingObject.data = {
-      type: 'opening',
-      openingType: opening.type,
-      id: opening.id,
-      moduleId: module.id,
-      floorId: activeFloor?.id,
-    };
-
-    canvas.add(openingObject);
-  };
-
-  // Sync canvas objects with floor data
+  // CORE FUNCTION: Sync canvas objects with floor data
   const syncCanvasWithFloor = () => {
     if (!fabricCanvasRef.current || !activeFloor) return;
 
     const canvas = fabricCanvasRef.current;
+
+    // Get the current selected object ID before clearing
+    const selectedId = toolState.selectedObjectId;
 
     // Remove all canvas objects except grid
     const nonGridObjects = canvas.getObjects().filter(obj => obj.data?.type !== 'grid');
@@ -343,6 +174,7 @@ const FabricCanvas: React.FC = () => {
         opacity: activeFloor.backdrop.opacity,
         x: activeFloor.backdrop.position.x,
         y: activeFloor.backdrop.position.y,
+        selectable: !activeFloor.backdrop.locked,
       });
     }
 
@@ -372,11 +204,6 @@ const FabricCanvas: React.FC = () => {
       };
 
       canvas.add(rect);
-
-      // Add openings for the module
-      module.openings.forEach(opening => {
-        drawOpening(module, opening);
-      });
     });
 
     // Add balconies
@@ -407,207 +234,152 @@ const FabricCanvas: React.FC = () => {
       canvas.add(rect);
     });
 
+    // Try to reselect the previously selected object if it still exists
+    if (selectedId) {
+      const objects = canvas.getObjects();
+      const selectedObject = objects.find(obj => obj.data?.id === selectedId);
+      if (selectedObject) {
+        canvas.setActiveObject(selectedObject);
+      }
+    }
+
     canvas.renderAll();
   };
 
-  // Event Handlers
-  const handleMouseDown = (event: fabric.IEvent) => {
+  // FULLY REWRITTEN MOUSE HANDLERS
+
+  const handleMouseDown = (event: fabric.IEvent<MouseEvent>) => {
     if (!fabricCanvasRef.current || !activeFloor) return;
 
     const canvas = fabricCanvasRef.current;
     const pointer = canvas.getPointer(event.e);
 
-    // If we're in an opening creation tool mode and clicked on a module
-    if (
-      (toolState.activeTool === ToolType.OPENING_DOOR ||
-        toolState.activeTool === ToolType.OPENING_WINDOW ||
-        toolState.activeTool === ToolType.OPENING_GENERIC) &&
-      event.target &&
-      event.target.data?.type === 'module'
-    ) {
-      const moduleId = event.target.data.id;
-      const module = activeFloor.modules.find(m => m.id === moduleId);
+    console.log(`Mouse down with tool: ${toolState.activeTool}`);
 
-      if (!module) return;
-
-      // Calculate which wall was clicked and the relative position on that wall
-      const moduleLeft = module.position.x;
-      const moduleTop = module.position.y;
-      const moduleRight = moduleLeft + module.width;
-      const moduleBottom = moduleTop + module.height;
-
-      // Calculate distance to each wall
-      const distToLeft = Math.abs(pointer.x - moduleLeft);
-      const distToRight = Math.abs(pointer.x - moduleRight);
-      const distToTop = Math.abs(pointer.y - moduleTop);
-      const distToBottom = Math.abs(pointer.y - moduleBottom);
-
-      // Find the closest wall
-      const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom);
-      let wall: 'top' | 'right' | 'bottom' | 'left';
-      let position = 0;
-
-      if (minDist === distToTop) {
-        wall = 'top';
-        position = (pointer.x - moduleLeft) / module.width;
-      } else if (minDist === distToRight) {
-        wall = 'right';
-        position = (pointer.y - moduleTop) / module.height;
-      } else if (minDist === distToBottom) {
-        wall = 'bottom';
-        position = (pointer.x - moduleLeft) / module.width;
-      } else {
-        wall = 'left';
-        position = (pointer.y - moduleTop) / module.height;
-      }
-
-      // Clamp position between 0 and 1
-      position = Math.max(0, Math.min(1, position));
-
-      // Set the current opening creation state
-      let openingType: OpeningType;
-
-      if (toolState.activeTool === ToolType.OPENING_DOOR) {
-        openingType = OpeningType.DOOR;
-      } else if (toolState.activeTool === ToolType.OPENING_WINDOW) {
-        openingType = OpeningType.WINDOW;
-      } else {
-        openingType = OpeningType.OPENING;
-      }
-
-      setTempOpening({
-        moduleId,
-        wall,
-        position,
-        type: openingType,
-      });
-
-      // Create the opening directly
-      // Default sizes based on opening type
-      let width = 0;
-      let height = 0;
-
-      switch (openingType) {
-        case OpeningType.DOOR:
-          width = 90;
-          height = 15;
-          break;
-        case OpeningType.WINDOW:
-          width = 120;
-          height = 15;
-          break;
-        case OpeningType.OPENING:
-          width = 120;
-          height = 20;
-          break;
-      }
-
-      createOpening(moduleId, wall, position, openingType, width, height);
-
-      // Switch back to SELECT tool
-      setToolState({ activeTool: ToolType.SELECT });
-
+    // If we clicked on an object and we're not in drawing mode, just return
+    // to allow selection to work normally
+    if (event.target && toolState.activeTool === ToolType.SELECT) {
+      console.log('Clicked on object in SELECT mode, normal selection');
       return;
     }
 
-    if (toolState.activeTool !== ToolType.SELECT) {
-      setIsDrawing(true);
-      setStartPoint(snapToGrid({ x: pointer.x, y: pointer.y }));
+    // If we're in a drawing tool mode, start drawing
+    if (toolState.activeTool === ToolType.MODULE || toolState.activeTool === ToolType.BALCONY) {
+      console.log('Starting to draw:', toolState.activeTool);
+
+      // Prevent fabric's built-in selection behavior
+      canvas.selection = false;
+
+      const snapped = snapToGrid(pointer.x, pointer.y);
+
+      // Store drawing state
+      drawingRef.current = {
+        isDrawing: true,
+        startX: snapped.x,
+        startY: snapped.y,
+        tempObject: null,
+      };
+
+      // Prevent default to avoid issues
+      event.e.preventDefault();
     }
   };
 
-  const handleMouseMove = (event: fabric.IEvent) => {
-    if (!fabricCanvasRef.current || !isDrawing || !startPoint) return;
+  const handleMouseMove = (event: fabric.IEvent<MouseEvent>) => {
+    console.log('here');
+    if (!fabricCanvasRef.current || !activeFloor || !drawingRef.current.isDrawing) return;
 
     const canvas = fabricCanvasRef.current;
     const pointer = canvas.getPointer(event.e);
-    const endPoint = snapToGrid({ x: pointer.x, y: pointer.y });
 
-    // Remove any temp object
-    const tempObjects = canvas.getObjects().filter(obj => obj.data?.temp === true);
-    tempObjects.forEach(obj => canvas.remove(obj));
+    const snapped = snapToGrid(pointer.x, pointer.y);
 
+    // Calculate dimensions for the object
+    let width = Math.abs(snapped.x - drawingRef.current.startX);
+    let height = Math.abs(snapped.y - drawingRef.current.startY);
+
+    // Calculate top-left position
+    let left = Math.min(drawingRef.current.startX, snapped.x);
+    let top = Math.min(drawingRef.current.startY, snapped.y);
+
+    console.log(width, height, left, top);
+
+    // Remove previous temp object if it exists
+    if (drawingRef.current.tempObject) {
+      canvas.remove(drawingRef.current.tempObject);
+    }
+
+    // Create a new temp object based on the active tool
     if (toolState.activeTool === ToolType.MODULE) {
-      const width = Math.abs(endPoint.x - startPoint.x);
-      const height = Math.abs(endPoint.y - startPoint.y);
+      const rect = new fabric.Rect({
+        left,
+        top,
+        width,
+        height,
+        fill: moduleColors[ModuleCategory.A1],
+        stroke: '#333333',
+        strokeWidth: 1,
+        opacity: 0.7,
+        selectable: false,
+      });
 
-      if (width > 0 && height > 0) {
-        const left = Math.min(startPoint.x, endPoint.x);
-        const top = Math.min(startPoint.y, endPoint.y);
-
-        const rect = new fabric.Rect({
-          left,
-          top,
-          width,
-          height,
-          fill: moduleColors[ModuleCategory.A1], // Default category
-          stroke: '#333333',
-          strokeWidth: 1,
-          opacity: 0.7,
-          selectable: false,
-        });
-
-        rect.data = {
-          temp: true,
-          type: 'module',
-        };
-
-        canvas.add(rect);
-        canvas.renderAll();
-      }
+      drawingRef.current.tempObject = rect;
+      canvas.add(rect);
     } else if (toolState.activeTool === ToolType.BALCONY) {
-      const width = Math.abs(endPoint.x - startPoint.x);
-      const height = Math.abs(endPoint.y - startPoint.y);
+      const rect = new fabric.Rect({
+        left,
+        top,
+        width,
+        height,
+        fill: '#FFDEAD',
+        stroke: '#333333',
+        strokeWidth: 1,
+        opacity: 0.7,
+        selectable: false,
+      });
 
-      if (width > 0 && height > 0) {
-        const left = Math.min(startPoint.x, endPoint.x);
-        const top = Math.min(startPoint.y, endPoint.y);
-
-        const rect = new fabric.Rect({
-          left,
-          top,
-          width,
-          height,
-          fill: '#FFDEAD', // Default color for balconies
-          stroke: '#333333',
-          strokeWidth: 1,
-          opacity: 0.7,
-          selectable: false,
-        });
-
-        rect.data = {
-          temp: true,
-          type: 'balcony',
-        };
-
-        canvas.add(rect);
-        canvas.renderAll();
-      }
+      drawingRef.current.tempObject = rect;
+      canvas.add(rect);
     }
+
+    canvas.renderAll();
   };
 
-  const handleMouseUp = (event: fabric.IEvent) => {
-    if (!fabricCanvasRef.current || !isDrawing || !startPoint || !activeFloor) return;
+  const handleMouseUp = (event: fabric.IEvent<MouseEvent>) => {
+    if (!fabricCanvasRef.current || !activeFloor || !drawingRef.current.isDrawing) return;
 
     const canvas = fabricCanvasRef.current;
     const pointer = canvas.getPointer(event.e);
-    const endPoint = snapToGrid({ x: pointer.x, y: pointer.y });
 
-    // Remove any temp object
-    const tempObjects = canvas.getObjects().filter(obj => obj.data?.temp === true);
-    tempObjects.forEach(obj => canvas.remove(obj));
+    console.log('Mouse up - finishing drawing');
 
-    const width = Math.abs(endPoint.x - startPoint.x);
-    const height = Math.abs(endPoint.y - startPoint.y);
+    // Re-enable selection
+    canvas.selection = true;
 
-    // Only create objects if they have a minimum size
-    if (width > gridSettings.size && height > gridSettings.size) {
-      const left = Math.min(startPoint.x, endPoint.x);
-      const top = Math.min(startPoint.y, endPoint.y);
+    // Get final dimensions
+    const snapped = snapToGrid(pointer.x, pointer.y);
+
+    let width = Math.abs(snapped.x - drawingRef.current.startX);
+    let height = Math.abs(snapped.y - drawingRef.current.startY);
+    let left = Math.min(drawingRef.current.startX, snapped.x);
+    let top = Math.min(drawingRef.current.startY, snapped.y);
+
+    // Remove the temporary object
+    if (drawingRef.current.tempObject) {
+      canvas.remove(drawingRef.current.tempObject);
+    }
+
+    // Only create if the size is meaningful
+    if (width > 10 && height > 10) {
+      let newId = '';
 
       if (toolState.activeTool === ToolType.MODULE) {
-        const newModule: Omit<Module, 'id'> = {
-          category: ModuleCategory.A1, // Default category
+        // Create a real module
+        console.log('Creating a module:', width, 'x', height);
+
+        // Add to data model first
+        const newModule = {
+          category: ModuleCategory.A1,
           width,
           height,
           position: { x: left, y: top },
@@ -615,30 +387,55 @@ const FabricCanvas: React.FC = () => {
           openings: [],
         };
 
-        // Track the module state before adding for history
-        const before = { floorId: activeFloor.id, module: null };
+        // Get the new ID (either returned or generated)
+        newId = addModule(newModule);
 
-        // Add the module
-        addModule(newModule);
+        // Create visual representation
+        const rect = new fabric.Rect({
+          left,
+          top,
+          width,
+          height,
+          fill: moduleColors[ModuleCategory.A1],
+          stroke: '#333333',
+          strokeWidth: 1,
+          transparentCorners: false,
+          cornerColor: '#333333',
+          cornerSize: 8,
+          cornerStyle: 'circle',
+          hasControls: true,
+        });
 
-        // Find the newly added module for history
-        const updatedFloor = floors.find(f => f.id === activeFloor.id);
-        const after = {
+        rect.data = {
+          type: 'module',
+          id: newId,
           floorId: activeFloor.id,
-          module: updatedFloor?.modules[updatedFloor.modules.length - 1],
         };
+
+        canvas.add(rect);
+        canvas.setActiveObject(rect);
 
         // Add to history
         addAction({
           type: ActionType.ADD_MODULE,
           payload: {
-            before,
-            after,
-            id: after.module?.id || '',
+            before: { floorId: activeFloor.id, module: null },
+            after: {
+              floorId: activeFloor.id,
+              module: {
+                id: newId,
+                ...newModule,
+              },
+            },
+            id: newId,
             floorId: activeFloor.id,
           },
         });
       } else if (toolState.activeTool === ToolType.BALCONY) {
+        // Create a real balcony
+        console.log('Creating a balcony:', width, 'x', height);
+
+        // Add to data model first
         const newBalcony = {
           width,
           height,
@@ -646,37 +443,66 @@ const FabricCanvas: React.FC = () => {
           rotation: 0,
         };
 
-        // Track the balcony state before adding for history
-        const before = { floorId: activeFloor.id, balcony: null };
+        // Get the new ID (either returned or generated)
+        newId = addBalcony(newBalcony);
 
-        // Add the balcony
-        addBalcony(newBalcony);
+        // Create visual representation
+        const rect = new fabric.Rect({
+          left,
+          top,
+          width,
+          height,
+          fill: '#FFDEAD',
+          stroke: '#333333',
+          strokeWidth: 1,
+          transparentCorners: false,
+          cornerColor: '#333333',
+          cornerSize: 8,
+          cornerStyle: 'circle',
+          hasControls: true,
+        });
 
-        // Find the newly added balcony for history
-        const updatedFloor = floors.find(f => f.id === activeFloor.id);
-        const after = {
+        rect.data = {
+          type: 'balcony',
+          id: newId,
           floorId: activeFloor.id,
-          balcony: updatedFloor?.balconies[updatedFloor.balconies.length - 1],
         };
+
+        canvas.add(rect);
+        canvas.setActiveObject(rect);
 
         // Add to history
         addAction({
           type: ActionType.ADD_BALCONY,
           payload: {
-            before,
-            after,
-            id: after.balcony?.id || '',
+            before: { floorId: activeFloor.id, balcony: null },
+            after: {
+              floorId: activeFloor.id,
+              balcony: {
+                id: newId,
+                ...newBalcony,
+              },
+            },
+            id: newId,
             floorId: activeFloor.id,
           },
         });
       }
+
+      // After creating, switch to select mode and select the new object
+      setToolState({
+        activeTool: ToolType.SELECT,
+        selectedObjectId: newId,
+      });
     }
 
-    setIsDrawing(false);
-    setStartPoint(null);
-
-    // Switch back to SELECT tool after drawing
-    setToolState({ activeTool: ToolType.SELECT });
+    // Reset drawing state
+    drawingRef.current = {
+      isDrawing: false,
+      startX: 0,
+      startY: 0,
+      tempObject: null,
+    };
 
     canvas.renderAll();
   };
@@ -687,198 +513,165 @@ const FabricCanvas: React.FC = () => {
     const target = event.target;
     const objectData = target.data;
 
-    if (!objectData) return;
+    if (!objectData || !objectData.id) return;
 
-    if (objectData.type === 'module' && objectData.id) {
+    console.log('Object modified:', objectData);
+
+    if (objectData.type === 'module') {
+      // Update module properties
       const moduleId = objectData.id;
-      const module = activeFloor.modules.find(m => m.id === moduleId);
 
-      if (!module) return;
-
-      // Store original state for history
-      const before = { module: { ...module } };
-
-      // Update module with new position, size, rotation
       const updatedModule = {
         position: {
           x: Math.round(target.left || 0),
           y: Math.round(target.top || 0),
         },
-        width: Math.round(target.width ? target.getScaledWidth() : module.width),
-        height: Math.round(target.height ? target.getScaledHeight() : module.height),
+        width: Math.round(target.getScaledWidth ? target.getScaledWidth() : target.width || 0),
+        height: Math.round(target.getScaledHeight ? target.getScaledHeight() : target.height || 0),
         rotation: Math.round(target.angle || 0),
       };
 
       // Apply snapping if enabled
       if (gridSettings.snapToGrid) {
-        updatedModule.position = snapToGrid(updatedModule.position);
+        const snapped = snapToGrid(updatedModule.position.x, updatedModule.position.y);
+        updatedModule.position.x = snapped.x;
+        updatedModule.position.y = snapped.y;
         updatedModule.width = Math.round(updatedModule.width / gridSettings.size) * gridSettings.size;
         updatedModule.height = Math.round(updatedModule.height / gridSettings.size) * gridSettings.size;
       }
 
+      // Store original state for history
+      const originalModule = activeFloor.modules.find(m => m.id === moduleId);
+      if (!originalModule) return;
+
+      const before = { module: { ...originalModule } };
+
       // Update the module
       updateModule(moduleId, updatedModule);
 
-      // Get updated state for history
-      const updatedModuleState = activeFloor.modules.find(m => m.id === moduleId);
-      const after = { module: updatedModuleState };
+      // Get updated module for history
+      const afterModule = activeFloor.modules.find(m => m.id === moduleId);
 
       // Add to history
       addAction({
         type: ActionType.UPDATE_MODULE,
         payload: {
           before,
-          after,
+          after: { module: afterModule },
           id: moduleId,
           floorId: activeFloor.id,
         },
       });
-    } else if (objectData.type === 'balcony' && objectData.id) {
+    } else if (objectData.type === 'balcony') {
+      // Update balcony properties
       const balconyId = objectData.id;
-      const balcony = activeFloor.balconies.find(b => b.id === balconyId);
 
-      if (!balcony) return;
-
-      // Store original state for history
-      const before = { balcony: { ...balcony } };
-
-      // Update balcony with new position, size, rotation
       const updatedBalcony = {
         position: {
           x: Math.round(target.left || 0),
           y: Math.round(target.top || 0),
         },
-        width: Math.round(target.width ? target.getScaledWidth() : balcony.width),
-        height: Math.round(target.height ? target.getScaledHeight() : balcony.height),
+        width: Math.round(target.getScaledWidth ? target.getScaledWidth() : target.width || 0),
+        height: Math.round(target.getScaledHeight ? target.getScaledHeight() : target.height || 0),
         rotation: Math.round(target.angle || 0),
       };
 
       // Apply snapping if enabled
       if (gridSettings.snapToGrid) {
-        updatedBalcony.position = snapToGrid(updatedBalcony.position);
+        const snapped = snapToGrid(updatedBalcony.position.x, updatedBalcony.position.y);
+        updatedBalcony.position.x = snapped.x;
+        updatedBalcony.position.y = snapped.y;
         updatedBalcony.width = Math.round(updatedBalcony.width / gridSettings.size) * gridSettings.size;
         updatedBalcony.height = Math.round(updatedBalcony.height / gridSettings.size) * gridSettings.size;
       }
 
+      // Store original state for history
+      const originalBalcony = activeFloor.balconies.find(b => b.id === balconyId);
+      if (!originalBalcony) return;
+
+      const before = { balcony: { ...originalBalcony } };
+
       // Update the balcony
       updateBalcony(balconyId, updatedBalcony);
 
-      // Get updated state for history
-      const updatedBalconyState = activeFloor.balconies.find(b => b.id === balconyId);
-      const after = { balcony: updatedBalconyState };
+      // Get updated balcony for history
+      const afterBalcony = activeFloor.balconies.find(b => b.id === balconyId);
 
       // Add to history
       addAction({
         type: ActionType.UPDATE_BALCONY,
         payload: {
           before,
-          after,
+          after: { balcony: afterBalcony },
           id: balconyId,
           floorId: activeFloor.id,
         },
       });
-    } else if (objectData.type === 'opening' && objectData.id && objectData.moduleId) {
-      // Handle opening modification
-      const openingId = objectData.id;
-      const moduleId = objectData.moduleId;
-      const module = activeFloor.modules.find(m => m.id === moduleId);
-
-      if (!module) return;
-
-      const opening = module.openings.find(o => o.id === openingId);
-      if (!opening) return;
-
-      // Store original state for history
-      const before = {
-        module: { ...module },
-        opening: { ...opening },
-      };
-
-      // Update opening with new position, size, rotation
-      const updatedOpening = {
-        ...opening,
-        position: {
-          x: Math.round(target.left || 0),
-          y: Math.round(target.top || 0),
-        },
-        width: Math.round(target.width ? target.getScaledWidth() : opening.width),
-        height: Math.round(target.height ? target.getScaledHeight() : opening.height),
-        rotation: Math.round(target.angle || 0),
-      };
-
-      // Update the openings array
-      const updatedOpenings = module.openings.map(o => (o.id === openingId ? updatedOpening : o));
-
-      // Update the module with the updated openings
-      updateModule(moduleId, { openings: updatedOpenings });
-
-      // Get updated state for history
-      const updatedModuleState = activeFloor.modules.find(m => m.id === moduleId);
-      const updatedOpeningState = updatedModuleState?.openings.find(o => o.id === openingId);
-
-      const after = {
-        module: updatedModuleState,
-        opening: updatedOpeningState,
-      };
-
-      // Add to history
-      addAction({
-        type: ActionType.UPDATE_OPENING,
-        payload: {
-          before,
-          after,
-          id: openingId,
-          floorId: activeFloor.id,
-        },
-      });
+    } else if (objectData.type === 'pdfBackdrop') {
+      // Handle PDF backdrop modification if needed
+      console.log('PDF backdrop modified');
     }
   };
 
   const handleSelectionCreated = (event: fabric.IEvent) => {
-    if (!event.selected || event.selected.length === 0) return;
+    if (!fabricCanvasRef.current) return;
 
-    const selectedObject = event.selected[0];
-    const objectData = selectedObject.data;
+    const canvas = fabricCanvasRef.current;
+    const activeObject = canvas.getActiveObject();
+
+    if (!activeObject || !activeObject.data) return;
+
+    const objectData = activeObject.data;
 
     if (objectData && objectData.id) {
+      console.log('Selection created:', objectData);
+
       setToolState({
-        selectedObjectId: objectData.id,
         activeTool: ToolType.SELECT,
+        selectedObjectId: objectData.id,
       });
     }
   };
 
-  const handleSelectionCleared = (event: fabric.IEvent) => {
+  const handleSelectionCleared = () => {
     setToolState({
       selectedObjectId: null,
       activeTool: toolState.activeTool,
     });
   };
 
-  // Add keyboard event handlers for shortcuts
+  // Keyboard shortcuts handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!fabricCanvasRef.current) return;
-
-      const canvas = fabricCanvasRef.current;
+      // Tool shortcuts
+      if (e.key === 'v' || e.key === 'V') {
+        setToolState({ activeTool: ToolType.SELECT });
+      } else if (e.key === 'm' || e.key === 'M') {
+        setToolState({ activeTool: ToolType.MODULE });
+      } else if (e.key === 'b' || e.key === 'B') {
+        setToolState({ activeTool: ToolType.BALCONY });
+      }
 
       // Delete key - remove selected object
       if (e.key === 'Delete' && toolState.selectedObjectId) {
+        const canvas = fabricCanvasRef.current;
+        if (!canvas) return;
+
         const activeObject = canvas.getActiveObject();
-        if (!activeObject) return;
+        if (!activeObject || !activeObject.data) return;
 
         const objectData = activeObject.data;
-        if (!objectData || !objectData.id) return;
 
         if (objectData.type === 'module') {
-          const module = activeFloor?.modules.find(m => m.id === objectData.id);
-          if (!module || !activeFloor) return;
+          const originalModule = activeFloor?.modules.find(m => m.id === objectData.id);
+          if (!originalModule || !activeFloor) return;
 
-          // Store original state for history
-          const before = { module, floorId: activeFloor.id };
+          // Store for history
+          const before = { module: originalModule, floorId: activeFloor.id };
 
-          // Delete the module
           deleteModule(objectData.id);
+          canvas.remove(activeObject);
+          canvas.renderAll();
 
           // Add to history
           addAction({
@@ -891,19 +684,17 @@ const FabricCanvas: React.FC = () => {
             },
           });
 
-          canvas.remove(activeObject);
-          canvas.renderAll();
-
           setToolState({ selectedObjectId: null });
         } else if (objectData.type === 'balcony') {
-          const balcony = activeFloor?.balconies.find(b => b.id === objectData.id);
-          if (!balcony || !activeFloor) return;
+          const originalBalcony = activeFloor?.balconies.find(b => b.id === objectData.id);
+          if (!originalBalcony || !activeFloor) return;
 
-          // Store original state for history
-          const before = { balcony, floorId: activeFloor.id };
+          // Store for history
+          const before = { balcony: originalBalcony, floorId: activeFloor.id };
 
-          // Delete the balcony
           deleteBalcony(objectData.id);
+          canvas.remove(activeObject);
+          canvas.renderAll();
 
           // Add to history
           addAction({
@@ -916,308 +707,28 @@ const FabricCanvas: React.FC = () => {
             },
           });
 
-          canvas.remove(activeObject);
-          canvas.renderAll();
-
-          setToolState({ selectedObjectId: null });
-        } else if (objectData.type === 'opening' && objectData.moduleId) {
-          const moduleId = objectData.moduleId;
-          const module = activeFloor?.modules.find(m => m.id === moduleId);
-          if (!module || !activeFloor) return;
-
-          const opening = module.openings.find(o => o.id === objectData.id);
-          if (!opening) return;
-
-          // Store original state for history
-          const before = {
-            module: { ...module },
-            opening,
-            floorId: activeFloor.id,
-          };
-
-          // Remove the opening from the module
-          const updatedOpenings = module.openings.filter(o => o.id !== objectData.id);
-          updateModule(moduleId, { openings: updatedOpenings });
-
-          // Add to history
-          addAction({
-            type: ActionType.DELETE_OPENING,
-            payload: {
-              before,
-              after: {
-                module: { ...module, openings: updatedOpenings },
-                opening: null,
-                floorId: activeFloor.id,
-              },
-              id: objectData.id,
-              floorId: activeFloor.id,
-            },
-          });
-
-          canvas.remove(activeObject);
-
-          // Also remove any associated objects (like door arcs)
-          const associatedObjects = canvas.getObjects().filter(obj => obj.data?.openingId === objectData.id);
-
-          associatedObjects.forEach(obj => canvas.remove(obj));
-
-          canvas.renderAll();
-
           setToolState({ selectedObjectId: null });
         }
       }
 
-      // Escape key - clear selection and return to select tool
-      if (e.key === 'Escape') {
-        canvas.discardActiveObject();
-        canvas.renderAll();
-
-        setToolState({
-          activeTool: ToolType.SELECT,
-          selectedObjectId: null,
-        });
+      // Undo (Ctrl+Z)
+      if (e.ctrlKey && e.key === 'z') {
+        console.log('Trying to undo');
+        undo();
+        e.preventDefault();
       }
 
-      // Ctrl+C - copy selected object
-      if (e.ctrlKey && e.key === 'c' && toolState.selectedObjectId) {
-        const activeObject = canvas.getActiveObject();
-        if (!activeObject || !activeObject.data) return;
-
-        // Store the copied object data in sessionStorage
-        const objectData = activeObject.data;
-        if (objectData.type === 'module') {
-          const module = activeFloor?.modules.find(m => m.id === objectData.id);
-          if (module) {
-            sessionStorage.setItem(
-              'copiedObject',
-              JSON.stringify({
-                type: 'module',
-                data: module,
-              })
-            );
-          }
-        } else if (objectData.type === 'balcony') {
-          const balcony = activeFloor?.balconies.find(b => b.id === objectData.id);
-          if (balcony) {
-            sessionStorage.setItem(
-              'copiedObject',
-              JSON.stringify({
-                type: 'balcony',
-                data: balcony,
-              })
-            );
-          }
-        }
-      }
-
-      // Ctrl+V - paste copied object
-      if (e.ctrlKey && e.key === 'v') {
-        const copiedObjectJson = sessionStorage.getItem('copiedObject');
-        if (!copiedObjectJson || !activeFloor) return;
-
-        try {
-          const copiedObject = JSON.parse(copiedObjectJson);
-
-          if (copiedObject.type === 'module') {
-            const module = copiedObject.data;
-
-            // Create a new module with offset position
-            const newModule: Omit<Module, 'id'> = {
-              category: module.category,
-              width: module.width,
-              height: module.height,
-              position: {
-                x: module.position.x + gridSettings.size * 2,
-                y: module.position.y + gridSettings.size * 2,
-              },
-              rotation: module.rotation,
-              openings: [], // Don't copy openings for simplicity
-            };
-
-            // Add the module
-            addModule(newModule);
-
-            // Find the newly added module for history
-            const updatedFloor = floors.find(f => f.id === activeFloor.id);
-            const newModuleWithId = updatedFloor?.modules[updatedFloor.modules.length - 1];
-
-            // Add to history
-            if (newModuleWithId) {
-              addAction({
-                type: ActionType.ADD_MODULE,
-                payload: {
-                  before: { floorId: activeFloor.id, module: null },
-                  after: { floorId: activeFloor.id, module: newModuleWithId },
-                  id: newModuleWithId.id,
-                  floorId: activeFloor.id,
-                },
-              });
-            }
-          } else if (copiedObject.type === 'balcony') {
-            const balcony = copiedObject.data;
-
-            // Create a new balcony with offset position
-            const newBalcony = {
-              width: balcony.width,
-              height: balcony.height,
-              position: {
-                x: balcony.position.x + gridSettings.size * 2,
-                y: balcony.position.y + gridSettings.size * 2,
-              },
-              rotation: balcony.rotation,
-            };
-
-            // Add the balcony
-            addBalcony(newBalcony);
-
-            // Find the newly added balcony for history
-            const updatedFloor = floors.find(f => f.id === activeFloor.id);
-            const newBalconyWithId = updatedFloor?.balconies[updatedFloor.balconies.length - 1];
-
-            // Add to history
-            if (newBalconyWithId) {
-              addAction({
-                type: ActionType.ADD_BALCONY,
-                payload: {
-                  before: { floorId: activeFloor.id, balcony: null },
-                  after: { floorId: activeFloor.id, balcony: newBalconyWithId },
-                  id: newBalconyWithId.id,
-                  floorId: activeFloor.id,
-                },
-              });
-            }
-          }
-
-          // Refresh the canvas
-          syncCanvasWithFloor();
-        } catch (error) {
-          console.error('Error pasting object:', error);
-        }
-      }
-
-      // Tool shortcuts
-      if (e.key === 'v' || e.key === 'V') {
-        setToolState({ activeTool: ToolType.SELECT });
-      } else if (e.key === 'm' || e.key === 'M') {
-        setToolState({ activeTool: ToolType.MODULE });
-      } else if (e.key === 'd' || e.key === 'D') {
-        setToolState({ activeTool: ToolType.OPENING_DOOR });
-      } else if (e.key === 'w' || e.key === 'W') {
-        setToolState({ activeTool: ToolType.OPENING_WINDOW });
-      } else if (e.key === 'o' || e.key === 'O') {
-        setToolState({ activeTool: ToolType.OPENING_GENERIC });
-      } else if (e.key === 'b' || e.key === 'B') {
-        setToolState({ activeTool: ToolType.BALCONY });
+      // Redo (Ctrl+Y or Ctrl+Shift+Z)
+      if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'z')) {
+        console.log('Trying to redo');
+        redo();
+        e.preventDefault();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [
-    activeFloorId,
-    floors,
-    toolState.selectedObjectId,
-    addModule,
-    updateModule,
-    deleteModule,
-    addBalcony,
-    updateBalcony,
-    deleteBalcony,
-    setToolState,
-    addAction,
-    gridSettings.size,
-    gridSettings.snapToGrid,
-    activeFloor,
-  ]);
-
-  // Handle canvas pan and zoom with mouse
-  useEffect(() => {
-    if (!fabricCanvasRef.current) return;
-
-    const canvas = fabricCanvasRef.current;
-    let isDragging = false;
-    let lastPosX = 0;
-    let lastPosY = 0;
-
-    const handleMouseWheel = (event: WheelEvent) => {
-      if (!fabricCanvasRef.current) return;
-
-      const canvas = fabricCanvasRef.current;
-      const delta = event.deltaY;
-      let zoom = canvas.getZoom();
-
-      // Adjust zoom factor based on wheel direction
-      zoom = delta > 0 ? zoom * 0.9 : zoom * 1.1;
-
-      // Clamp zoom
-      zoom = Math.min(Math.max(0.5, zoom), 5);
-
-      // Get mouse position
-      const pointer = canvas.getPointer(event);
-
-      // Set zoom with point as center
-      canvas.zoomToPoint(new fabric.Point(pointer.x, pointer.y), zoom);
-
-      event.preventDefault();
-      event.stopPropagation();
-    };
-
-    const handleMouseDown = (event: MouseEvent) => {
-      if (!fabricCanvasRef.current) return;
-
-      // Only initiate pan if space key is held down or middle mouse button
-      if (event.button === 1 || (event.button === 0 && event.altKey)) {
-        const canvas = fabricCanvasRef.current;
-        isDragging = true;
-        canvas.selection = false;
-        lastPosX = event.clientX;
-        lastPosY = event.clientY;
-
-        event.preventDefault();
-      }
-    };
-
-    const handleMouseMove = (event: MouseEvent) => {
-      if (!fabricCanvasRef.current || !isDragging) return;
-
-      const canvas = fabricCanvasRef.current;
-      const vpt = canvas.viewportTransform;
-      if (!vpt) return;
-
-      vpt[4] += event.clientX - lastPosX;
-      vpt[5] += event.clientY - lastPosY;
-
-      canvas.requestRenderAll();
-
-      lastPosX = event.clientX;
-      lastPosY = event.clientY;
-    };
-
-    const handleMouseUp = (event: MouseEvent) => {
-      if (!fabricCanvasRef.current) return;
-
-      isDragging = false;
-      const canvas = fabricCanvasRef.current;
-      canvas.selection = true;
-    };
-
-    // Add event listeners
-    const canvasElement = canvas.getElement();
-    canvasElement.addEventListener('wheel', handleMouseWheel);
-    canvasElement.addEventListener('mousedown', handleMouseDown);
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      canvasElement.removeEventListener('wheel', handleMouseWheel);
-      canvasElement.removeEventListener('mousedown', handleMouseDown);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, []);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [toolState, activeFloor]);
 
   return (
     <CanvasContainer>

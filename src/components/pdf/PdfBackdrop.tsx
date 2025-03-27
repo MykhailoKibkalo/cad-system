@@ -23,7 +23,7 @@ const Label = styled.label`
   font-size: 14px;
 `;
 
-const UploadButton = styled.button`
+const Button = styled.button`
   padding: 8px 16px;
   background-color: #4a90e2;
   color: white;
@@ -34,6 +34,19 @@ const UploadButton = styled.button`
 
   &:hover {
     background-color: #3a80d2;
+  }
+
+  &:disabled {
+    background-color: #a9c7eb;
+    cursor: not-allowed;
+  }
+`;
+
+const ToggleButton = styled(Button)<{ isActive: boolean }>`
+  background-color: ${props => (props.isActive ? '#4CAF50' : '#F44336')};
+
+  &:hover {
+    background-color: ${props => (props.isActive ? '#3e8e41' : '#d32f2f')};
   }
 `;
 
@@ -54,13 +67,14 @@ const PdfBackdropControls: React.FC = () => {
   const activeFloor = floors.find(floor => floor.id === activeFloorId);
   const [opacity, setOpacity] = useState(activeFloor?.backdrop?.opacity || 0.5);
   const [scale, setScale] = useState(activeFloor?.backdrop?.scale || 1);
-  const [movable, setMovable] = useState(true);
+  const [isLocked, setIsLocked] = useState(activeFloor?.backdrop?.locked || false);
 
   // Update state when active floor changes
   useEffect(() => {
     if (activeFloor) {
       setOpacity(activeFloor.backdrop?.opacity || 0.5);
       setScale(activeFloor.backdrop?.scale || 1);
+      setIsLocked(activeFloor.backdrop?.locked || false);
     }
   }, [activeFloor]);
 
@@ -74,6 +88,7 @@ const PdfBackdropControls: React.FC = () => {
       opacity: activeFloor.backdrop.opacity,
       x: activeFloor.backdrop.position.x,
       y: activeFloor.backdrop.position.y,
+      selectable: !activeFloor.backdrop.locked,
     });
   }, [activeFloorId, fabricCanvasRef]);
 
@@ -115,6 +130,8 @@ const PdfBackdropControls: React.FC = () => {
           x: 0,
           y: 0,
         },
+        locked: false, // Initially unlocked
+        fileName: file.name,
       };
 
       // Load the PDF onto the canvas
@@ -123,11 +140,14 @@ const PdfBackdropControls: React.FC = () => {
         opacity: opacity,
         x: 0,
         y: 0,
-        selectable: movable,
+        selectable: true, // Initially selectable
       });
 
       // Update the floor with the new backdrop
       updateFloor(activeFloorId, { backdrop: newBackdrop });
+
+      // Update local state
+      setIsLocked(false);
 
       // Add to history
       addAction({
@@ -153,6 +173,8 @@ const PdfBackdropControls: React.FC = () => {
   };
 
   const handleOpacityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isLocked) return; // Prevent changes if locked
+
     const newOpacity = parseFloat(e.target.value);
     setOpacity(newOpacity);
 
@@ -191,6 +213,8 @@ const PdfBackdropControls: React.FC = () => {
   };
 
   const handleScaleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isLocked) return; // Prevent changes if locked
+
     const newScale = parseFloat(e.target.value);
     setScale(newScale);
 
@@ -228,6 +252,58 @@ const PdfBackdropControls: React.FC = () => {
     });
   };
 
+  const handleToggleLock = () => {
+    if (!activeFloorId || !activeFloor?.backdrop || !fabricCanvasRef?.current) return;
+
+    const newLockState = !isLocked;
+    setIsLocked(newLockState);
+
+    // Store the original backdrop for history
+    const before = {
+      backdrop: activeFloor.backdrop,
+      floorId: activeFloorId,
+    };
+
+    // Update the backdrop with new lock state
+    const updatedBackdrop = {
+      ...activeFloor.backdrop,
+      locked: newLockState,
+    };
+
+    // Find the PDF backdrop object in the canvas
+    const canvas = fabricCanvasRef.current;
+    const pdfObject = canvas.getObjects().find(obj => obj.data?.type === 'pdfBackdrop');
+
+    if (pdfObject) {
+      // Update the object's selectable property
+      pdfObject.set('selectable', !newLockState);
+      pdfObject.set('evented', !newLockState);
+
+      // If locking, also reset the current selection if it's the PDF
+      if (newLockState && canvas.getActiveObject() === pdfObject) {
+        canvas.discardActiveObject();
+      }
+
+      canvas.renderAll();
+    }
+
+    // Update the floor with the modified backdrop
+    updateFloor(activeFloorId, { backdrop: updatedBackdrop });
+
+    // Add to history
+    addAction({
+      type: ActionType.UPDATE_PDF,
+      payload: {
+        before,
+        after: {
+          backdrop: updatedBackdrop,
+          floorId: activeFloorId,
+        },
+        id: activeFloorId,
+      },
+    });
+  };
+
   const handleRemoveBackdrop = () => {
     if (!activeFloorId || !activeFloor?.backdrop || !fabricCanvasRef?.current) return;
 
@@ -242,6 +318,9 @@ const PdfBackdropControls: React.FC = () => {
 
     // Remove the backdrop from the floor data
     updateFloor(activeFloorId, { backdrop: undefined });
+
+    // Reset local state
+    setIsLocked(false);
 
     // Add to history
     addAction({
@@ -262,21 +341,55 @@ const PdfBackdropControls: React.FC = () => {
       <h3>PDF Backdrop</h3>
 
       <ControlGroup>
-        <UploadButton onClick={handleUploadClick}>{activeFloor?.backdrop ? 'Change PDF' : 'Upload PDF'}</UploadButton>
-        {activeFloor?.backdrop && <UploadButton onClick={handleRemoveBackdrop}>Remove PDF</UploadButton>}
+        <Button onClick={handleUploadClick} disabled={isLocked}>
+          {activeFloor?.backdrop ? 'Change PDF' : 'Upload PDF'}
+        </Button>
+
+        {activeFloor?.backdrop && (
+          <>
+            <Button onClick={handleRemoveBackdrop} disabled={isLocked}>
+              Remove PDF
+            </Button>
+
+            <ToggleButton onClick={handleToggleLock} isActive={isLocked}>
+              {isLocked ? 'Unlock PDF' : 'Lock PDF'}
+            </ToggleButton>
+          </>
+        )}
+
         <FileInput type="file" ref={fileInputRef} accept="application/pdf" onChange={handleFileChange} />
       </ControlGroup>
 
       {activeFloor?.backdrop && (
         <>
           <ControlGroup>
+            <Label>File: {activeFloor.backdrop.fileName || 'PDF Document'}</Label>
+          </ControlGroup>
+
+          <ControlGroup>
             <Label>Opacity: {opacity.toFixed(2)}</Label>
-            <Slider type="range" min="0" max="1" step="0.05" value={opacity} onChange={handleOpacityChange} />
+            <Slider
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={opacity}
+              onChange={handleOpacityChange}
+              disabled={isLocked}
+            />
           </ControlGroup>
 
           <ControlGroup>
             <Label>Scale: {scale.toFixed(2)}x</Label>
-            <Slider type="range" min="0.1" max="5" step="0.1" value={scale} onChange={handleScaleChange} />
+            <Slider
+              type="range"
+              min="0.1"
+              max="5"
+              step="0.1"
+              value={scale}
+              onChange={handleScaleChange}
+              disabled={isLocked}
+            />
           </ControlGroup>
         </>
       )}

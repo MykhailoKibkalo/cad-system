@@ -1,5 +1,5 @@
 // src/components/ui/Toolbar.tsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import styled from '@emotion/styled';
 import { useCad } from '@/context/CadContext';
 import { useHistory } from '@/context/HistoryContext';
@@ -42,6 +42,11 @@ const ToolButton = styled.button<{ active?: boolean }>`
 
   &:hover {
     background-color: #e0e0e0;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   &:hover::after {
@@ -141,8 +146,22 @@ const Toolbar: React.FC = () => {
 
   const { canUndo, canRedo, undo, redo } = useHistory();
 
+  // Add an effect to log when toolbar state changes
+  useEffect(() => {
+    console.log('Toolbar - Current tool state:', toolState);
+  }, [toolState]);
+
   const handleToolClick = (tool: ToolType) => {
-    setToolState({ activeTool: tool });
+    console.log(`Toolbar - Changing tool to: ${tool}`);
+    // Reset the selection when switching tools
+    if (tool !== ToolType.SELECT) {
+      setToolState({
+        activeTool: tool,
+        selectedObjectId: null,
+      });
+    } else {
+      setToolState({ activeTool: tool });
+    }
   };
 
   const handleGridSizeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -162,13 +181,11 @@ const Toolbar: React.FC = () => {
 
   const handleUndoClick = () => {
     const action = undo();
-    // Handle the action based on its type
     console.log('Undo action:', action);
   };
 
   const handleRedoClick = () => {
     const action = redo();
-    // Handle the action based on its type
     console.log('Redo action:', action);
   };
 
@@ -179,6 +196,7 @@ const Toolbar: React.FC = () => {
           active={toolState.activeTool === ToolType.SELECT}
           onClick={() => handleToolClick(ToolType.SELECT)}
           title="Select Tool (V)"
+          data-tooltip="Select (V)"
         >
           <SelectIcon />
         </ToolButton>
@@ -186,6 +204,7 @@ const Toolbar: React.FC = () => {
           active={toolState.activeTool === ToolType.MODULE}
           onClick={() => handleToolClick(ToolType.MODULE)}
           title="Module Tool (M)"
+          data-tooltip="Module (M)"
         >
           <ModuleIcon />
         </ToolButton>
@@ -193,6 +212,7 @@ const Toolbar: React.FC = () => {
           active={toolState.activeTool === ToolType.OPENING_DOOR}
           onClick={() => handleToolClick(ToolType.OPENING_DOOR)}
           title="Door Tool (D)"
+          data-tooltip="Door (D)"
         >
           <DoorIcon />
         </ToolButton>
@@ -200,6 +220,7 @@ const Toolbar: React.FC = () => {
           active={toolState.activeTool === ToolType.OPENING_WINDOW}
           onClick={() => handleToolClick(ToolType.OPENING_WINDOW)}
           title="Window Tool (W)"
+          data-tooltip="Window (W)"
         >
           <WindowIcon />
         </ToolButton>
@@ -207,16 +228,17 @@ const Toolbar: React.FC = () => {
           active={toolState.activeTool === ToolType.BALCONY}
           onClick={() => handleToolClick(ToolType.BALCONY)}
           title="Balcony Tool (B)"
+          data-tooltip="Balcony (B)"
         >
           <BalconyIcon />
         </ToolButton>
       </ToolGroup>
 
       <ToolGroup>
-        <ToolButton onClick={handleUndoClick} disabled={!canUndo} title="Undo (Ctrl+Z)">
+        <ToolButton onClick={handleUndoClick} disabled={!canUndo} title="Undo (Ctrl+Z)" data-tooltip="Undo (Ctrl+Z)">
           <UndoIcon />
         </ToolButton>
-        <ToolButton onClick={handleRedoClick} disabled={!canRedo} title="Redo (Ctrl+Y)">
+        <ToolButton onClick={handleRedoClick} disabled={!canRedo} title="Redo (Ctrl+Y)" data-tooltip="Redo (Ctrl+Y)">
           <RedoIcon />
         </ToolButton>
       </ToolGroup>

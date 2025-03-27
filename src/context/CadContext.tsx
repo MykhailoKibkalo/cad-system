@@ -18,10 +18,10 @@ interface CadContextType {
   deleteFloor: (id: string) => void;
   setActiveFloorId: (id: string) => void;
   updateFloor: (id: string, floor: Partial<Floor>) => void;
-  addModule: (module: Omit<Module, 'id'>) => void;
+  addModule: (module: Omit<Module, 'id'>) => string;
   updateModule: (id: string, module: Partial<Module>) => void;
   deleteModule: (id: string) => void;
-  addBalcony: (balcony: Omit<Balcony, 'id'>) => void;
+  addBalcony: (balcony: Omit<Balcony, 'id'>) => string;
   updateBalcony: (id: string, balcony: Partial<Balcony>) => void;
   deleteBalcony: (id: string) => void;
   setGridSettings: (settings: Partial<GridSettings>) => void;
@@ -151,9 +151,10 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const addModule = (module: Omit<Module, 'id'>) => {
+    const newId = uuidv4();
     const newModule: Module = {
       ...module,
-      id: uuidv4(),
+      id: newId,
     };
 
     setFloors(
@@ -166,6 +167,8 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           : floor
       )
     );
+
+    return newId;
   };
 
   const updateModule = (id: string, updatedModule: Partial<Module>) => {
@@ -187,9 +190,10 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const addBalcony = (balcony: Omit<Balcony, 'id'>) => {
+    const newId = uuidv4();
     const newBalcony: Balcony = {
       ...balcony,
-      id: uuidv4(),
+      id: newId,
     };
 
     setFloors(
@@ -197,6 +201,8 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         floor.id === activeFloorId ? { ...floor, balconies: [...floor.balconies, newBalcony] } : floor
       )
     );
+
+    return newId;
   };
 
   const updateBalcony = (id: string, updatedBalcony: Partial<Balcony>) => {
@@ -226,7 +232,7 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const updateToolStateHandler = (state: Partial<ToolState>) => {
-    setToolState({ ...toolState, ...state });
+    setToolState(prev => ({ ...prev, ...state }));
   };
 
   const getActiveFloor = () => {

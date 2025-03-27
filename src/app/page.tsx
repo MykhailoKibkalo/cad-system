@@ -11,6 +11,7 @@ import PropertyPanel from '../components/ui/PropertyPanel';
 import FloorSelector from '../components/ui/FloorSelector';
 import PdfBackdropControls from '../components/pdf/PdfBackdrop';
 import DebugHelper from '@/components/debug/DebugHelper';
+import ForceToolSelection from '@/components/ui/ForceToolSelection';
 
 const AppContainer = styled.div`
   display: flex;
@@ -54,6 +55,7 @@ export default function Home() {
               <FloorSelector />
             </SidePanel>
           </ContentContainer>
+          <ForceToolSelection />
           <DebugHelper />
         </AppContainer>
       </HistoryProvider>

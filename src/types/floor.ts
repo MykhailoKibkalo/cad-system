@@ -10,9 +10,10 @@ export interface PdfBackdrop {
     x: number;
     y: number;
   };
+  locked?: boolean; // Added locked property
   currentPage?: number;
   totalPages?: number;
-  fileName?: string;
+  fileName?: string; // Added fileName property
 }
 
 export interface Floor {
