@@ -1,5 +1,6 @@
 // src/context/CadContext.tsx
-import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
+import { fabric } from 'fabric';
 import { v4 as uuidv4 } from 'uuid';
 import { Balcony, CanvasSettings, Floor, GridSettings, Module, ModuleColors, ToolState, ToolType } from '@/types';
 
@@ -10,6 +11,7 @@ interface CadContextType {
   canvasSettings: CanvasSettings;
   toolState: ToolState;
   moduleColors: ModuleColors;
+  fabricCanvasRef: React.MutableRefObject<fabric.Canvas | null>;
   setFloors: (floors: Floor[]) => void;
   addFloor: (name: string) => void;
   duplicateFloor: (id: string) => void;
@@ -76,6 +78,7 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [canvasSettings, setCanvasSettings] = useState<CanvasSettings>(defaultCanvasSettings);
   const [toolState, setToolState] = useState<ToolState>(defaultToolState);
   const [moduleColors, setModuleColors] = useState<ModuleColors>(defaultModuleColors);
+  const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
 
   // Initialize with a default floor on first render
   useEffect(() => {
@@ -255,6 +258,7 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         canvasSettings,
         toolState,
         moduleColors,
+        fabricCanvasRef,
         setFloors,
         addFloor,
         duplicateFloor,

@@ -5,6 +5,7 @@ import styled from '@emotion/styled';
 import { useCad } from '@/context/CadContext';
 import { useHistory } from '@/context/HistoryContext';
 import { ActionType, Module, ModuleCategory, Opening, OpeningType, ToolType } from '@/types';
+import { loadPdfToCanvas } from '../pdf/PdfHandler';
 import { v4 as uuidv4 } from 'uuid';
 
 const CanvasContainer = styled.div`
@@ -16,7 +17,6 @@ const CanvasContainer = styled.div`
 
 const FabricCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
 
   const {
     floors,
@@ -25,6 +25,7 @@ const FabricCanvas: React.FC = () => {
     canvasSettings,
     toolState,
     moduleColors,
+    fabricCanvasRef,
     addModule,
     updateModule,
     deleteModule,
@@ -337,24 +338,12 @@ const FabricCanvas: React.FC = () => {
 
     // Add PDF backdrop if exists
     if (activeFloor.backdrop) {
-      // Implementation for PDF backdrop to be added later
-      // For now, add a placeholder
-      const backdropRect = new fabric.Rect({
-        left: 0,
-        top: 0,
-        width: canvasSettings.width,
-        height: canvasSettings.height,
-        fill: '#f8f8f8',
+      loadPdfToCanvas(canvas, activeFloor.backdrop.url, {
+        scale: activeFloor.backdrop.scale,
         opacity: activeFloor.backdrop.opacity,
-        selectable: false,
-        evented: false,
+        x: activeFloor.backdrop.position.x,
+        y: activeFloor.backdrop.position.y,
       });
-      backdropRect.data = {
-        type: 'backdrop',
-        id: activeFloor.backdrop.id,
-      };
-      canvas.add(backdropRect);
-      canvas.sendToBack(backdropRect);
     }
 
     // Add modules

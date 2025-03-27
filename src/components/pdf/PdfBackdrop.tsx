@@ -1,9 +1,10 @@
 // src/components/pdf/PdfBackdrop.tsx
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import styled from '@emotion/styled';
 import { useCad } from '@/context/CadContext';
 import { useHistory } from '@/context/HistoryContext';
 import { ActionType, PdfBackdrop as PdfBackdropType } from '../../types';
+import { adjustPdfBackdrop, loadPdfToCanvas, removePdfBackdrop } from './PdfHandler';
 import { v4 as uuidv4 } from 'uuid';
 
 const PdfControlContainer = styled.div`
@@ -45,7 +46,7 @@ const Slider = styled.input`
 `;
 
 const PdfBackdropControls: React.FC = () => {
-  const { activeFloorId, floors, updateFloor } = useCad();
+  const { activeFloorId, floors, updateFloor, fabricCanvasRef } = useCad();
 
   const { addAction } = useHistory();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -53,6 +54,28 @@ const PdfBackdropControls: React.FC = () => {
   const activeFloor = floors.find(floor => floor.id === activeFloorId);
   const [opacity, setOpacity] = useState(activeFloor?.backdrop?.opacity || 0.5);
   const [scale, setScale] = useState(activeFloor?.backdrop?.scale || 1);
+  const [movable, setMovable] = useState(true);
+
+  // Update state when active floor changes
+  useEffect(() => {
+    if (activeFloor) {
+      setOpacity(activeFloor.backdrop?.opacity || 0.5);
+      setScale(activeFloor.backdrop?.scale || 1);
+    }
+  }, [activeFloor]);
+
+  // Render PDF on canvas when it changes
+  useEffect(() => {
+    const canvas = fabricCanvasRef?.current;
+    if (!canvas || !activeFloor || !activeFloor.backdrop) return;
+
+    loadPdfToCanvas(canvas, activeFloor.backdrop.url, {
+      scale: activeFloor.backdrop.scale,
+      opacity: activeFloor.backdrop.opacity,
+      x: activeFloor.backdrop.position.x,
+      y: activeFloor.backdrop.position.y,
+    });
+  }, [activeFloorId, fabricCanvasRef]);
 
   const handleUploadClick = () => {
     if (fileInputRef.current) {
@@ -62,7 +85,9 @@ const PdfBackdropControls: React.FC = () => {
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files || files.length === 0 || !activeFloorId) return;
+    const canvas = fabricCanvasRef?.current;
+
+    if (!files || files.length === 0 || !activeFloorId || !canvas) return;
 
     const file = files[0];
     if (file.type !== 'application/pdf') {
@@ -91,6 +116,15 @@ const PdfBackdropControls: React.FC = () => {
           y: 0,
         },
       };
+
+      // Load the PDF onto the canvas
+      await loadPdfToCanvas(canvas, fileUrl, {
+        scale: scale,
+        opacity: opacity,
+        x: 0,
+        y: 0,
+        selectable: movable,
+      });
 
       // Update the floor with the new backdrop
       updateFloor(activeFloorId, { backdrop: newBackdrop });
@@ -122,7 +156,7 @@ const PdfBackdropControls: React.FC = () => {
     const newOpacity = parseFloat(e.target.value);
     setOpacity(newOpacity);
 
-    if (!activeFloorId || !activeFloor?.backdrop) return;
+    if (!activeFloorId || !activeFloor?.backdrop || !fabricCanvasRef?.current) return;
 
     // Store the original backdrop for history
     const before = {
@@ -135,6 +169,9 @@ const PdfBackdropControls: React.FC = () => {
       ...activeFloor.backdrop,
       opacity: newOpacity,
     };
+
+    // Update the canvas
+    adjustPdfBackdrop(fabricCanvasRef.current, { opacity: newOpacity });
 
     // Update the floor with the modified backdrop
     updateFloor(activeFloorId, { backdrop: updatedBackdrop });
@@ -157,7 +194,7 @@ const PdfBackdropControls: React.FC = () => {
     const newScale = parseFloat(e.target.value);
     setScale(newScale);
 
-    if (!activeFloorId || !activeFloor?.backdrop) return;
+    if (!activeFloorId || !activeFloor?.backdrop || !fabricCanvasRef?.current) return;
 
     // Store the original backdrop for history
     const before = {
@@ -170,6 +207,9 @@ const PdfBackdropControls: React.FC = () => {
       ...activeFloor.backdrop,
       scale: newScale,
     };
+
+    // Update the canvas
+    adjustPdfBackdrop(fabricCanvasRef.current, { scale: newScale });
 
     // Update the floor with the modified backdrop
     updateFloor(activeFloorId, { backdrop: updatedBackdrop });
@@ -189,7 +229,7 @@ const PdfBackdropControls: React.FC = () => {
   };
 
   const handleRemoveBackdrop = () => {
-    if (!activeFloorId || !activeFloor?.backdrop) return;
+    if (!activeFloorId || !activeFloor?.backdrop || !fabricCanvasRef?.current) return;
 
     // Store the original backdrop for history
     const before = {
@@ -197,7 +237,10 @@ const PdfBackdropControls: React.FC = () => {
       floorId: activeFloorId,
     };
 
-    // Remove the backdrop
+    // Remove the backdrop from the canvas
+    removePdfBackdrop(fabricCanvasRef.current);
+
+    // Remove the backdrop from the floor data
     updateFloor(activeFloorId, { backdrop: undefined });
 
     // Add to history

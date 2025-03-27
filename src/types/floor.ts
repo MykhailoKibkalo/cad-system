@@ -10,6 +10,9 @@ export interface PdfBackdrop {
     x: number;
     y: number;
   };
+  currentPage?: number;
+  totalPages?: number;
+  fileName?: string;
 }
 
 export interface Floor {

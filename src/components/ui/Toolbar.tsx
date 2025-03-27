@@ -1,9 +1,9 @@
 // src/components/ui/Toolbar.tsx
 import React from 'react';
 import styled from '@emotion/styled';
-import { useCad } from '../../context/CadContext';
-import { useHistory } from '../../context/HistoryContext';
-import { ModuleCategory, ToolType } from '../../types';
+import { useCad } from '@/context/CadContext';
+import { useHistory } from '@/context/HistoryContext';
+import { ModuleCategory, ToolType } from '@/types';
 
 const ToolbarContainer = styled.div`
   display: flex;
@@ -38,9 +38,25 @@ const ToolButton = styled.button<{ active?: boolean }>`
   background-color: ${props => (props.active ? '#e0e0e0' : 'white')};
   cursor: pointer;
   font-size: 14px;
+  position: relative;
 
   &:hover {
     background-color: #e0e0e0;
+  }
+
+  &:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #333;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    z-index: 1000;
+    font-size: 12px;
   }
 
   svg {
