@@ -142,9 +142,14 @@ const RedoIcon = () => (
 );
 
 const Toolbar: React.FC = () => {
-  const { toolState, setToolState, gridSettings, setGridSettings, moduleColors } = useCad();
+  const { toolState, setToolState, gridSettings, setGridSettings, moduleColors, ensureActiveFloor } = useCad();
 
   const { canUndo, canRedo, undo, redo } = useHistory();
+
+  // Ensure we have an active floor on component mount
+  useEffect(() => {
+    ensureActiveFloor();
+  }, []);
 
   // Add an effect to log when toolbar state changes
   useEffect(() => {
@@ -153,8 +158,13 @@ const Toolbar: React.FC = () => {
 
   const handleToolClick = (tool: ToolType) => {
     console.log(`Toolbar - Changing tool to: ${tool}`);
-    // Reset the selection when switching tools
+
+    // Ensure we have an active floor
+    ensureActiveFloor();
+
+    // CRITICAL: Use direct state setter instead of merging
     if (tool !== ToolType.SELECT) {
+      // Reset the selection when switching tools
       setToolState({
         activeTool: tool,
         selectedObjectId: null,
@@ -162,6 +172,11 @@ const Toolbar: React.FC = () => {
     } else {
       setToolState({ activeTool: tool });
     }
+
+    // Force the DOM to update - helps with React re-rendering issues
+    setTimeout(() => {
+      console.log('Tool state after change:', tool);
+    }, 0);
   };
 
   const handleGridSizeChange = (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -14,6 +14,7 @@ export const loadPdfToCanvas = async (
     y?: number;
     page?: number;
     selectable?: boolean;
+    preservePosition?: boolean; // New option to preserve position outside canvas
   } = {}
 ): Promise<fabric.Image | null> => {
   if (!canvas) return null;
@@ -93,6 +94,7 @@ export const loadPdfToCanvas = async (
       url: pdfUrl,
       scale: scale,
       page: options.page || 1,
+      preservePosition: options.preservePosition || false,
     };
 
     // Remove any existing PDF backdrops
@@ -123,6 +125,7 @@ export const adjustPdfBackdrop = (
     x?: number;
     y?: number;
     selectable?: boolean;
+    preservePosition?: boolean;
   }
 ): void => {
   if (!canvas) return;
@@ -131,6 +134,10 @@ export const adjustPdfBackdrop = (
   const backdrop = canvas.getObjects().find(obj => obj.data?.type === 'pdfBackdrop') as fabric.Image;
 
   if (!backdrop) return;
+
+  // Get current preserve position setting
+  const preservePosition =
+    options.preservePosition !== undefined ? options.preservePosition : backdrop.data?.preservePosition || false;
 
   // Update properties
   if (options.opacity !== undefined) {
@@ -143,14 +150,20 @@ export const adjustPdfBackdrop = (
   }
 
   if (options.scale !== undefined && backdrop.data.scale !== options.scale) {
-    // We need to reload the PDF with new scale
+    // We need to reload the PDF with new scale but preserve position
+    const currentPosition = {
+      x: options.x !== undefined ? options.x : backdrop.left,
+      y: options.y !== undefined ? options.y : backdrop.top,
+    };
+
     loadPdfToCanvas(canvas, backdrop.data.url, {
       scale: options.scale,
       opacity: options.opacity !== undefined ? options.opacity : backdrop.opacity,
-      x: options.x !== undefined ? options.x : backdrop.left,
-      y: options.y !== undefined ? options.y : backdrop.top,
+      x: currentPosition.x,
+      y: currentPosition.y,
       page: backdrop.data.page,
       selectable: options.selectable !== undefined ? options.selectable : backdrop.selectable,
+      preservePosition: preservePosition,
     });
     return;
   }
@@ -161,6 +174,11 @@ export const adjustPdfBackdrop = (
 
   if (options.y !== undefined) {
     backdrop.set('top', options.y);
+  }
+
+  // Update the preservePosition property in data
+  if (backdrop.data) {
+    backdrop.data.preservePosition = preservePosition;
   }
 
   canvas.renderAll();
@@ -185,8 +203,14 @@ export const removePdfBackdrop = (canvas: fabric.Canvas): void => {
 export const togglePdfBackdropLock = (canvas: fabric.Canvas, locked: boolean): void => {
   if (!canvas) return;
 
-  const backdrop = canvas.getObjects().find(obj => obj.data?.type === 'pdfBackdrop');
+  const backdrop = canvas.getObjects().find(obj => obj.data?.type === 'pdfBackdrop') as fabric.Image;
   if (!backdrop) return;
+
+  // Store the current position before locking
+  const currentPosition = {
+    x: backdrop.left,
+    y: backdrop.top,
+  };
 
   backdrop.set({
     selectable: !locked,
@@ -196,6 +220,19 @@ export const togglePdfBackdropLock = (canvas: fabric.Canvas, locked: boolean): v
   // If locking, also reset the current selection if it's the PDF
   if (locked && canvas.getActiveObject() === backdrop) {
     canvas.discardActiveObject();
+  }
+
+  // Make sure we maintain the exact position when locking
+  if (locked) {
+    backdrop.set({
+      left: currentPosition.x,
+      top: currentPosition.y,
+    });
+
+    // Make sure the data property reflects we want to preserve position
+    if (backdrop.data) {
+      backdrop.data.preservePosition = true;
+    }
   }
 
   canvas.renderAll();

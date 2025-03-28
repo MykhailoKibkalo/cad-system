@@ -10,10 +10,11 @@ export interface PdfBackdrop {
     x: number;
     y: number;
   };
-  locked?: boolean; // Added locked property
+  locked?: boolean; // Controls if the PDF can be selected/moved
+  preservePosition?: boolean; // Whether to preserve position outside viewport
   currentPage?: number;
   totalPages?: number;
-  fileName?: string; // Added fileName property
+  fileName?: string;
 }
 
 export interface Floor {

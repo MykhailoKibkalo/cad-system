@@ -4,7 +4,7 @@ import styled from '@emotion/styled';
 import { useCad } from '@/context/CadContext';
 import { useHistory } from '@/context/HistoryContext';
 import { ActionType, PdfBackdrop as PdfBackdropType } from '../../types';
-import { adjustPdfBackdrop, loadPdfToCanvas, removePdfBackdrop } from './PdfHandler';
+import { adjustPdfBackdrop, loadPdfToCanvas, removePdfBackdrop, togglePdfBackdropLock } from './PdfHandler';
 import { v4 as uuidv4 } from 'uuid';
 
 const PdfControlContainer = styled.div`
@@ -64,6 +64,9 @@ const PdfBackdropControls: React.FC = () => {
   const { addAction } = useHistory();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Current position of the PDF - maintained separately to preserve it
+  const pdfPositionRef = useRef({ x: 0, y: 0 });
+
   const activeFloor = floors.find(floor => floor.id === activeFloorId);
   const [opacity, setOpacity] = useState(activeFloor?.backdrop?.opacity || 0.5);
   const [scale, setScale] = useState(activeFloor?.backdrop?.scale || 1);
@@ -71,10 +74,18 @@ const PdfBackdropControls: React.FC = () => {
 
   // Update state when active floor changes
   useEffect(() => {
-    if (activeFloor) {
-      setOpacity(activeFloor.backdrop?.opacity || 0.5);
-      setScale(activeFloor.backdrop?.scale || 1);
-      setIsLocked(activeFloor.backdrop?.locked || false);
+    if (activeFloor?.backdrop) {
+      setOpacity(activeFloor.backdrop.opacity || 0.5);
+      setScale(activeFloor.backdrop.scale || 1);
+      setIsLocked(activeFloor.backdrop.locked || false);
+
+      // Store current position
+      if (activeFloor.backdrop.position) {
+        pdfPositionRef.current = {
+          x: activeFloor.backdrop.position.x,
+          y: activeFloor.backdrop.position.y,
+        };
+      }
     }
   }, [activeFloor]);
 
@@ -89,6 +100,7 @@ const PdfBackdropControls: React.FC = () => {
       x: activeFloor.backdrop.position.x,
       y: activeFloor.backdrop.position.y,
       selectable: !activeFloor.backdrop.locked,
+      preservePosition: true, // ALWAYS preserve position
     });
   }, [activeFloorId, fabricCanvasRef]);
 
@@ -132,6 +144,7 @@ const PdfBackdropControls: React.FC = () => {
         },
         locked: false, // Initially unlocked
         fileName: file.name,
+        preservePosition: true, // Always preserve position
       };
 
       // Load the PDF onto the canvas
@@ -141,6 +154,7 @@ const PdfBackdropControls: React.FC = () => {
         x: 0,
         y: 0,
         selectable: true, // Initially selectable
+        preservePosition: true, // Always preserve
       });
 
       // Update the floor with the new backdrop
@@ -148,6 +162,7 @@ const PdfBackdropControls: React.FC = () => {
 
       // Update local state
       setIsLocked(false);
+      pdfPositionRef.current = { x: 0, y: 0 };
 
       // Add to history
       addAction({
@@ -180,6 +195,13 @@ const PdfBackdropControls: React.FC = () => {
 
     if (!activeFloorId || !activeFloor?.backdrop || !fabricCanvasRef?.current) return;
 
+    // Get current PDF position
+    const canvas = fabricCanvasRef.current;
+    const backdrop = canvas.getObjects().find(obj => obj.data?.type === 'pdfBackdrop');
+    if (backdrop) {
+      pdfPositionRef.current = { x: backdrop.left || 0, y: backdrop.top || 0 };
+    }
+
     // Store the original backdrop for history
     const before = {
       backdrop: activeFloor.backdrop,
@@ -190,10 +212,16 @@ const PdfBackdropControls: React.FC = () => {
     const updatedBackdrop = {
       ...activeFloor.backdrop,
       opacity: newOpacity,
+      position: pdfPositionRef.current, // Preserve position
     };
 
     // Update the canvas
-    adjustPdfBackdrop(fabricCanvasRef.current, { opacity: newOpacity });
+    adjustPdfBackdrop(fabricCanvasRef.current, {
+      opacity: newOpacity,
+      x: pdfPositionRef.current.x,
+      y: pdfPositionRef.current.y,
+      preservePosition: true,
+    });
 
     // Update the floor with the modified backdrop
     updateFloor(activeFloorId, { backdrop: updatedBackdrop });
@@ -220,6 +248,13 @@ const PdfBackdropControls: React.FC = () => {
 
     if (!activeFloorId || !activeFloor?.backdrop || !fabricCanvasRef?.current) return;
 
+    // Get current PDF position
+    const canvas = fabricCanvasRef.current;
+    const backdrop = canvas.getObjects().find(obj => obj.data?.type === 'pdfBackdrop');
+    if (backdrop) {
+      pdfPositionRef.current = { x: backdrop.left || 0, y: backdrop.top || 0 };
+    }
+
     // Store the original backdrop for history
     const before = {
       backdrop: activeFloor.backdrop,
@@ -230,10 +265,16 @@ const PdfBackdropControls: React.FC = () => {
     const updatedBackdrop = {
       ...activeFloor.backdrop,
       scale: newScale,
+      position: pdfPositionRef.current, // Preserve position
     };
 
     // Update the canvas
-    adjustPdfBackdrop(fabricCanvasRef.current, { scale: newScale });
+    adjustPdfBackdrop(fabricCanvasRef.current, {
+      scale: newScale,
+      x: pdfPositionRef.current.x,
+      y: pdfPositionRef.current.y,
+      preservePosition: true,
+    });
 
     // Update the floor with the modified backdrop
     updateFloor(activeFloorId, { backdrop: updatedBackdrop });
@@ -258,6 +299,13 @@ const PdfBackdropControls: React.FC = () => {
     const newLockState = !isLocked;
     setIsLocked(newLockState);
 
+    // Get current PDF position before locking/unlocking
+    const canvas = fabricCanvasRef.current;
+    const backdrop = canvas.getObjects().find(obj => obj.data?.type === 'pdfBackdrop');
+    if (backdrop) {
+      pdfPositionRef.current = { x: backdrop.left || 0, y: backdrop.top || 0 };
+    }
+
     // Store the original backdrop for history
     const before = {
       backdrop: activeFloor.backdrop,
@@ -268,24 +316,12 @@ const PdfBackdropControls: React.FC = () => {
     const updatedBackdrop = {
       ...activeFloor.backdrop,
       locked: newLockState,
+      position: pdfPositionRef.current, // Store the exact current position
+      preservePosition: true,
     };
 
-    // Find the PDF backdrop object in the canvas
-    const canvas = fabricCanvasRef.current;
-    const pdfObject = canvas.getObjects().find(obj => obj.data?.type === 'pdfBackdrop');
-
-    if (pdfObject) {
-      // Update the object's selectable property
-      pdfObject.set('selectable', !newLockState);
-      pdfObject.set('evented', !newLockState);
-
-      // If locking, also reset the current selection if it's the PDF
-      if (newLockState && canvas.getActiveObject() === pdfObject) {
-        canvas.discardActiveObject();
-      }
-
-      canvas.renderAll();
-    }
+    // Toggle lock state on the canvas object
+    togglePdfBackdropLock(canvas, newLockState);
 
     // Update the floor with the modified backdrop
     updateFloor(activeFloorId, { backdrop: updatedBackdrop });
@@ -321,6 +357,7 @@ const PdfBackdropControls: React.FC = () => {
 
     // Reset local state
     setIsLocked(false);
+    pdfPositionRef.current = { x: 0, y: 0 };
 
     // Add to history
     addAction({

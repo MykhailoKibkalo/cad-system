@@ -4,7 +4,7 @@ import { fabric } from 'fabric';
 import styled from '@emotion/styled';
 import { useCad } from '@/context/CadContext';
 import { useHistory } from '@/context/HistoryContext';
-import { ActionType, ModuleCategory, ToolType } from '@/types';
+import { ActionType, ModuleCategory, ToolState, ToolType } from '@/types';
 import { loadPdfToCanvas } from '../pdf/PdfHandler';
 
 const CanvasContainer = styled.div`
@@ -32,17 +32,32 @@ const FabricCanvas: React.FC = () => {
     updateBalcony,
     deleteBalcony,
     setToolState,
+    ensureActiveFloor,
+    getActiveFloor,
   } = useCad();
 
   const { addAction, undo, redo } = useHistory();
-  const activeFloor = floors.find(floor => floor.id === activeFloorId);
 
-  // This will track the drawing state
-  const drawingRef = useRef({
+  // CRITICAL: Add a ref to track the current tool state
+  const toolStateRef = useRef<ToolState>({
+    activeTool: ToolType.SELECT,
+    selectedObjectId: null,
+    selectedFloorId: null,
+  });
+
+  // Keep the ref updated with the latest toolState
+  useEffect(() => {
+    toolStateRef.current = toolState;
+    console.log('Updated toolStateRef:', toolState);
+  }, [toolState]);
+
+  // Define this at component level - not inside any function!
+  const drawingStateRef = useRef({
     isDrawing: false,
     startX: 0,
     startY: 0,
     tempObject: null as fabric.Object | null,
+    activeTool: ToolType.SELECT, // Track the tool that started the drawing
   });
 
   // Initialize canvas just once
@@ -63,14 +78,17 @@ const FabricCanvas: React.FC = () => {
       canvas.setZoom(canvasSettings.zoom);
       canvas.absolutePan(new fabric.Point(canvasSettings.panX, canvasSettings.panY));
 
-      // Basic mouse handlers - don't modify these!
-      canvas.on('mouse:down', handleMouseDown);
-      canvas.on('mouse:move', handleMouseMove);
-      canvas.on('mouse:up', handleMouseUp);
-      canvas.on('object:modified', handleObjectModified);
-      canvas.on('selection:created', handleSelectionCreated);
-      canvas.on('selection:updated', handleSelectionCreated);
-      canvas.on('selection:cleared', handleSelectionCleared);
+      // Register event handlers
+      canvas.on('mouse:down', onMouseDown);
+      canvas.on('mouse:move', onMouseMove);
+      canvas.on('mouse:up', onMouseUp);
+      canvas.on('object:modified', onObjectModified);
+      canvas.on('selection:created', onSelectionCreated);
+      canvas.on('selection:updated', onSelectionCreated);
+      canvas.on('selection:cleared', onSelectionCleared);
+
+      // Force ensuring we have an active floor
+      ensureActiveFloor();
 
       // Cleanup on unmount
       return () => {
@@ -89,10 +107,16 @@ const FabricCanvas: React.FC = () => {
 
   // Sync modules with canvas when floor changes
   useEffect(() => {
-    if (fabricCanvasRef.current && activeFloor) {
+    console.log('Active floor or floors changed, syncing canvas');
+    if (fabricCanvasRef.current) {
       syncCanvasWithFloor();
     }
   }, [activeFloorId, floors]);
+
+  // Watch for tool state changes
+  useEffect(() => {
+    console.log('Tool state changed:', toolState);
+  }, [toolState]);
 
   // Draw grid on canvas
   const drawGrid = () => {
@@ -156,12 +180,23 @@ const FabricCanvas: React.FC = () => {
 
   // CORE FUNCTION: Sync canvas objects with floor data
   const syncCanvasWithFloor = () => {
-    if (!fabricCanvasRef.current || !activeFloor) return;
+    if (!fabricCanvasRef.current) return;
+
+    // CRITICAL: Always call getActiveFloor() from the context
+    // This ensures we get the latest floor directly from the context
+    const activeFloor = getActiveFloor();
+
+    if (!activeFloor) {
+      console.log('No active floor found, this should not happen after ensureActiveFloor');
+      return;
+    }
+
+    console.log('Syncing canvas with floor:', activeFloor.id, activeFloor.name);
 
     const canvas = fabricCanvasRef.current;
 
     // Get the current selected object ID before clearing
-    const selectedId = toolState.selectedObjectId;
+    const selectedId = toolStateRef.current.selectedObjectId;
 
     // Remove all canvas objects except grid
     const nonGridObjects = canvas.getObjects().filter(obj => obj.data?.type !== 'grid');
@@ -175,6 +210,7 @@ const FabricCanvas: React.FC = () => {
         x: activeFloor.backdrop.position.x,
         y: activeFloor.backdrop.position.y,
         selectable: !activeFloor.backdrop.locked,
+        preservePosition: true, // Always preserve position
       });
     }
 
@@ -246,71 +282,116 @@ const FabricCanvas: React.FC = () => {
     canvas.renderAll();
   };
 
-  // FULLY REWRITTEN MOUSE HANDLERS
-
-  const handleMouseDown = (event: fabric.IEvent<MouseEvent>) => {
-    if (!fabricCanvasRef.current || !activeFloor) return;
+  // Mouse Down - Start Drawing
+  function onMouseDown(event: fabric.IEvent<MouseEvent>) {
+    if (!fabricCanvasRef.current) return;
 
     const canvas = fabricCanvasRef.current;
     const pointer = canvas.getPointer(event.e);
 
-    console.log(`Mouse down with tool: ${toolState.activeTool}`);
+    // CRITICAL CHANGE: Always ensure we have an active floor ID first
+    const currentFloorId = ensureActiveFloor();
+    console.log('Current active floor ID:', currentFloorId);
 
-    // If we clicked on an object and we're not in drawing mode, just return
-    // to allow selection to work normally
-    if (event.target && toolState.activeTool === ToolType.SELECT) {
+    // CRITICAL CHANGE: Get the floor directly from the context
+    // This will ensure we get the latest state
+    const activeFloor = getActiveFloor();
+
+    // Now log both the ID and the actual floor object
+    console.log('Active floor from context:', activeFloor);
+
+    if (!activeFloor) {
+      console.log('No active floor available, creating one now');
+      const newFloorId = ensureActiveFloor();
+      console.log('Created new floor with ID:', newFloorId);
+
+      // Try again with the new floor
+      const newActiveFloor = getActiveFloor();
+      if (!newActiveFloor) {
+        console.error('Critical error: Still no active floor after creation');
+        return;
+      }
+      console.log('Successfully created new floor:', newActiveFloor);
+    }
+
+    // CRITICAL CHANGE: Use the tool state from the ref instead of the state
+    // This ensures we have the most up-to-date tool state
+    const currentToolState = toolStateRef.current;
+    console.log(`Mouse down with tool from ref: ${currentToolState.activeTool}`);
+
+    // If we clicked on an object in SELECT mode, just do normal selection
+    if (event.target && currentToolState.activeTool === ToolType.SELECT) {
       console.log('Clicked on object in SELECT mode, normal selection');
       return;
     }
 
-    // If we're in a drawing tool mode, start drawing
-    if (toolState.activeTool === ToolType.MODULE || toolState.activeTool === ToolType.BALCONY) {
-      console.log('Starting to draw:', toolState.activeTool);
+    // Start drawing if we're in a drawing tool mode (MODULE or BALCONY)
+    if (currentToolState.activeTool === ToolType.MODULE || currentToolState.activeTool === ToolType.BALCONY) {
+      console.log(`Starting to draw: ${currentToolState.activeTool}`);
 
-      // Prevent fabric's built-in selection behavior
-      canvas.selection = false;
-
+      // Get snapped position
       const snapped = snapToGrid(pointer.x, pointer.y);
 
-      // Store drawing state
-      drawingRef.current = {
+      // CRITICAL: Set drawing state - this is what was failing before
+      drawingStateRef.current = {
         isDrawing: true,
         startX: snapped.x,
         startY: snapped.y,
         tempObject: null,
+        activeTool: currentToolState.activeTool, // Save which tool started the drawing
       };
+
+      // Log the state to confirm it's set
+      console.log('Drawing state set:', {
+        isDrawing: drawingStateRef.current.isDrawing,
+        tool: drawingStateRef.current.activeTool,
+        start: { x: drawingStateRef.current.startX, y: drawingStateRef.current.startY },
+      });
 
       // Prevent default to avoid issues
       event.e.preventDefault();
-    }
-  };
 
-  const handleMouseMove = (event: fabric.IEvent<MouseEvent>) => {
-    console.log('here');
-    if (!fabricCanvasRef.current || !activeFloor || !drawingRef.current.isDrawing) return;
+      // Disable selection while drawing
+      canvas.selection = false;
+    }
+  }
+
+  // Mouse Move - Update Preview
+  function onMouseMove(event: fabric.IEvent<MouseEvent>) {
+    if (!fabricCanvasRef.current) return;
+
+    // Check if we're in drawing mode - CRITICAL CHECK
+    if (!drawingStateRef.current.isDrawing) return;
 
     const canvas = fabricCanvasRef.current;
     const pointer = canvas.getPointer(event.e);
 
-    const snapped = snapToGrid(pointer.x, pointer.y);
+    // CRITICAL CHANGE: Get the floor directly from the context
+    const activeFloor = getActiveFloor();
 
-    // Calculate dimensions for the object
-    let width = Math.abs(snapped.x - drawingRef.current.startX);
-    let height = Math.abs(snapped.y - drawingRef.current.startY);
-
-    // Calculate top-left position
-    let left = Math.min(drawingRef.current.startX, snapped.x);
-    let top = Math.min(drawingRef.current.startY, snapped.y);
-
-    console.log(width, height, left, top);
-
-    // Remove previous temp object if it exists
-    if (drawingRef.current.tempObject) {
-      canvas.remove(drawingRef.current.tempObject);
+    if (!activeFloor) {
+      console.error('No active floor during mouse move - unexpected error');
+      return;
     }
 
-    // Create a new temp object based on the active tool
-    if (toolState.activeTool === ToolType.MODULE) {
+    // Get snapped position
+    const snapped = snapToGrid(pointer.x, pointer.y);
+
+    // Calculate dimensions
+    const width = Math.abs(snapped.x - drawingStateRef.current.startX);
+    const height = Math.abs(snapped.y - drawingStateRef.current.startY);
+
+    // Top-left position
+    const left = Math.min(drawingStateRef.current.startX, snapped.x);
+    const top = Math.min(drawingStateRef.current.startY, snapped.y);
+
+    // Remove previous temp object if it exists
+    if (drawingStateRef.current.tempObject) {
+      canvas.remove(drawingStateRef.current.tempObject);
+    }
+
+    // Create preview object based on the active tool when drawing started
+    if (drawingStateRef.current.activeTool === ToolType.MODULE) {
       const rect = new fabric.Rect({
         left,
         top,
@@ -323,9 +404,9 @@ const FabricCanvas: React.FC = () => {
         selectable: false,
       });
 
-      drawingRef.current.tempObject = rect;
+      drawingStateRef.current.tempObject = rect;
       canvas.add(rect);
-    } else if (toolState.activeTool === ToolType.BALCONY) {
+    } else if (drawingStateRef.current.activeTool === ToolType.BALCONY) {
       const rect = new fabric.Rect({
         left,
         top,
@@ -338,46 +419,67 @@ const FabricCanvas: React.FC = () => {
         selectable: false,
       });
 
-      drawingRef.current.tempObject = rect;
+      drawingStateRef.current.tempObject = rect;
       canvas.add(rect);
     }
 
     canvas.renderAll();
-  };
+  }
 
-  const handleMouseUp = (event: fabric.IEvent<MouseEvent>) => {
-    if (!fabricCanvasRef.current || !activeFloor || !drawingRef.current.isDrawing) return;
+  // Mouse Up - Finish Drawing and Create Object
+  function onMouseUp(event: fabric.IEvent<MouseEvent>) {
+    if (!fabricCanvasRef.current) return;
 
     const canvas = fabricCanvasRef.current;
-    const pointer = canvas.getPointer(event.e);
 
-    console.log('Mouse up - finishing drawing');
+    // CRITICAL: Log to debug the issue
+    console.log('Mouse up called, drawing state:', drawingStateRef.current.isDrawing);
+
+    // If we're not in drawing mode, exit early
+    if (!drawingStateRef.current.isDrawing) {
+      console.log('Not in drawing mode');
+      return;
+    }
+
+    // CRITICAL CHANGE: Get the floor directly from the context
+    const activeFloor = getActiveFloor();
+
+    if (!activeFloor) {
+      console.error('No active floor available during mouse up, unexpected error');
+      // Reset drawing state even if we can't complete the drawing
+      drawingStateRef.current.isDrawing = false;
+      return;
+    }
+
+    const pointer = canvas.getPointer(event.e);
+    const snapped = snapToGrid(pointer.x, pointer.y);
 
     // Re-enable selection
     canvas.selection = true;
 
-    // Get final dimensions
-    const snapped = snapToGrid(pointer.x, pointer.y);
+    // Calculate final dimensions
+    const width = Math.abs(snapped.x - drawingStateRef.current.startX);
+    const height = Math.abs(snapped.y - drawingStateRef.current.startY);
+    const left = Math.min(drawingStateRef.current.startX, snapped.x);
+    const top = Math.min(drawingStateRef.current.startY, snapped.y);
 
-    let width = Math.abs(snapped.x - drawingRef.current.startX);
-    let height = Math.abs(snapped.y - drawingRef.current.startY);
-    let left = Math.min(drawingRef.current.startX, snapped.x);
-    let top = Math.min(drawingRef.current.startY, snapped.y);
+    console.log(`Finishing drawing: ${width}x${height} at (${left},${top})`);
 
-    // Remove the temporary object
-    if (drawingRef.current.tempObject) {
-      canvas.remove(drawingRef.current.tempObject);
+    // Remove temp preview object
+    if (drawingStateRef.current.tempObject) {
+      canvas.remove(drawingStateRef.current.tempObject);
     }
 
-    // Only create if the size is meaningful
+    // Create the actual object if size is meaningful
     if (width > 10 && height > 10) {
+      // Which tool are we using to create?
+      const activeTool = drawingStateRef.current.activeTool;
       let newId = '';
 
-      if (toolState.activeTool === ToolType.MODULE) {
-        // Create a real module
-        console.log('Creating a module:', width, 'x', height);
+      if (activeTool === ToolType.MODULE) {
+        console.log('Creating module');
 
-        // Add to data model first
+        // Create module data
         const newModule = {
           category: ModuleCategory.A1,
           width,
@@ -387,10 +489,11 @@ const FabricCanvas: React.FC = () => {
           openings: [],
         };
 
-        // Get the new ID (either returned or generated)
+        // Add to data model
         newId = addModule(newModule);
+        console.log('New module ID:', newId);
 
-        // Create visual representation
+        // Create visual object
         const rect = new fabric.Rect({
           left,
           top,
@@ -431,11 +534,10 @@ const FabricCanvas: React.FC = () => {
             floorId: activeFloor.id,
           },
         });
-      } else if (toolState.activeTool === ToolType.BALCONY) {
-        // Create a real balcony
-        console.log('Creating a balcony:', width, 'x', height);
+      } else if (activeTool === ToolType.BALCONY) {
+        console.log('Creating balcony');
 
-        // Add to data model first
+        // Create balcony data
         const newBalcony = {
           width,
           height,
@@ -443,10 +545,11 @@ const FabricCanvas: React.FC = () => {
           rotation: 0,
         };
 
-        // Get the new ID (either returned or generated)
+        // Add to data model
         newId = addBalcony(newBalcony);
+        console.log('New balcony ID:', newId);
 
-        // Create visual representation
+        // Create visual object
         const rect = new fabric.Rect({
           left,
           top,
@@ -489,26 +592,34 @@ const FabricCanvas: React.FC = () => {
         });
       }
 
-      // After creating, switch to select mode and select the new object
-      setToolState({
-        activeTool: ToolType.SELECT,
-        selectedObjectId: newId,
-      });
+      // Switch to select mode and select new object
+      if (newId) {
+        setToolState({
+          activeTool: ToolType.SELECT,
+          selectedObjectId: newId,
+        });
+      }
     }
 
-    // Reset drawing state
-    drawingRef.current = {
+    // CRITICAL: Reset drawing state
+    drawingStateRef.current = {
       isDrawing: false,
       startX: 0,
       startY: 0,
       tempObject: null,
+      activeTool: ToolType.SELECT,
     };
 
     canvas.renderAll();
-  };
+  }
 
-  const handleObjectModified = (event: fabric.IEvent) => {
-    if (!fabricCanvasRef.current || !activeFloor || !event.target) return;
+  function onObjectModified(event: fabric.IEvent) {
+    if (!fabricCanvasRef.current || !event.target) return;
+
+    // CRITICAL CHANGE: Get the floor directly from the context
+    const activeFloor = getActiveFloor();
+
+    if (!activeFloor) return;
 
     const target = event.target;
     const objectData = target.data;
@@ -611,9 +722,9 @@ const FabricCanvas: React.FC = () => {
       // Handle PDF backdrop modification if needed
       console.log('PDF backdrop modified');
     }
-  };
+  }
 
-  const handleSelectionCreated = (event: fabric.IEvent) => {
+  function onSelectionCreated(event: fabric.IEvent) {
     if (!fabricCanvasRef.current) return;
 
     const canvas = fabricCanvasRef.current;
@@ -631,14 +742,14 @@ const FabricCanvas: React.FC = () => {
         selectedObjectId: objectData.id,
       });
     }
-  };
+  }
 
-  const handleSelectionCleared = () => {
+  function onSelectionCleared() {
     setToolState({
       selectedObjectId: null,
-      activeTool: toolState.activeTool,
+      activeTool: toolStateRef.current.activeTool, // Keep the current tool
     });
-  };
+  }
 
   // Keyboard shortcuts handler
   useEffect(() => {
@@ -653,7 +764,7 @@ const FabricCanvas: React.FC = () => {
       }
 
       // Delete key - remove selected object
-      if (e.key === 'Delete' && toolState.selectedObjectId) {
+      if (e.key === 'Delete' && toolStateRef.current.selectedObjectId) {
         const canvas = fabricCanvasRef.current;
         if (!canvas) return;
 
@@ -661,10 +772,12 @@ const FabricCanvas: React.FC = () => {
         if (!activeObject || !activeObject.data) return;
 
         const objectData = activeObject.data;
+        const activeFloor = getActiveFloor();
+        if (!activeFloor) return;
 
         if (objectData.type === 'module') {
-          const originalModule = activeFloor?.modules.find(m => m.id === objectData.id);
-          if (!originalModule || !activeFloor) return;
+          const originalModule = activeFloor.modules.find(m => m.id === objectData.id);
+          if (!originalModule) return;
 
           // Store for history
           const before = { module: originalModule, floorId: activeFloor.id };
@@ -686,8 +799,8 @@ const FabricCanvas: React.FC = () => {
 
           setToolState({ selectedObjectId: null });
         } else if (objectData.type === 'balcony') {
-          const originalBalcony = activeFloor?.balconies.find(b => b.id === objectData.id);
-          if (!originalBalcony || !activeFloor) return;
+          const originalBalcony = activeFloor.balconies.find(b => b.id === objectData.id);
+          if (!originalBalcony) return;
 
           // Store for history
           const before = { balcony: originalBalcony, floorId: activeFloor.id };
@@ -728,7 +841,7 @@ const FabricCanvas: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toolState, activeFloor]);
+  }, []);
 
   return (
     <CanvasContainer>
