@@ -7,6 +7,14 @@ import { useHistory } from '@/context/HistoryContext';
 import { ActionType, ModuleCategory, ToolState, ToolType } from '@/types';
 import { loadPdfToCanvas } from '../pdf/PdfHandler';
 
+// Constants for zoom functionality
+const MIN_ZOOM = 0.1;
+const MAX_ZOOM = 10;
+const ZOOM_STEP = 0.1;
+
+// Platform detection
+const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+
 const CanvasContainer = styled.div`
   position: relative;
   flex-grow: 1;
@@ -34,6 +42,7 @@ const FabricCanvas: React.FC = () => {
     setToolState,
     ensureActiveFloor,
     getActiveFloor,
+    setCanvasSettings,
   } = useCad();
 
   const { addAction, undo, redo } = useHistory();
@@ -45,11 +54,39 @@ const FabricCanvas: React.FC = () => {
     selectedFloorId: null,
   });
 
-  // Keep the ref updated with the latest toolState
+  // CRITICAL: Add a ref to track the current grid settings
+  const gridSettingsRef = useRef<typeof gridSettings>(gridSettings);
+
+  // Keep the refs updated with the latest states
   useEffect(() => {
     toolStateRef.current = toolState;
     console.log('Updated toolStateRef:', toolState);
+
+    // Update cursor based on active tool
+    if (fabricCanvasRef.current) {
+      const canvas = fabricCanvasRef.current;
+      if (toolState.activeTool === ToolType.HAND) {
+        canvas.defaultCursor = 'grab';
+        canvas.hoverCursor = 'grab';
+        if (canvas.getActiveObjects().length === 0) {
+          canvas.setCursor('grab');
+        }
+      } else if (toolState.activeTool === ToolType.SELECT) {
+        canvas.defaultCursor = 'default';
+        canvas.hoverCursor = 'move';
+        canvas.setCursor('default');
+      } else {
+        canvas.defaultCursor = 'crosshair';
+        canvas.hoverCursor = 'crosshair';
+        canvas.setCursor('crosshair');
+      }
+    }
   }, [toolState]);
+
+  useEffect(() => {
+    gridSettingsRef.current = gridSettings;
+    console.log('Grid settings updated:', gridSettings);
+  }, [gridSettings]);
 
   // Define this at component level - not inside any function!
   const drawingStateRef = useRef({
@@ -59,6 +96,52 @@ const FabricCanvas: React.FC = () => {
     tempObject: null as fabric.Object | null,
     activeTool: ToolType.SELECT, // Track the tool that started the drawing
   });
+
+  // Enhanced zoom handler for both wheel and trackpad
+  const handleCanvasZoom = (event: WheelEvent) => {
+    if (!fabricCanvasRef.current) return;
+
+    const canvas = fabricCanvasRef.current;
+
+    // Detect if this is a pinch/zoom gesture from trackpad
+    // Check if event is from a trackpad by looking at deltaMode or if Ctrl key is pressed (pinch to zoom)
+    const isPinchZoom = event.ctrlKey || (event.deltaMode === 0 && Math.abs(event.deltaY) < 10);
+
+    // Prevent default to stop page scrolling
+    event.preventDefault();
+
+    // Get current zoom level
+    const currentZoom = canvas.getZoom();
+    let newZoom: number;
+    let zoomDelta: number;
+
+    if (isPinchZoom) {
+      // For pinch gestures, deltaY represents the pinch amount
+      zoomDelta = -event.deltaY / 100; // Adjust sensitivity
+    } else {
+      // For regular scrolling, use a more controlled zoom step
+      zoomDelta = event.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
+    }
+
+    // Calculate new zoom level
+    newZoom = Math.min(Math.max(currentZoom + zoomDelta, MIN_ZOOM), MAX_ZOOM);
+
+    // Get the mouse position on the canvas
+    const pointer = canvas.getPointer({ e: event });
+
+    // Set the zoom center to the mouse position
+    canvas.zoomToPoint({ x: pointer.x, y: pointer.y }, newZoom);
+
+    // Update the canvas settings in the context
+    setCanvasSettings({
+      zoom: newZoom,
+      panX: canvas.viewportTransform ? canvas.viewportTransform[4] : 0,
+      panY: canvas.viewportTransform ? canvas.viewportTransform[5] : 0,
+    });
+
+    // Return false to prevent default scrolling
+    return false;
+  };
 
   // Initialize canvas just once
   useEffect(() => {
@@ -98,6 +181,22 @@ const FabricCanvas: React.FC = () => {
     }
   }, []);
 
+  // Add wheel event listener for zooming
+  useEffect(() => {
+    if (fabricCanvasRef.current) {
+      const canvas = fabricCanvasRef.current;
+      const canvasEl = canvas.getElement();
+
+      // Add wheel event listener for zooming with passive: false to prevent scrolling
+      canvasEl.addEventListener('wheel', handleCanvasZoom, { passive: false });
+
+      // Cleanup
+      return () => {
+        canvasEl.removeEventListener('wheel', handleCanvasZoom);
+      };
+    }
+  }, [fabricCanvasRef.current]);
+
   // Draw or update grid when settings change
   useEffect(() => {
     if (fabricCanvasRef.current) {
@@ -109,7 +208,10 @@ const FabricCanvas: React.FC = () => {
   useEffect(() => {
     console.log('Active floor or floors changed, syncing canvas');
     if (fabricCanvasRef.current) {
-      syncCanvasWithFloor();
+      // IMPORTANT: Use a slight delay to ensure all state updates are processed
+      setTimeout(() => {
+        syncCanvasWithFloor();
+      }, 0);
     }
   }, [activeFloorId, floors]);
 
@@ -167,11 +269,12 @@ const FabricCanvas: React.FC = () => {
     canvas.renderAll();
   };
 
-  // Snap point to grid
+  // Snap point to grid - FIXED to use ref
   const snapToGrid = (x: number, y: number): { x: number; y: number } => {
-    if (!gridSettings.snapToGrid) return { x, y };
+    // FIXED: Always use the latest grid settings from the ref
+    if (!gridSettingsRef.current.snapToGrid) return { x, y };
 
-    const gridSize = gridSettings.size;
+    const gridSize = gridSettingsRef.current.size;
     return {
       x: Math.round(x / gridSize) * gridSize,
       y: Math.round(y / gridSize) * gridSize,
@@ -237,6 +340,7 @@ const FabricCanvas: React.FC = () => {
         type: 'module',
         id: module.id,
         floorId: activeFloor.id,
+        category: module.category, // Store the category for easier access
       };
 
       canvas.add(rect);
@@ -282,12 +386,25 @@ const FabricCanvas: React.FC = () => {
     canvas.renderAll();
   };
 
-  // Mouse Down - Start Drawing
+  // Mouse Down - Start Drawing or Panning
   function onMouseDown(event: fabric.IEvent<MouseEvent>) {
     if (!fabricCanvasRef.current) return;
 
     const canvas = fabricCanvasRef.current;
     const pointer = canvas.getPointer(event.e);
+
+    // Handle hand tool for panning
+    if (toolStateRef.current.activeTool === ToolType.HAND) {
+      canvas.isDragging = true;
+      canvas.lastPosX = event.e.clientX;
+      canvas.lastPosY = event.e.clientY;
+      canvas.setCursor('grabbing');
+
+      // Disable selection while panning
+      canvas.selection = false;
+      event.e.preventDefault();
+      return;
+    }
 
     // CRITICAL CHANGE: Always ensure we have an active floor ID first
     const currentFloorId = ensureActiveFloor();
@@ -356,14 +473,38 @@ const FabricCanvas: React.FC = () => {
     }
   }
 
-  // Mouse Move - Update Preview
+  // Mouse Move - Update Preview or Pan
   function onMouseMove(event: fabric.IEvent<MouseEvent>) {
     if (!fabricCanvasRef.current) return;
+
+    const canvas = fabricCanvasRef.current;
+
+    // Handle panning with hand tool
+    if (canvas.isDragging && toolStateRef.current.activeTool === ToolType.HAND) {
+      const e = event.e;
+      const vpt = canvas.viewportTransform;
+      if (!vpt) return;
+
+      vpt[4] += e.clientX - canvas.lastPosX;
+      vpt[5] += e.clientY - canvas.lastPosY;
+
+      canvas.requestRenderAll();
+
+      canvas.lastPosX = e.clientX;
+      canvas.lastPosY = e.clientY;
+
+      // Update canvas settings in context
+      setCanvasSettings({
+        panX: vpt[4],
+        panY: vpt[5],
+      });
+
+      return;
+    }
 
     // Check if we're in drawing mode - CRITICAL CHECK
     if (!drawingStateRef.current.isDrawing) return;
 
-    const canvas = fabricCanvasRef.current;
     const pointer = canvas.getPointer(event.e);
 
     // CRITICAL CHANGE: Get the floor directly from the context
@@ -426,11 +567,19 @@ const FabricCanvas: React.FC = () => {
     canvas.renderAll();
   }
 
-  // Mouse Up - Finish Drawing and Create Object
+  // Mouse Up - Finish Drawing or End Panning
   function onMouseUp(event: fabric.IEvent<MouseEvent>) {
     if (!fabricCanvasRef.current) return;
 
     const canvas = fabricCanvasRef.current;
+
+    // Handle end of panning with hand tool
+    if (canvas.isDragging && toolStateRef.current.activeTool === ToolType.HAND) {
+      canvas.isDragging = false;
+      canvas.selection = true;
+      canvas.setCursor('grab');
+      return;
+    }
 
     // CRITICAL: Log to debug the issue
     console.log('Mouse up called, drawing state:', drawingStateRef.current.isDrawing);
@@ -513,6 +662,7 @@ const FabricCanvas: React.FC = () => {
           type: 'module',
           id: newId,
           floorId: activeFloor.id,
+          category: ModuleCategory.A1,
         };
 
         canvas.add(rect);
@@ -643,12 +793,14 @@ const FabricCanvas: React.FC = () => {
       };
 
       // Apply snapping if enabled
-      if (gridSettings.snapToGrid) {
+      if (gridSettingsRef.current.snapToGrid) {
         const snapped = snapToGrid(updatedModule.position.x, updatedModule.position.y);
         updatedModule.position.x = snapped.x;
         updatedModule.position.y = snapped.y;
-        updatedModule.width = Math.round(updatedModule.width / gridSettings.size) * gridSettings.size;
-        updatedModule.height = Math.round(updatedModule.height / gridSettings.size) * gridSettings.size;
+        updatedModule.width =
+          Math.round(updatedModule.width / gridSettingsRef.current.size) * gridSettingsRef.current.size;
+        updatedModule.height =
+          Math.round(updatedModule.height / gridSettingsRef.current.size) * gridSettingsRef.current.size;
       }
 
       // Store original state for history
@@ -688,12 +840,14 @@ const FabricCanvas: React.FC = () => {
       };
 
       // Apply snapping if enabled
-      if (gridSettings.snapToGrid) {
+      if (gridSettingsRef.current.snapToGrid) {
         const snapped = snapToGrid(updatedBalcony.position.x, updatedBalcony.position.y);
         updatedBalcony.position.x = snapped.x;
         updatedBalcony.position.y = snapped.y;
-        updatedBalcony.width = Math.round(updatedBalcony.width / gridSettings.size) * gridSettings.size;
-        updatedBalcony.height = Math.round(updatedBalcony.height / gridSettings.size) * gridSettings.size;
+        updatedBalcony.width =
+          Math.round(updatedBalcony.width / gridSettingsRef.current.size) * gridSettingsRef.current.size;
+        updatedBalcony.height =
+          Math.round(updatedBalcony.height / gridSettingsRef.current.size) * gridSettingsRef.current.size;
       }
 
       // Store original state for history
@@ -738,7 +892,7 @@ const FabricCanvas: React.FC = () => {
       console.log('Selection created:', objectData);
 
       setToolState({
-        activeTool: ToolType.SELECT,
+        activeTool: toolStateRef.current.activeTool, // Keep the current tool
         selectedObjectId: objectData.id,
       });
     }
@@ -754,6 +908,11 @@ const FabricCanvas: React.FC = () => {
   // Keyboard shortcuts handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Prevent shortcuts when in input fields
+      if (e.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement).tagName)) {
+        return;
+      }
+
       // Tool shortcuts
       if (e.key === 'v' || e.key === 'V') {
         setToolState({ activeTool: ToolType.SELECT });
@@ -761,6 +920,26 @@ const FabricCanvas: React.FC = () => {
         setToolState({ activeTool: ToolType.MODULE });
       } else if (e.key === 'b' || e.key === 'B') {
         setToolState({ activeTool: ToolType.BALCONY });
+      } else if (e.key === 'h' || e.key === 'H') {
+        // Add hand tool shortcut
+        setToolState({ activeTool: ToolType.HAND });
+      }
+
+      // Space bar to temporarily activate hand tool (like Figma)
+      if (e.key === ' ' && !e.repeat && toolStateRef.current.activeTool !== ToolType.HAND) {
+        e.preventDefault(); // Prevent page scrolling
+
+        // Store the current tool to return to it later
+        const currentTool = toolStateRef.current.activeTool;
+        fabricCanvasRef.current?.forEachObject(obj => {
+          if (obj.data) {
+            // Store the current tool in each object's data
+            obj.data.previousTool = currentTool;
+          }
+        });
+
+        // Switch to hand tool
+        setToolState({ activeTool: ToolType.HAND });
       }
 
       // Delete key - remove selected object
@@ -780,7 +959,7 @@ const FabricCanvas: React.FC = () => {
           if (!originalModule) return;
 
           // Store for history
-          const before = { module: originalModule, floorId: activeFloor.id };
+          const before = { module: JSON.parse(JSON.stringify(originalModule)), floorId: activeFloor.id };
 
           deleteModule(objectData.id);
           canvas.remove(activeObject);
@@ -803,7 +982,7 @@ const FabricCanvas: React.FC = () => {
           if (!originalBalcony) return;
 
           // Store for history
-          const before = { balcony: originalBalcony, floorId: activeFloor.id };
+          const before = { balcony: JSON.parse(JSON.stringify(originalBalcony)), floorId: activeFloor.id };
 
           deleteBalcony(objectData.id);
           canvas.remove(activeObject);
@@ -825,22 +1004,74 @@ const FabricCanvas: React.FC = () => {
       }
 
       // Undo (Ctrl+Z)
-      if (e.ctrlKey && e.key === 'z') {
-        console.log('Trying to undo');
-        undo();
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        console.log('Executing undo');
+
+        // Perform the undo operation
+        const undoneAction = undo();
+
+        if (undoneAction) {
+          console.log('Undo completed, syncing canvas');
+
+          // Force canvas sync with a delay to ensure state is updated
+          setTimeout(() => {
+            syncCanvasWithFloor();
+          }, 100);
+        }
+
         e.preventDefault();
       }
 
       // Redo (Ctrl+Y or Ctrl+Shift+Z)
-      if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'z')) {
-        console.log('Trying to redo');
-        redo();
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) {
+        console.log('Executing redo');
+
+        // Perform the redo operation
+        const redoneAction = redo();
+
+        if (redoneAction) {
+          console.log('Redo completed, syncing canvas');
+
+          // Force canvas sync with a delay to ensure state is updated
+          setTimeout(() => {
+            syncCanvasWithFloor();
+          }, 100);
+        }
+
+        e.preventDefault();
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      // When space is released, return to the previous tool
+      if (e.key === ' ' && toolStateRef.current.activeTool === ToolType.HAND) {
+        const canvas = fabricCanvasRef.current;
+        if (!canvas) return;
+
+        // Get the previous tool from the first object's data
+        let previousTool: ToolType = ToolType.SELECT; // Default to SELECT if no previous tool found
+
+        // Get previous tool from canvas objects if available
+        canvas.forEachObject(obj => {
+          if (obj.data && obj.data.previousTool) {
+            previousTool = obj.data.previousTool;
+            return false; // Break the loop
+          }
+        });
+
+        // Switch back to the previous tool
+        setToolState({ activeTool: previousTool });
+
         e.preventDefault();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
   }, []);
 
   return (
@@ -849,5 +1080,26 @@ const FabricCanvas: React.FC = () => {
     </CanvasContainer>
   );
 };
+
+// Add these types to fabric.Canvas
+declare module 'fabric' {
+  interface Canvas {
+    isDragging?: boolean;
+    lastPosX?: number;
+    lastPosY?: number;
+    isMiddleDown?: boolean;
+  }
+
+  interface Object {
+    data?: {
+      type?: string;
+      id?: string;
+      floorId?: string;
+      category?: string;
+      previousTool?: ToolType;
+      [key: string]: any;
+    };
+  }
+}
 
 export default FabricCanvas;

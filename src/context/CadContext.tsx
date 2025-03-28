@@ -13,15 +13,15 @@ interface CadContextType {
   moduleColors: ModuleColors;
   fabricCanvasRef: React.MutableRefObject<fabric.Canvas | null>;
   setFloors: (floors: Floor[]) => void;
-  addFloor: (name: string) => void;
-  duplicateFloor: (id: string) => void;
+  addFloor: (name: string) => string; // Return the new floor ID
+  duplicateFloor: (id: string) => string; // Return the new floor ID
   deleteFloor: (id: string) => void;
   setActiveFloorId: (id: string) => void;
   updateFloor: (id: string, floor: Partial<Floor>) => void;
-  addModule: (module: Omit<Module, 'id'>) => string;
+  addModule: (module: Omit<Module, 'id'>) => string; // Return the new module ID
   updateModule: (id: string, module: Partial<Module>) => void;
   deleteModule: (id: string) => void;
-  addBalcony: (balcony: Omit<Balcony, 'id'>) => string;
+  addBalcony: (balcony: Omit<Balcony, 'id'>) => string; // Return the new balcony ID
   updateBalcony: (id: string, balcony: Partial<Balcony>) => void;
   deleteBalcony: (id: string) => void;
   setGridSettings: (settings: Partial<GridSettings>) => void;
@@ -115,6 +115,10 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setFloors(initialFloors);
       setActiveFloorId(firstFloorId);
 
+      // Update refs immediately for synchronous access
+      floorsRef.current = initialFloors;
+      activeFloorIdRef.current = firstFloorId;
+
       console.log('Initial floors set:', initialFloors);
       console.log('Active floor ID set to:', firstFloorId);
     }
@@ -130,6 +134,8 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const newActiveId = floors[0].id;
       console.log('Setting new active floor ID:', newActiveId);
       setActiveFloorId(newActiveId);
+      // Update ref immediately for synchronous access
+      activeFloorIdRef.current = newActiveId;
     }
   }, [floors, activeFloorId]);
 
@@ -199,7 +205,7 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return newFloorId;
   };
 
-  const addFloor = (name: string) => {
+  const addFloor = (name: string): string => {
     const newFloor: Floor = {
       id: uuidv4(),
       name,
@@ -224,9 +230,9 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return newFloor.id;
   };
 
-  const duplicateFloor = (id: string) => {
+  const duplicateFloor = (id: string): string => {
     const floorToDuplicate = floorsRef.current.find(floor => floor.id === id);
-    if (!floorToDuplicate) return;
+    if (!floorToDuplicate) return id; // Return the original ID if floor not found
 
     const newFloor: Floor = {
       ...floorToDuplicate,
@@ -290,15 +296,17 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   };
 
-  const addModule = (module: Omit<Module, 'id'>) => {
+  const addModule = (module: Omit<Module, 'id'> | Module): string => {
     // Ensure we have an active floor
     const activeId = ensureActiveFloor();
 
-    const newId = uuidv4();
-    const newModule: Module = {
-      ...module,
-      id: newId,
-    };
+    // Check if the module already has an ID (for redo operations)
+    const newModule =
+      'id' in module
+        ? (module as Module) // Use the existing module with its ID
+        : { ...module, id: uuidv4() }; // Create a new module with a new ID
+
+    console.log('Adding module:', newModule);
 
     setFloors(prevFloors => {
       const newFloors = prevFloors.map(floor =>
@@ -315,7 +323,7 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return newFloors;
     });
 
-    return newId;
+    return newModule.id;
   };
 
   const updateModule = (id: string, updatedModule: Partial<Module>) => {
@@ -344,19 +352,26 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   };
 
-  const addBalcony = (balcony: Omit<Balcony, 'id'>) => {
+  const addBalcony = (balcony: Omit<Balcony, 'id'> | Balcony): string => {
     // Ensure we have an active floor
     const activeId = ensureActiveFloor();
 
-    const newId = uuidv4();
-    const newBalcony: Balcony = {
-      ...balcony,
-      id: newId,
-    };
+    // Check if the balcony already has an ID (for redo operations)
+    const newBalcony =
+      'id' in balcony
+        ? (balcony as Balcony) // Use the existing balcony with its ID
+        : { ...balcony, id: uuidv4() }; // Create a new balcony with a new ID
+
+    console.log('Adding balcony:', newBalcony);
 
     setFloors(prevFloors => {
       const newFloors = prevFloors.map(floor =>
-        floor.id === activeId ? { ...floor, balconies: [...floor.balconies, newBalcony] } : floor
+        floor.id === activeId
+          ? {
+              ...floor,
+              balconies: [...floor.balconies, newBalcony],
+            }
+          : floor
       );
 
       // Update ref immediately
@@ -364,7 +379,7 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return newFloors;
     });
 
-    return newId;
+    return newBalcony.id;
   };
 
   const updateBalcony = (id: string, updatedBalcony: Partial<Balcony>) => {
@@ -394,7 +409,11 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const updateGridSettingsHandler = (settings: Partial<GridSettings>) => {
-    setGridSettings({ ...gridSettings, ...settings });
+    setGridSettings(prev => {
+      const updatedSettings = { ...prev, ...settings };
+      console.log('Updated grid settings:', updatedSettings);
+      return updatedSettings;
+    });
   };
 
   const updateCanvasSettingsHandler = (settings: Partial<CanvasSettings>) => {

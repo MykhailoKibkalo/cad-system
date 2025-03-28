@@ -1,9 +1,10 @@
 // src/components/ui/Toolbar.tsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import styled from '@emotion/styled';
 import { useCad } from '@/context/CadContext';
 import { useHistory } from '@/context/HistoryContext';
-import { ModuleCategory, ToolType } from '@/types';
+import { ActionType, ModuleCategory, ToolType } from '@/types';
+import { fabric } from 'fabric';
 
 const ToolbarContainer = styled.div`
   display: flex;
@@ -93,6 +94,16 @@ const Checkbox = styled.div`
   font-size: 14px;
 `;
 
+const ColorPreview = styled.div<{ color: string }>`
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  background-color: ${props => props.color};
+  border: 1px solid #ccc;
+  display: inline-block;
+  margin-left: 4px;
+`;
+
 // Simple SVG icons for toolbar buttons
 const SelectIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -142,9 +153,21 @@ const RedoIcon = () => (
 );
 
 const Toolbar: React.FC = () => {
-  const { toolState, setToolState, gridSettings, setGridSettings, moduleColors, ensureActiveFloor } = useCad();
+  const {
+    toolState,
+    setToolState,
+    gridSettings,
+    setGridSettings,
+    moduleColors,
+    ensureActiveFloor,
+    fabricCanvasRef,
+    getModuleById,
+    updateModule,
+    getActiveFloor,
+  } = useCad();
 
-  const { canUndo, canRedo, undo, redo } = useHistory();
+  const { canUndo, canRedo, undo, redo, addAction } = useHistory();
+  const [selectedCategory, setSelectedCategory] = useState<ModuleCategory>(ModuleCategory.A1);
 
   // Ensure we have an active floor on component mount
   useEffect(() => {
@@ -155,6 +178,16 @@ const Toolbar: React.FC = () => {
   useEffect(() => {
     console.log('Toolbar - Current tool state:', toolState);
   }, [toolState]);
+
+  // Initialize selectedCategory from the selected object's category if available
+  useEffect(() => {
+    if (toolState.selectedObjectId) {
+      const module = getModuleById(toolState.selectedObjectId);
+      if (module) {
+        setSelectedCategory(module.category);
+      }
+    }
+  }, [toolState.selectedObjectId]);
 
   const handleToolClick = (tool: ToolType) => {
     console.log(`Toolbar - Changing tool to: ${tool}`);
@@ -182,26 +215,233 @@ const Toolbar: React.FC = () => {
   const handleGridSizeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const size = parseInt(e.target.value, 10);
     if (size > 0) {
+      console.log('Changing grid size to:', size);
       setGridSettings({ size });
     }
   };
 
   const handleGridVisibilityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('Toggling grid visibility:', e.target.checked);
     setGridSettings({ visible: e.target.checked });
   };
 
   const handleSnapToGridChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('Toggling snap to grid:', e.target.checked);
+    // Pass only the snapToGrid property to avoid overwriting other grid settings
     setGridSettings({ snapToGrid: e.target.checked });
   };
 
+  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const category = e.target.value as ModuleCategory;
+    setSelectedCategory(category);
+
+    // If an object is selected, update its category
+    if (toolState.selectedObjectId) {
+      const module = getModuleById(toolState.selectedObjectId);
+      if (module) {
+        // Store original for history
+        const originalModule = { ...module };
+
+        // Create a copy of the module with the new category
+        const updatedModule = {
+          ...module,
+          category,
+        };
+
+        // Update the module
+        updateModule(toolState.selectedObjectId, updatedModule);
+
+        // Add to history
+        addAction({
+          type: ActionType.UPDATE_MODULE,
+          payload: {
+            before: { module: originalModule },
+            after: { module: updatedModule },
+            id: toolState.selectedObjectId,
+          },
+        });
+
+        // Update the canvas
+        if (fabricCanvasRef.current) {
+          const canvas = fabricCanvasRef.current;
+          const moduleObject = canvas
+            .getObjects()
+            .find(obj => obj.data?.id === toolState.selectedObjectId) as fabric.Rect;
+
+          if (moduleObject) {
+            moduleObject.set('fill', moduleColors[category]);
+            moduleObject.data.category = category;
+            canvas.renderAll();
+          }
+        }
+      }
+    }
+  };
+
   const handleUndoClick = () => {
+    console.log('Undo button clicked');
     const action = undo();
-    console.log('Undo action:', action);
+
+    if (action) {
+      console.log('Undo action completed:', action);
+
+      // Force canvas sync after undo with a delay
+      setTimeout(() => {
+        if (fabricCanvasRef.current) {
+          // Get the updated floor
+          const activeFloor = getActiveFloor();
+          if (!activeFloor) return;
+
+          const canvas = fabricCanvasRef.current;
+
+          // Clear everything except grid
+          const nonGridObjects = canvas.getObjects().filter(obj => obj.data?.type !== 'grid');
+          nonGridObjects.forEach(obj => canvas.remove(obj));
+
+          // Add modules
+          activeFloor.modules.forEach(module => {
+            const rect = new fabric.Rect({
+              left: module.position.x,
+              top: module.position.y,
+              width: module.width,
+              height: module.height,
+              fill: moduleColors[module.category],
+              stroke: '#333333',
+              strokeWidth: 1,
+              angle: module.rotation,
+              transparentCorners: false,
+              cornerColor: '#333333',
+              cornerSize: 8,
+              cornerStyle: 'circle',
+              hasControls: true,
+              lockScalingFlip: true,
+            });
+
+            rect.data = {
+              type: 'module',
+              id: module.id,
+              floorId: activeFloor.id,
+              category: module.category,
+            };
+
+            canvas.add(rect);
+          });
+
+          // Add balconies
+          activeFloor.balconies.forEach(balcony => {
+            const rect = new fabric.Rect({
+              left: balcony.position.x,
+              top: balcony.position.y,
+              width: balcony.width,
+              height: balcony.height,
+              fill: '#FFDEAD',
+              stroke: '#333333',
+              strokeWidth: 1,
+              angle: balcony.rotation,
+              transparentCorners: false,
+              cornerColor: '#333333',
+              cornerSize: 8,
+              cornerStyle: 'circle',
+              hasControls: true,
+              lockScalingFlip: true,
+            });
+
+            rect.data = {
+              type: 'balcony',
+              id: balcony.id,
+              floorId: activeFloor.id,
+            };
+
+            canvas.add(rect);
+          });
+
+          canvas.renderAll();
+        }
+      }, 100);
+    }
   };
 
   const handleRedoClick = () => {
+    console.log('Redo button clicked');
     const action = redo();
-    console.log('Redo action:', action);
+
+    if (action) {
+      console.log('Redo action completed:', action);
+
+      // Force canvas sync after redo with a delay
+      setTimeout(() => {
+        if (fabricCanvasRef.current) {
+          // Get the updated floor
+          const activeFloor = getActiveFloor();
+          if (!activeFloor) return;
+
+          const canvas = fabricCanvasRef.current;
+
+          // Clear everything except grid
+          const nonGridObjects = canvas.getObjects().filter(obj => obj.data?.type !== 'grid');
+          nonGridObjects.forEach(obj => canvas.remove(obj));
+
+          // Add modules
+          activeFloor.modules.forEach(module => {
+            const rect = new fabric.Rect({
+              left: module.position.x,
+              top: module.position.y,
+              width: module.width,
+              height: module.height,
+              fill: moduleColors[module.category],
+              stroke: '#333333',
+              strokeWidth: 1,
+              angle: module.rotation,
+              transparentCorners: false,
+              cornerColor: '#333333',
+              cornerSize: 8,
+              cornerStyle: 'circle',
+              hasControls: true,
+              lockScalingFlip: true,
+            });
+
+            rect.data = {
+              type: 'module',
+              id: module.id,
+              floorId: activeFloor.id,
+              category: module.category,
+            };
+
+            canvas.add(rect);
+          });
+
+          // Add balconies
+          activeFloor.balconies.forEach(balcony => {
+            const rect = new fabric.Rect({
+              left: balcony.position.x,
+              top: balcony.position.y,
+              width: balcony.width,
+              height: balcony.height,
+              fill: '#FFDEAD',
+              stroke: '#333333',
+              strokeWidth: 1,
+              angle: balcony.rotation,
+              transparentCorners: false,
+              cornerColor: '#333333',
+              cornerSize: 8,
+              cornerStyle: 'circle',
+              hasControls: true,
+              lockScalingFlip: true,
+            });
+
+            rect.data = {
+              type: 'balcony',
+              id: balcony.id,
+              floorId: activeFloor.id,
+            };
+
+            canvas.add(rect);
+          });
+
+          canvas.renderAll();
+        }
+      }, 100);
+    }
   };
 
   return (
@@ -260,13 +500,15 @@ const Toolbar: React.FC = () => {
 
       <ToolGroup>
         <label>Category:</label>
-        <Select>
+        <Select value={selectedCategory} onChange={handleCategoryChange}>
           {Object.values(ModuleCategory).map(category => (
             <option key={category} value={category}>
               {category}
+              {/* Add color preview in the option - note: this is not standard HTML but works in some browsers */}
             </option>
           ))}
         </Select>
+        <ColorPreview color={moduleColors[selectedCategory]} />
       </ToolGroup>
 
       <ToolGroup>

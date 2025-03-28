@@ -107,6 +107,7 @@ const PropertyPanel: React.FC = () => {
     updateBalcony,
     deleteBalcony,
     moduleColors,
+    fabricCanvasRef,
   } = useCad();
 
   const { addAction } = useHistory();
@@ -214,6 +215,10 @@ const PropertyPanel: React.FC = () => {
   const applyModuleChanges = () => {
     if (!toolState.selectedObjectId) return;
 
+    // Store original state for comparison
+    const originalModule = getModuleById(toolState.selectedObjectId);
+    if (!originalModule) return;
+
     const updatedModule = {
       name: moduleState.name,
       category: moduleState.category,
@@ -224,7 +229,12 @@ const PropertyPanel: React.FC = () => {
         y: moduleState.posY,
       },
       rotation: moduleState.rotation,
+      // Preserve other properties
+      openings: originalModule.openings,
     };
+
+    // Check if category changed
+    const categoryChanged = originalModule.category !== updatedModule.category;
 
     // Update the module
     updateModule(toolState.selectedObjectId, updatedModule);
@@ -233,11 +243,43 @@ const PropertyPanel: React.FC = () => {
     addAction({
       type: ActionType.UPDATE_MODULE,
       payload: {
-        before: { module: originalState },
-        after: { module: { ...originalState, ...updatedModule } },
+        before: { module: originalModule },
+        after: { module: { ...originalModule, ...updatedModule } },
         id: toolState.selectedObjectId,
       },
     });
+
+    // If the category changed or we're updating properties that affect the canvas,
+    // update the visual representation on the canvas
+    if (categoryChanged || true) {
+      // Find the canvas object and update its properties
+      if (fabricCanvasRef.current) {
+        const canvas = fabricCanvasRef.current;
+        const moduleObject = canvas
+          .getObjects()
+          .find(obj => obj.data?.id === toolState.selectedObjectId) as fabric.Rect;
+
+        if (moduleObject) {
+          // Update the visual properties
+          moduleObject.set({
+            left: updatedModule.position.x,
+            top: updatedModule.position.y,
+            width: updatedModule.width,
+            height: updatedModule.height,
+            angle: updatedModule.rotation,
+            fill: moduleColors[updatedModule.category], // Update color based on category
+          });
+
+          // Also update the data
+          moduleObject.data = {
+            ...moduleObject.data,
+            category: updatedModule.category,
+          };
+
+          canvas.renderAll();
+        }
+      }
+    }
   };
 
   // Apply balcony changes
@@ -266,6 +308,24 @@ const PropertyPanel: React.FC = () => {
         id: toolState.selectedObjectId,
       },
     });
+
+    // Update the visual representation on the canvas
+    if (fabricCanvasRef.current) {
+      const canvas = fabricCanvasRef.current;
+      const balconyObject = canvas.getObjects().find(obj => obj.data?.id === toolState.selectedObjectId) as fabric.Rect;
+
+      if (balconyObject) {
+        balconyObject.set({
+          left: updatedBalcony.position.x,
+          top: updatedBalcony.position.y,
+          width: updatedBalcony.width,
+          height: updatedBalcony.height,
+          angle: updatedBalcony.rotation,
+        });
+
+        canvas.renderAll();
+      }
+    }
   };
 
   // Delete module
@@ -284,6 +344,17 @@ const PropertyPanel: React.FC = () => {
 
     // Delete the module
     deleteModule(toolState.selectedObjectId);
+
+    // Also remove from canvas if it exists
+    if (fabricCanvasRef.current) {
+      const canvas = fabricCanvasRef.current;
+      const moduleObject = canvas.getObjects().find(obj => obj.data?.id === toolState.selectedObjectId);
+
+      if (moduleObject) {
+        canvas.remove(moduleObject);
+        canvas.renderAll();
+      }
+    }
   };
 
   // Delete balcony
@@ -302,6 +373,17 @@ const PropertyPanel: React.FC = () => {
 
     // Delete the balcony
     deleteBalcony(toolState.selectedObjectId);
+
+    // Also remove from canvas if it exists
+    if (fabricCanvasRef.current) {
+      const canvas = fabricCanvasRef.current;
+      const balconyObject = canvas.getObjects().find(obj => obj.data?.id === toolState.selectedObjectId);
+
+      if (balconyObject) {
+        canvas.remove(balconyObject);
+        canvas.renderAll();
+      }
+    }
   };
 
   if (!selectedType) {

@@ -6,12 +6,15 @@ import styled from '@emotion/styled';
 import { CadProvider } from '@/context/CadContext';
 import { HistoryProvider } from '@/context/HistoryContext';
 import FabricCanvas from '../components/canvas/FabricCanvas';
-import Toolbar from '../components/ui/Toolbar';
 import PropertyPanel from '../components/ui/PropertyPanel';
 import FloorSelector from '../components/ui/FloorSelector';
 import PdfBackdropControls from '../components/pdf/PdfBackdrop';
 import DebugHelper from '@/components/debug/DebugHelper';
-import ForceToolSelection from '@/components/ui/ForceToolSelection';
+
+// Import our new components
+import ImprovedToolbar from '@/components/ui/ImprovedToolbar';
+import ZoomControls from '@/components/ui/ZoomControls';
+import ResizablePanel from '@/components/ui/ResizablePanel';
 
 const AppContainer = styled.div`
   display: flex;
@@ -24,19 +27,15 @@ const ContentContainer = styled.div`
   display: flex;
   flex-grow: 1;
   overflow: hidden;
+  position: relative; /* For absolute positioning of the zoom controls */
 `;
 
-const SidePanel = styled.div`
+const MainContent = styled.div`
+  flex-grow: 1;
   display: flex;
   flex-direction: column;
-  width: 300px;
-  border-left: 1px solid #ccc;
   overflow: hidden;
-`;
-
-const PropertyPanelContainer = styled.div`
-  flex-grow: 1;
-  overflow-y: auto;
+  position: relative;
 `;
 
 export default function Home() {
@@ -44,18 +43,25 @@ export default function Home() {
     <CadProvider>
       <HistoryProvider>
         <AppContainer>
-          <Toolbar />
+          {/* Replace the old toolbar with the improved one */}
+          <ImprovedToolbar />
+
           <ContentContainer>
-            <FabricCanvas />
-            <SidePanel>
-              <PropertyPanelContainer>
-                <PropertyPanel />
-              </PropertyPanelContainer>
+            <MainContent>
+              <FabricCanvas />
+              {/* Add zoom controls */}
+              <ZoomControls />
+            </MainContent>
+
+            {/* Use ResizablePanel for the side panel */}
+            <ResizablePanel defaultWidth={320} minWidth={250} maxWidth={500} title="Properties">
+              <PropertyPanel />
               <PdfBackdropControls />
               <FloorSelector />
-            </SidePanel>
+            </ResizablePanel>
           </ContentContainer>
-          <ForceToolSelection />
+
+          {/* Keep debug helper */}
           <DebugHelper />
         </AppContainer>
       </HistoryProvider>
