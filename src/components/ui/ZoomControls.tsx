@@ -2,6 +2,7 @@
 import React from 'react';
 import styled from '@emotion/styled';
 import { useCad } from '@/context/CadContext';
+import { fabric } from 'fabric';
 
 const ZoomControlsContainer = styled.div`
   position: absolute;
@@ -144,7 +145,7 @@ const ZoomControls: React.FC = () => {
 
       // Reset zoom and pan
       canvas.setZoom(1);
-      canvas.absolutePan({ x: 0, y: 0 } as fabric.Point);
+      canvas.absolutePan(new fabric.Point(0, 0));
 
       // Update canvas settings
       setCanvasSettings({

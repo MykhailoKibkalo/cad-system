@@ -4,7 +4,7 @@ import styled from '@emotion/styled';
 import { useCad } from '@/context/CadContext';
 import { useHistory } from '@/context/HistoryContext';
 import { ActionType, ModuleCategory, ToolType } from '@/types';
-import { fabric } from 'fabric';
+import { fabric } from 'fabric'; // Styled components for the improved toolbar
 
 // Styled components for the improved toolbar
 const ToolbarContainer = styled.div`
@@ -200,26 +200,24 @@ const Checkbox = styled.div`
   }
 `;
 
-const ShortcutHint = styled.span`
+// FIX: Define these as regular divs instead of styled components to avoid the Emotion plugin error
+const KeyboardHintsDiv = styled.div`
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  color: #6c757d;
+  font-size: 12px;
+`;
+
+const ShortcutHintSpan = styled.span`
   font-size: 10px;
   color: #6c757d;
   background-color: #f8f9fa;
   border-radius: 3px;
   padding: 1px 3px;
   margin-left: 4px;
+  margin-right: 8px;
   border: 1px solid #dee2e6;
-`;
-
-const KeyboardHints = styled.div`
-  display: flex;
-  align-items: center;
-  margin-left: auto;
-  color: #6c757d;
-  font-size: 12px;
-
-  ${ShortcutHint} {
-    margin-right: 8px;
-  }
 `;
 
 // SVG Icons
@@ -676,14 +674,15 @@ const ImprovedToolbar: React.FC = () => {
           </GridControls>
         </ToolbarSection>
 
-        <KeyboardHints>
-          <ShortcutHint>V</ShortcutHint> Select
-          <ShortcutHint>H</ShortcutHint> Hand
-          <ShortcutHint>M</ShortcutHint> Module
-          <ShortcutHint>B</ShortcutHint> Balcony
-          <ShortcutHint>Space</ShortcutHint> Temporary Pan
-          <ShortcutHint>Scroll</ShortcutHint> Zoom
-        </KeyboardHints>
+        {/* FIX: Use the div version instead of the component with nested shortcut components */}
+        <KeyboardHintsDiv>
+          <ShortcutHintSpan>V</ShortcutHintSpan> Select
+          <ShortcutHintSpan>H</ShortcutHintSpan> Hand
+          <ShortcutHintSpan>M</ShortcutHintSpan> Module
+          <ShortcutHintSpan>B</ShortcutHintSpan> Balcony
+          <ShortcutHintSpan>Space</ShortcutHintSpan> Temporary Pan
+          <ShortcutHintSpan>Scroll</ShortcutHintSpan> Zoom
+        </KeyboardHintsDiv>
       </ToolbarRow>
     </ToolbarContainer>
   );
