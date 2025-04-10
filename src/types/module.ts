@@ -53,6 +53,27 @@ export interface Opening {
   wall: 'top' | 'right' | 'bottom' | 'left';
 }
 
+// New wall-related types
+export enum WallType {
+  EXTERNAL = 'external',
+  INTERNAL = 'internal',
+}
+
+export interface WallProperties {
+  enabled: boolean;
+  type: WallType;
+  thickness: number;
+  startOffset: number;
+  endOffset: number;
+}
+
+export interface ModuleWalls {
+  top: WallProperties;
+  right: WallProperties;
+  bottom: WallProperties;
+  left: WallProperties;
+}
+
 export interface Module {
   id: string;
   name?: string;
@@ -65,6 +86,7 @@ export interface Module {
   };
   rotation: number;
   openings: Opening[];
+  walls?: ModuleWalls; // New property for wall definitions
 }
 
 export interface Balcony {

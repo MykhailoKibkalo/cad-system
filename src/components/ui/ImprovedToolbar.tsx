@@ -548,6 +548,17 @@ const ImprovedToolbar: React.FC = () => {
     }
   };
 
+  const handleSnapThresholdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseInt(e.target.value, 10);
+    if (!isNaN(value) && value > 0) {
+      setGridSettings({ snapThreshold: value });
+    }
+  };
+
+  const handleSnapToElementChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setGridSettings({ snapToElement: e.target.checked });
+  };
+
   // Handle clicks outside the dropdown to close it
   useEffect(() => {
     const handleClickOutside = () => {
@@ -671,8 +682,33 @@ const ImprovedToolbar: React.FC = () => {
               />
               <label htmlFor="snap-to-grid">Snap</label>
             </Checkbox>
+
+            <Checkbox>
+              <input
+                  type="checkbox"
+                  checked={gridSettings.snapToElement}
+                  onChange={handleSnapToElementChange}
+                  id="snap-to-element"
+              />
+              <label htmlFor="snap-to-element">Snap to Elements</label>
+            </Checkbox>
           </GridControls>
         </ToolbarSection>
+
+        {gridSettings.snapToElement && (
+            <div style={{ marginLeft: '16px', display: 'flex', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', marginRight: '4px' }}>Threshold:</span>
+              <GridSizeInput
+                  type="number"
+                  value={gridSettings.snapThreshold || 10}
+                  onChange={handleSnapThresholdChange}
+                  min="1"
+                  max="50"
+                  style={{ width: '50px' }}
+              />
+              <span style={{ fontSize: '12px', marginLeft: '4px' }}>px</span>
+            </div>
+        )}
 
         {/* FIX: Use the div version instead of the component with nested shortcut components */}
         <KeyboardHintsDiv>

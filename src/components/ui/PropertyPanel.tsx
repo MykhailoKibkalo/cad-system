@@ -4,6 +4,7 @@ import styled from '@emotion/styled';
 import { useCad } from '@/context/CadContext';
 import { useHistory } from '@/context/HistoryContext';
 import { ActionType, ModuleCategory } from '@/types';
+import ModuleWallsEditor from "@/components/ui/ModuleWallsEditor";
 
 const PanelContainer = styled.div`
   width: 300px;
@@ -473,6 +474,9 @@ const PropertyPanel: React.FC = () => {
           <Button onClick={applyModuleChanges}>Apply Changes</Button>
           <DangerButton onClick={deleteSelectedModule}>Delete</DangerButton>
         </FormGroup>
+        {selectedType === 'module' && toolState.selectedObjectId && (
+            <ModuleWallsEditor moduleId={toolState.selectedObjectId} />
+        )}
       </PanelContainer>
     );
   }
@@ -538,6 +542,8 @@ const PropertyPanel: React.FC = () => {
         <Button onClick={applyBalconyChanges}>Apply Changes</Button>
         <DangerButton onClick={deleteSelectedBalcony}>Delete</DangerButton>
       </FormGroup>
+
+
     </PanelContainer>
   );
 };

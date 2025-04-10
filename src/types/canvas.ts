@@ -4,6 +4,8 @@ export interface GridSettings {
   opacity: number;
   visible: boolean;
   snapToGrid: boolean;
+  snapToElement?: boolean; // New property for edge-to-edge snapping
+  snapThreshold?: number; // New property for configuring snap distance
 }
 
 export interface CanvasSettings {

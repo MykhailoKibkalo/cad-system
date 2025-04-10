@@ -2,7 +2,17 @@
 import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import { fabric } from 'fabric';
 import { v4 as uuidv4 } from 'uuid';
-import { Balcony, CanvasSettings, Floor, GridSettings, Module, ModuleColors, ToolState, ToolType } from '@/types';
+import {
+  Balcony,
+  CanvasSettings,
+  Floor,
+  GridSettings,
+  Module,
+  ModuleColors,
+  ToolState,
+  ToolType,
+  WallType,
+} from '@/types';
 
 interface CadContextType {
   floors: Floor[];
@@ -39,6 +49,8 @@ const defaultGridSettings: GridSettings = {
   opacity: 0.5,
   visible: true,
   snapToGrid: true,
+  snapToElement: true,
+  snapThreshold: 10,
 };
 
 const defaultCanvasSettings: CanvasSettings = {
@@ -300,28 +312,64 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     // Ensure we have an active floor
     const activeId = ensureActiveFloor();
 
+    const defaultWallProps = {
+      enabled: false,
+      type: WallType.EXTERNAL,
+      thickness: 10,
+      startOffset: 0,
+      endOffset: 0,
+    };
+
     // Check if the module already has an ID (for redo operations)
-    const newModule =
-      'id' in module
-        ? (module as Module) // Use the existing module with its ID
-        : { ...module, id: uuidv4() }; // Create a new module with a new ID
+    let newModule;
+    if ('id' in module) {
+      // It's an existing module, preserve its ID
+      newModule = {
+        ...module,
+        // Add default walls if not present
+        walls: module.walls || {
+          top: { ...defaultWallProps },
+          right: { ...defaultWallProps },
+          bottom: { ...defaultWallProps },
+          left: { ...defaultWallProps },
+        },
+      };
+    } else {
+      // It's a new module, generate a new ID
+      newModule = {
+        ...module,
+        id: uuidv4(),
+        // Add default walls
+        walls: {
+          top: { ...defaultWallProps },
+          right: { ...defaultWallProps },
+          bottom: { ...defaultWallProps },
+          left: { ...defaultWallProps },
+        },
+      };
+    }
 
     console.log('Adding module:', newModule);
 
-    setFloors(prevFloors => {
-      const newFloors = prevFloors.map(floor =>
-        floor.id === activeId
-          ? {
-              ...floor,
-              modules: [...floor.modules, newModule],
-            }
-          : floor
-      );
+    let newFloors = [...floorsRef.current];
 
-      // Update ref immediately
-      floorsRef.current = newFloors;
-      return newFloors;
-    });
+    // Find and update the active floor
+    newFloors = newFloors.map(floor =>
+      floor.id === activeId
+        ? {
+            ...floor,
+            modules: [...floor.modules, newModule],
+          }
+        : floor
+    );
+
+    // Update the floors ref directly to avoid setState in the middle of a render
+    floorsRef.current = newFloors;
+
+    // Schedule the state update asynchronously
+    setTimeout(() => {
+      setFloors(newFloors);
+    }, 0);
 
     return newModule.id;
   };
