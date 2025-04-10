@@ -567,7 +567,6 @@ const FabricCanvas: React.FC = () => {
     canvas.renderAll();
   }
 
-  // Mouse Up - Finish Drawing or End Panning
   function onMouseUp(event: fabric.IEvent<MouseEvent>) {
     if (!fabricCanvasRef.current) return;
 
