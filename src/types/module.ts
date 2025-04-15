@@ -1,4 +1,6 @@
 // src/types/module.ts
+import { ModuleWalls } from '@/types/wall';
+
 export enum ModuleCategory {
   A1 = 'A1',
   A2 = 'A2',
@@ -65,6 +67,19 @@ export interface Module {
   };
   rotation: number;
   openings: Opening[];
+  walls?: ModuleWalls; // New walls property for edge configuration
+}
+
+export interface Balcony {
+  id: string;
+  width: number;
+  height: number;
+  position: {
+    x: number;
+    y: number;
+  };
+  rotation: number;
+  attachedToModuleId?: string;
 }
 
 export interface Balcony {

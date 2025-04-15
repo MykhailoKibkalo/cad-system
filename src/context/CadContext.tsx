@@ -2,7 +2,17 @@
 import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import { fabric } from 'fabric';
 import { v4 as uuidv4 } from 'uuid';
-import { Balcony, CanvasSettings, Floor, GridSettings, Module, ModuleColors, ToolState, ToolType } from '@/types';
+import {
+  Balcony,
+  CanvasSettings,
+  createDefaultWalls,
+  Floor,
+  GridSettings,
+  Module,
+  ModuleColors,
+  ToolState,
+  ToolType
+} from '@/types';
 
 interface CadContextType {
   floors: Floor[];
@@ -39,6 +49,8 @@ const defaultGridSettings: GridSettings = {
   opacity: 0.5,
   visible: true,
   snapToGrid: true,
+  snapToElement: true, // Enable snap to element by default
+  snapThreshold: 10, // 10px threshold for snapping
 };
 
 const defaultCanvasSettings: CanvasSettings = {
@@ -301,21 +313,32 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const activeId = ensureActiveFloor();
 
     // Check if the module already has an ID (for redo operations)
-    const newModule =
-      'id' in module
-        ? (module as Module) // Use the existing module with its ID
-        : { ...module, id: uuidv4() }; // Create a new module with a new ID
+    let newModule: Module;
+
+    if ('id' in module) {
+      newModule = module as Module;
+      // Ensure walls exist
+      if (!newModule.walls) {
+        newModule.walls = createDefaultWalls();
+      }
+    } else {
+      newModule = {
+        ...module,
+        id: uuidv4(),
+        walls: module.walls || createDefaultWalls() // Add default walls if not provided
+      };
+    }
 
     console.log('Adding module:', newModule);
 
     setFloors(prevFloors => {
       const newFloors = prevFloors.map(floor =>
-        floor.id === activeId
-          ? {
-              ...floor,
-              modules: [...floor.modules, newModule],
-            }
-          : floor
+          floor.id === activeId
+              ? {
+                ...floor,
+                modules: [...floor.modules, newModule],
+              }
+              : floor
       );
 
       // Update ref immediately

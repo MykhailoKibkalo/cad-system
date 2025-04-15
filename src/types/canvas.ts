@@ -4,6 +4,8 @@ export interface GridSettings {
   opacity: number;
   visible: boolean;
   snapToGrid: boolean;
+  snapToElement: boolean; // New property for element snapping
+  snapThreshold: number; // Threshold for element snapping in pixels
 }
 
 export interface CanvasSettings {

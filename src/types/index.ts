@@ -4,3 +4,4 @@ export * from './module';
 export * from './history';
 export * from './module';
 export * from './canvas';
+export * from './wall';

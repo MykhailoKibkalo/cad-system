@@ -3,7 +3,18 @@ import React, { useEffect, useState } from 'react';
 import styled from '@emotion/styled';
 import { useCad } from '@/context/CadContext';
 import { useHistory } from '@/context/HistoryContext';
-import { ActionType, ModuleCategory } from '@/types';
+import {
+  ActionType,
+  createDefaultWalls,
+  ModuleCategory,
+  WallEdge,
+  WallPlacement,
+  WallProperties,
+  WallType
+} from '@/types';
+import {fabric} from "fabric";
+import WallPropertyEditor from './WallPropertyEditor';
+import {calculateWallPosition} from "@/utils/wallUtils";
 
 const PanelContainer = styled.div`
   width: 300px;
@@ -150,6 +161,9 @@ const PropertyPanel: React.FC = () => {
   // Original state for history tracking
   const [originalState, setOriginalState] = useState<any>(null);
 
+  const [wallState, setWallState] = useState<Record<WallEdge, WallProperties>>(createDefaultWalls());
+
+
   // Update state when selection changes
   useEffect(() => {
     if (!toolState.selectedObjectId) {
@@ -191,6 +205,35 @@ const PropertyPanel: React.FC = () => {
     setSelectedType(null);
   }, [toolState.selectedObjectId]);
 
+  useEffect(() => {
+    if (!toolState.selectedObjectId) {
+      setSelectedType(null);
+      return;
+    }
+
+    const module = getModuleById(toolState.selectedObjectId);
+    if (module) {
+      setSelectedType('module');
+      setModuleState({
+        name: module.name || '',
+        category: module.category,
+        width: module.width,
+        height: module.height,
+        posX: module.position.x,
+        posY: module.position.y,
+        rotation: module.rotation,
+      });
+
+      // Initialize wall state if module has walls, otherwise use defaults
+      setWallState(module.walls || createDefaultWalls());
+
+      setOriginalState(module);
+      return;
+    }
+
+    // Rest of the function stays the same...
+  }, [toolState.selectedObjectId]);
+
   // Handle module property changes
   const handleModuleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -208,6 +251,13 @@ const PropertyPanel: React.FC = () => {
     setBalconyState(prev => ({
       ...prev,
       [name]: parseFloat(value) || 0,
+    }));
+  };
+
+  const handleWallChange = (edge: WallEdge, properties: WallProperties) => {
+    setWallState(prevState => ({
+      ...prevState,
+      [edge]: properties
     }));
   };
 
@@ -229,6 +279,8 @@ const PropertyPanel: React.FC = () => {
         y: moduleState.posY,
       },
       rotation: moduleState.rotation,
+      // Add walls property
+      walls: wallState,
       // Preserve other properties
       openings: originalModule.openings,
     };
@@ -255,9 +307,17 @@ const PropertyPanel: React.FC = () => {
       // Find the canvas object and update its properties
       if (fabricCanvasRef.current) {
         const canvas = fabricCanvasRef.current;
+
+        // First, remove any existing walls for this module
+        const existingWalls = canvas.getObjects().filter(
+            obj => obj.data?.type === 'wall' && obj.data?.moduleId === toolState.selectedObjectId
+        );
+        existingWalls.forEach(wall => canvas.remove(wall));
+
+        // Update the module properties
         const moduleObject = canvas
-          .getObjects()
-          .find(obj => obj.data?.id === toolState.selectedObjectId) as fabric.Rect;
+            .getObjects()
+            .find(obj => obj.data?.id === toolState.selectedObjectId) as fabric.Rect;
 
         if (moduleObject) {
           // Update the visual properties
@@ -275,6 +335,262 @@ const PropertyPanel: React.FC = () => {
             ...moduleObject.data,
             category: updatedModule.category,
           };
+
+          // Re-render the module to show walls
+          // First find the module from the context
+          const updatedModuleData = getModuleById(toolState.selectedObjectId);
+          if (updatedModuleData) {
+            // Then render walls based on the updated module
+            // For simplicity in this implementation, we'll only handle non-rotated modules for walls
+            if (updatedModuleData.rotation === 0 && updatedModuleData.walls) {
+              const walls = updatedModuleData.walls;
+
+              // Top wall
+              if (walls.top && walls.top.enabled) {
+                const wallThickness = walls.top.thickness;
+                const wallColor = walls.top.type === WallType.EXTERNAL ? '#333333' : '#666666';
+                const startOffset = walls.top.partialStart || 0;
+                const endOffset = walls.top.partialEnd || 0;
+
+                const wallLeft = updatedModuleData.position.x + (updatedModuleData.width * startOffset);
+                const wallWidth = updatedModuleData.width * (1 - startOffset - endOffset);
+
+                // Calculate wall position using utility function
+                const wallPosition = calculateWallPosition(
+                    updatedModuleData.position,
+                    { width: updatedModuleData.width, height: updatedModuleData.height },
+                    'top',
+                    wallThickness,
+                    walls.top.placement,
+                    startOffset,
+                    endOffset,
+                    walls.top.extendStart || false,
+                    walls.top.extendEnd || false,
+                    walls // Pass all walls to check adjacency
+                );
+
+                // For inside walls, use a different style to make them visible through the module
+                const visualProperties = wallPosition.isInside ? {
+                  fill: wallColor,
+                  opacity: 0.5,
+                } : {
+                  fill: wallColor,
+                  stroke: undefined,
+                  strokeWidth: 0,
+                  opacity: 1
+                };
+
+                const topWall = new fabric.Rect({
+                  left: wallPosition.left,
+                  top: wallPosition.top,
+                  width: wallPosition.width,
+                  height: wallPosition.height,
+                  ...visualProperties,
+                  selectable: false,
+                  evented: false,
+                });
+
+                topWall.data = {
+                  type: 'wall',
+                  moduleId: updatedModuleData.id,
+                  edge: 'top',
+                };
+
+                canvas.add(topWall);
+
+                // For inside walls, bring to front instead of sending to back
+                if (wallPosition.isInside) {
+                  canvas.bringToFront(topWall);
+                } else {
+                  canvas.sendToBack(topWall);
+                }
+              }
+
+              // Right wall
+              if (walls.right && walls.right.enabled) {
+                const wallThickness = walls.right.thickness;
+                const wallColor = walls.right.type === WallType.EXTERNAL ? '#333333' : '#666666';
+                const startOffset = walls.right.partialStart || 0;
+                const endOffset = walls.right.partialEnd || 0;
+
+                const wallTop = updatedModuleData.position.y + (updatedModuleData.height * startOffset);
+                const wallHeight = updatedModuleData.height * (1 - startOffset - endOffset);
+
+                // Calculate wall position using utility function
+                // Calculate wall position using utility function
+                const wallPosition = calculateWallPosition(
+                    updatedModuleData.position,
+                    { width: updatedModuleData.width, height: updatedModuleData.height },
+                    'right',
+                    wallThickness,
+                    walls.right.placement,
+                    startOffset,
+                    endOffset,
+                    walls.right.extendStart || false,
+                    walls.right.extendEnd || false,
+                    walls // Pass all walls to check adjacency
+                );
+
+                // For inside walls, use a different style to make them visible through the module
+                const visualProperties = wallPosition.isInside ? {
+                  fill: wallColor,
+                  opacity: 0.5,
+                } : {
+                  fill: wallColor,
+                  stroke: undefined,
+                  strokeWidth: 0,
+                  opacity: 1
+                };
+
+                const rightWall = new fabric.Rect({
+                  left: wallPosition.left,
+                  top: wallPosition.top,
+                  width: wallPosition.width,
+                  height: wallPosition.height,
+                  ...visualProperties,
+                  selectable: false,
+                  evented: false,
+                });
+
+                rightWall.data = {
+                  type: 'wall',
+                  moduleId: updatedModuleData.id,
+                  edge: 'right',
+                };
+
+                canvas.add(rightWall);
+
+                // For inside walls, bring to front instead of sending to back
+                if (wallPosition.isInside) {
+                  canvas.bringToFront(rightWall);
+                } else {
+                  canvas.sendToBack(rightWall);
+                }
+              }
+
+              // Bottom wall
+              if (walls.bottom && walls.bottom.enabled) {
+                const wallThickness = walls.bottom.thickness;
+                const wallColor = walls.bottom.type === WallType.EXTERNAL ? '#333333' : '#666666';
+                const startOffset = walls.bottom.partialStart || 0;
+                const endOffset = walls.bottom.partialEnd || 0;
+
+                const wallLeft = updatedModuleData.position.x + (updatedModuleData.width * startOffset);
+                const wallWidth = updatedModuleData.width * (1 - startOffset - endOffset);
+
+                // Calculate wall position using utility function
+                const wallPosition = calculateWallPosition(
+                    updatedModuleData.position,
+                    { width: updatedModuleData.width, height: updatedModuleData.height },
+                    'bottom',
+                    wallThickness,
+                    walls.bottom.placement,
+                    startOffset,
+                    endOffset,
+                    walls.bottom.extendStart || false,
+                    walls.bottom.extendEnd || false,
+                    walls // Pass all walls to check adjacency
+                );
+
+                // For inside walls, use a different style to make them visible through the module
+                const visualProperties = wallPosition.isInside ? {
+                  fill: wallColor,
+                  opacity: 0.5,
+                } : {
+                  fill: wallColor,
+                  stroke: undefined,
+                  strokeWidth: 0,
+                  opacity: 1
+                };
+
+                const bottomWall = new fabric.Rect({
+                  left: wallPosition.left,
+                  top: wallPosition.top,
+                  width: wallPosition.width,
+                  height: wallPosition.height,
+                  ...visualProperties,
+                  selectable: false,
+                  evented: false,
+                });
+
+                bottomWall.data = {
+                  type: 'wall',
+                  moduleId: updatedModuleData.id,
+                  edge: 'bottom',
+                };
+
+                canvas.add(bottomWall);
+
+                // For inside walls, bring to front instead of sending to back
+                if (wallPosition.isInside) {
+                  canvas.bringToFront(bottomWall);
+                } else {
+                  canvas.sendToBack(bottomWall);
+                }
+              }
+
+              // Left wall
+              if (walls.left && walls.left.enabled) {
+                const wallThickness = walls.left.thickness;
+                const wallColor = walls.left.type === WallType.EXTERNAL ? '#333333' : '#666666';
+                const startOffset = walls.left.partialStart || 0;
+                const endOffset = walls.left.partialEnd || 0;
+
+                const wallTop = updatedModuleData.position.y + (updatedModuleData.height * startOffset);
+                const wallHeight = updatedModuleData.height * (1 - startOffset - endOffset);
+
+                // Calculate wall position using utility function
+                const wallPosition = calculateWallPosition(
+                    updatedModuleData.position,
+                    { width: updatedModuleData.width, height: updatedModuleData.height },
+                    'left',
+                    wallThickness,
+                    walls.left.placement,
+                    startOffset,
+                    endOffset,
+                    walls.left.extendStart || false,
+                    walls.left.extendEnd || false,
+                    walls // Pass all walls to check adjacency
+                );
+
+                // For inside walls, use a different style to make them visible through the module
+                const visualProperties = wallPosition.isInside ? {
+                  fill: wallColor,
+                  opacity: 0.5,
+                } : {
+                  fill: wallColor,
+                  stroke: undefined,
+                  strokeWidth: 0,
+                  opacity: 1
+                };
+
+                const leftWall = new fabric.Rect({
+                  left: wallPosition.left,
+                  top: wallPosition.top,
+                  width: wallPosition.width,
+                  height: wallPosition.height,
+                  ...visualProperties,
+                  selectable: false,
+                  evented: false,
+                });
+
+                leftWall.data = {
+                  type: 'wall',
+                  moduleId: updatedModuleData.id,
+                  edge: 'left',
+                };
+
+                canvas.add(leftWall);
+
+                // For inside walls, bring to front instead of sending to back
+                if (wallPosition.isInside) {
+                  canvas.bringToFront(leftWall);
+                } else {
+                  canvas.sendToBack(leftWall);
+                }
+              }
+            }
+          }
 
           canvas.renderAll();
         }
@@ -403,6 +719,11 @@ const PropertyPanel: React.FC = () => {
         <FormGroup>
           <Label>Name</Label>
           <Input type="text" name="name" value={moduleState.name} onChange={handleModuleChange} />
+        </FormGroup>
+
+        <FormGroup>
+          <Label>Wall Properties</Label>
+          <WallPropertyEditor walls={wallState} onChange={handleWallChange} />
         </FormGroup>
 
         <FormGroup>

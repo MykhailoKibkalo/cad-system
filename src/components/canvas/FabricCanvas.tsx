@@ -4,8 +4,11 @@ import { fabric } from 'fabric';
 import styled from '@emotion/styled';
 import { useCad } from '@/context/CadContext';
 import { useHistory } from '@/context/HistoryContext';
-import { ActionType, ModuleCategory, ToolState, ToolType } from '@/types';
+import {ActionType, Module, ModuleCategory, ToolState, ToolType} from '@/types';
 import { loadPdfToCanvas } from '../pdf/PdfHandler';
+import { renderAlignmentGuidelines, clearAlignmentGuidelines, snapToGridAndElements } from '@/utils/snapUtils';
+import { WallType, createDefaultWalls } from '@/types/wall';
+import { calculateWallPosition } from '@/utils/wallUtils';
 
 // Constants for zoom functionality
 const MIN_ZOOM = 0.1;
@@ -13,7 +16,7 @@ const MAX_ZOOM = 10;
 const ZOOM_STEP = 0.1;
 
 // Platform detection
-const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+// const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 
 const CanvasContainer = styled.div`
   position: relative;
@@ -43,6 +46,7 @@ const FabricCanvas: React.FC = () => {
     ensureActiveFloor,
     getActiveFloor,
     setCanvasSettings,
+    getModuleById
   } = useCad();
 
   const { addAction, undo, redo } = useHistory();
@@ -56,6 +60,9 @@ const FabricCanvas: React.FC = () => {
 
   // CRITICAL: Add a ref to track the current grid settings
   const gridSettingsRef = useRef<typeof gridSettings>(gridSettings);
+
+  // CRITICAL: Add a ref to track alignment guidelines
+  const guidelinesRef = useRef<fabric.Line[]>([]);
 
   // Keep the refs updated with the latest states
   useEffect(() => {
@@ -170,6 +177,32 @@ const FabricCanvas: React.FC = () => {
       canvas.on('selection:updated', onSelectionCreated);
       canvas.on('selection:cleared', onSelectionCleared);
 
+      // Add new event for snapping during dragging
+      canvas.on('object:moving', (event) => {
+        // If we have a target object and grid settings with snapToElement
+        if (event.target && gridSettingsRef.current.snapToElement) {
+          const target = event.target;
+
+          // Get current position
+          const currentLeft = target.left || 0;
+          const currentTop = target.top || 0;
+
+          // Apply snapping
+          const { x: snappedX, y: snappedY } = snapToGridAndElementsHandler(target, currentLeft, currentTop);
+
+          // Set the snapped position
+          target.set({ left: snappedX, top: snappedY });
+        }
+      });
+
+      // Add event to clear guidelines when dragging stops
+      canvas.on('mouse:up', () => {
+        if (fabricCanvasRef.current) {
+          clearAlignmentGuidelines(fabricCanvasRef.current);
+          guidelinesRef.current = [];
+        }
+      });
+
       // Force ensuring we have an active floor
       ensureActiveFloor();
 
@@ -269,16 +302,325 @@ const FabricCanvas: React.FC = () => {
     canvas.renderAll();
   };
 
-  // Snap point to grid - FIXED to use ref
-  const snapToGrid = (x: number, y: number): { x: number; y: number } => {
-    // FIXED: Always use the latest grid settings from the ref
-    if (!gridSettingsRef.current.snapToGrid) return { x, y };
+  // Snap point to grid and elements
+  const snapToGridAndElementsHandler = (target: fabric.Object | null, x: number, y: number): { x: number; y: number } => {
+    // Always use the latest grid settings from the ref
+    const currentGridSettings = gridSettingsRef.current;
 
-    const gridSize = gridSettingsRef.current.size;
-    return {
-      x: Math.round(x / gridSize) * gridSize,
-      y: Math.round(y / gridSize) * gridSize,
+    // If both snapping options are disabled, return original coordinates
+    if (!currentGridSettings.snapToGrid && !currentGridSettings.snapToElement) {
+      return { x, y };
+    }
+
+    // If we don't have a target object or canvas, just do grid snapping
+    if (!target || !fabricCanvasRef.current) {
+      if (currentGridSettings.snapToGrid) {
+        // Just do grid snapping without element snapping
+        const gridSize = currentGridSettings.size;
+        return {
+          x: Math.round(x / gridSize) * gridSize,
+          y: Math.round(y / gridSize) * gridSize,
+        };
+      }
+      return { x, y }; // Return original if no grid snapping
+    }
+
+    // Apply snapping using the utility function
+    const { x: snappedX, y: snappedY, guidelines } = snapToGridAndElements(
+        fabricCanvasRef.current,
+        target,
+        x,
+        y,
+        {
+          snapToGrid: currentGridSettings.snapToGrid,
+          snapToElement: currentGridSettings.snapToElement,
+          gridSize: currentGridSettings.size,
+          snapThreshold: currentGridSettings.snapThreshold || 10, // Default to 10px if not set
+        }
+    );
+
+    // Render alignment guidelines if we have a canvas reference
+    if (fabricCanvasRef.current && guidelines.length > 0) {
+      // Clear any existing guidelines first
+      clearAlignmentGuidelines(fabricCanvasRef.current);
+
+      // Render new guidelines
+      guidelinesRef.current = renderAlignmentGuidelines(fabricCanvasRef.current, guidelines);
+    }
+
+    return { x: snappedX, y: snappedY };
+  };
+
+  // Render module with walls
+  const renderModuleWithWalls = (canvas: fabric.Canvas, module: Module) => {
+    // Create the base rectangle for the module
+    const rect = new fabric.Rect({
+      left: module.position.x,
+      top: module.position.y,
+      width: module.width,
+      height: module.height,
+      fill: moduleColors[module.category],
+      stroke: '#333333',
+      strokeWidth: 1,
+      angle: module.rotation,
+      transparentCorners: false,
+      cornerColor: '#333333',
+      cornerSize: 8,
+      cornerStyle: 'circle',
+      hasControls: true,
+      lockScalingFlip: true,
+    });
+
+    rect.data = {
+      type: 'module',
+      id: module.id,
+      floorId: getActiveFloor()?.id,
+      category: module.category,
     };
+
+    canvas.add(rect);
+
+    // If this module has walls defined, render them
+    if (module.walls) {
+      const walls = module.walls;
+
+      // Calculate wall positions based on module position and rotation
+      // For simplicity in this implementation, we'll only handle non-rotated modules for walls
+      if (module.rotation === 0) {
+        // Top wall
+        if (walls.top && walls.top.enabled) {
+          const wallThickness = walls.top.thickness;
+          const wallColor = walls.top.type === WallType.EXTERNAL ? '#333333' : '#666666';
+          const startOffset = walls.top.partialStart || 0;
+          const endOffset = walls.top.partialEnd || 0;
+
+          // Calculate wall position using utility function
+          const wallPosition = calculateWallPosition(
+              module.position,
+              { width: module.width, height: module.height },
+              'top',
+              wallThickness,
+              walls.top.placement,
+              startOffset,
+              endOffset,
+              walls.top.extendStart || false,
+              walls.top.extendEnd || false,
+              walls // Pass all walls to check adjacency
+          );
+
+          // For inside walls, use a different style to make them visible through the module
+          const visualProperties = wallPosition.isInside ? {
+            fill: wallColor,
+            opacity: 0.5,
+          } : {
+            fill: wallColor,
+            stroke: undefined,
+            strokeWidth: 0,
+            opacity: 1
+          };
+
+          const topWall = new fabric.Rect({
+            left: wallPosition.left,
+            top: wallPosition.top,
+            width: wallPosition.width,
+            height: wallPosition.height,
+            ...visualProperties,
+            selectable: false,
+            evented: false,
+          });
+
+          topWall.data = {
+            type: 'wall',
+            moduleId: module.id,
+            edge: 'top',
+          };
+
+          canvas.add(topWall);
+          // For inside walls, bring to front instead of sending to back
+          if (wallPosition.isInside) {
+            canvas.bringToFront(topWall);
+          } else {
+            canvas.sendToBack(topWall);
+          }
+        }
+
+        // Right wall
+        if (walls.right && walls.right.enabled) {
+          const wallThickness = walls.right.thickness;
+          const wallColor = walls.right.type === WallType.EXTERNAL ? '#333333' : '#666666';
+          const startOffset = walls.right.partialStart || 0;
+          const endOffset = walls.right.partialEnd || 0;
+
+          // Calculate wall position using utility function
+          // Calculate wall position using utility function
+          const wallPosition = calculateWallPosition(
+              module.position,
+              { width: module.width, height: module.height },
+              'right',
+              wallThickness,
+              walls.right.placement,
+              startOffset,
+              endOffset,
+              walls.right.extendStart || false,
+              walls.right.extendEnd || false,
+              walls // Pass all walls to check adjacency
+          );
+
+          // For inside walls, use a different style to make them visible through the module
+          const visualProperties = wallPosition.isInside ? {
+            fill: wallColor,
+            opacity: 0.5,
+          } : {
+            fill: wallColor,
+            stroke: undefined,
+            strokeWidth: 0,
+            opacity: 1
+          };
+
+          const rightWall = new fabric.Rect({
+            left: wallPosition.left,
+            top: wallPosition.top,
+            width: wallPosition.width,
+            height: wallPosition.height,
+            ...visualProperties,
+            selectable: false,
+            evented: false,
+          });
+
+          rightWall.data = {
+            type: 'wall',
+            moduleId: module.id,
+            edge: 'right',
+          };
+
+          canvas.add(rightWall);
+
+          // For inside walls, bring to front instead of sending to back
+          if (wallPosition.isInside) {
+            canvas.bringToFront(rightWall);
+          } else {
+            canvas.sendToBack(rightWall);
+          }
+        }
+
+        // Bottom wall
+        if (walls.bottom && walls.bottom.enabled) {
+          const wallThickness = walls.bottom.thickness;
+          const wallColor = walls.bottom.type === WallType.EXTERNAL ? '#333333' : '#666666';
+          const startOffset = walls.bottom.partialStart || 0;
+          const endOffset = walls.bottom.partialEnd || 0;
+
+          // Calculate wall position using utility function
+          const wallPosition = calculateWallPosition(
+              module.position,
+              { width: module.width, height: module.height },
+              'bottom',
+              wallThickness,
+              walls.bottom.placement,
+              startOffset,
+              endOffset,
+              walls.bottom.extendStart || false,
+              walls.bottom.extendEnd || false,
+              walls // Pass all walls to check adjacency
+          );
+          // For inside walls, use a different style to make them visible through the module
+          const visualProperties = wallPosition.isInside ? {
+            fill: wallColor,
+            opacity: 0.5,
+          } : {
+            fill: wallColor,
+            stroke: undefined,
+            strokeWidth: 0,
+            opacity: 1
+          };
+
+          const bottomWall = new fabric.Rect({
+            left: wallPosition.left,
+            top: wallPosition.top,
+            width: wallPosition.width,
+            height: wallPosition.height,
+            ...visualProperties,
+            selectable: false,
+            evented: false,
+          });
+
+          bottomWall.data = {
+            type: 'wall',
+            moduleId: module.id,
+            edge: 'bottom',
+          };
+
+          canvas.add(bottomWall);
+
+          // For inside walls, bring to front instead of sending to back
+          if (wallPosition.isInside) {
+            canvas.bringToFront(bottomWall);
+          } else {
+            canvas.sendToBack(bottomWall);
+          }
+        }
+
+        // Left wall
+        if (walls.left && walls.left.enabled) {
+          const wallThickness = walls.left.thickness;
+          const wallColor = walls.left.type === WallType.EXTERNAL ? '#333333' : '#666666';
+          const startOffset = walls.left.partialStart || 0;
+          const endOffset = walls.left.partialEnd || 0;
+
+          // Calculate wall position using utility function
+          const wallPosition = calculateWallPosition(
+              module.position,
+              { width: module.width, height: module.height },
+              'left',
+              wallThickness,
+              walls.left.placement,
+              startOffset,
+              endOffset,
+              walls.left.extendStart || false,
+              walls.left.extendEnd || false,
+              walls // Pass all walls to check adjacency
+          );
+
+          // For inside walls, use a different style to make them visible through the module
+          const visualProperties = wallPosition.isInside ? {
+            fill: wallColor,
+            opacity: 0.5,
+          } : {
+            fill: wallColor,
+            stroke: undefined,
+            strokeWidth: 0,
+            opacity: 1
+          };
+
+          const leftWall = new fabric.Rect({
+            left: wallPosition.left,
+            top: wallPosition.top,
+            width: wallPosition.width,
+            height: wallPosition.height,
+            ...visualProperties,
+            selectable: false,
+            evented: false,
+          });
+
+          leftWall.data = {
+            type: 'wall',
+            moduleId: module.id,
+            edge: 'left',
+          };
+
+          canvas.add(leftWall);
+
+          // For inside walls, bring to front instead of sending to back
+          if (wallPosition.isInside) {
+            canvas.bringToFront(leftWall);
+          } else {
+            canvas.sendToBack(leftWall);
+          }
+        }
+      }
+    }
+
+    return rect;
   };
 
   // CORE FUNCTION: Sync canvas objects with floor data
@@ -317,33 +659,9 @@ const FabricCanvas: React.FC = () => {
       });
     }
 
-    // Add modules
+    // Add modules with walls
     activeFloor.modules.forEach(module => {
-      const rect = new fabric.Rect({
-        left: module.position.x,
-        top: module.position.y,
-        width: module.width,
-        height: module.height,
-        fill: moduleColors[module.category],
-        stroke: '#333333',
-        strokeWidth: 1,
-        angle: module.rotation,
-        transparentCorners: false,
-        cornerColor: '#333333',
-        cornerSize: 8,
-        cornerStyle: 'circle',
-        hasControls: true,
-        lockScalingFlip: true,
-      });
-
-      rect.data = {
-        type: 'module',
-        id: module.id,
-        floorId: activeFloor.id,
-        category: module.category, // Store the category for easier access
-      };
-
-      canvas.add(rect);
+      renderModuleWithWalls(canvas, module);
     });
 
     // Add balconies
@@ -446,14 +764,15 @@ const FabricCanvas: React.FC = () => {
     if (currentToolState.activeTool === ToolType.MODULE || currentToolState.activeTool === ToolType.BALCONY) {
       console.log(`Starting to draw: ${currentToolState.activeTool}`);
 
-      // Get snapped position
-      const snapped = snapToGrid(pointer.x, pointer.y);
+      // Get snapped position using new function
+      const { x: snappedX, y: snappedY } = snapToGridAndElementsHandler(null, pointer.x, pointer.y);
+
 
       // CRITICAL: Set drawing state - this is what was failing before
       drawingStateRef.current = {
         isDrawing: true,
-        startX: snapped.x,
-        startY: snapped.y,
+        startX: snappedX,
+        startY: snappedY,
         tempObject: null,
         activeTool: currentToolState.activeTool, // Save which tool started the drawing
       };
@@ -515,16 +834,16 @@ const FabricCanvas: React.FC = () => {
       return;
     }
 
-    // Get snapped position
-    const snapped = snapToGrid(pointer.x, pointer.y);
+    // Get snapped position using new function
+    const { x: snappedX, y: snappedY } = snapToGridAndElementsHandler(null, pointer.x, pointer.y);
 
     // Calculate dimensions
-    const width = Math.abs(snapped.x - drawingStateRef.current.startX);
-    const height = Math.abs(snapped.y - drawingStateRef.current.startY);
+    const width = Math.abs(snappedX - drawingStateRef.current.startX);
+    const height = Math.abs(snappedY - drawingStateRef.current.startY);
 
     // Top-left position
-    const left = Math.min(drawingStateRef.current.startX, snapped.x);
-    const top = Math.min(drawingStateRef.current.startY, snapped.y);
+    const left = Math.min(drawingStateRef.current.startX, snappedX);
+    const top = Math.min(drawingStateRef.current.startY, snappedY);
 
     // Remove previous temp object if it exists
     if (drawingStateRef.current.tempObject) {
@@ -572,6 +891,10 @@ const FabricCanvas: React.FC = () => {
 
     const canvas = fabricCanvasRef.current;
 
+    // Clear alignment guidelines
+    clearAlignmentGuidelines(canvas);
+    guidelinesRef.current = [];
+
     // Handle end of panning with hand tool
     if (canvas.isDragging && toolStateRef.current.activeTool === ToolType.HAND) {
       canvas.isDragging = false;
@@ -600,16 +923,17 @@ const FabricCanvas: React.FC = () => {
     }
 
     const pointer = canvas.getPointer(event.e);
-    const snapped = snapToGrid(pointer.x, pointer.y);
+    // Use new snapping function
+    const { x: snappedX, y: snappedY } = snapToGridAndElementsHandler(null, pointer.x, pointer.y);
 
     // Re-enable selection
     canvas.selection = true;
 
     // Calculate final dimensions
-    const width = Math.abs(snapped.x - drawingStateRef.current.startX);
-    const height = Math.abs(snapped.y - drawingStateRef.current.startY);
-    const left = Math.min(drawingStateRef.current.startX, snapped.x);
-    const top = Math.min(drawingStateRef.current.startY, snapped.y);
+    const width = Math.abs(snappedX - drawingStateRef.current.startX);
+    const height = Math.abs(snappedY - drawingStateRef.current.startY);
+    const left = Math.min(drawingStateRef.current.startX, snappedX);
+    const top = Math.min(drawingStateRef.current.startY, snappedY);
 
     console.log(`Finishing drawing: ${width}x${height} at (${left},${top})`);
 
@@ -627,7 +951,7 @@ const FabricCanvas: React.FC = () => {
       if (activeTool === ToolType.MODULE) {
         console.log('Creating module');
 
-        // Create module data
+        // Create module data with default walls
         const newModule = {
           category: ModuleCategory.A1,
           width,
@@ -635,37 +959,25 @@ const FabricCanvas: React.FC = () => {
           position: { x: left, y: top },
           rotation: 0,
           openings: [],
+          walls: createDefaultWalls(), // Add default walls
         };
 
         // Add to data model
         newId = addModule(newModule);
         console.log('New module ID:', newId);
 
-        // Create visual object
-        const rect = new fabric.Rect({
-          left,
-          top,
-          width,
-          height,
-          fill: moduleColors[ModuleCategory.A1],
-          stroke: '#333333',
-          strokeWidth: 1,
-          transparentCorners: false,
-          cornerColor: '#333333',
-          cornerSize: 8,
-          cornerStyle: 'circle',
-          hasControls: true,
-        });
-
-        rect.data = {
-          type: 'module',
-          id: newId,
-          floorId: activeFloor.id,
-          category: ModuleCategory.A1,
+        // Create visual object using wall rendering function
+        const moduleWithId = {
+          ...newModule,
+          id: newId
         };
+        renderModuleWithWalls(canvas, moduleWithId);
 
-        canvas.add(rect);
-        canvas.setActiveObject(rect);
+        // Set as active object
+        const moduleObj = canvas.getObjects().find(obj => obj.data?.id === newId);
+        if (moduleObj) {
+          canvas.setActiveObject(moduleObj);
+        }
 
         // Add to history
         addAction({
@@ -792,14 +1104,18 @@ const FabricCanvas: React.FC = () => {
       };
 
       // Apply snapping if enabled
-      if (gridSettingsRef.current.snapToGrid) {
-        const snapped = snapToGrid(updatedModule.position.x, updatedModule.position.y);
+      if (gridSettingsRef.current.snapToGrid || gridSettingsRef.current.snapToElement) {
+        const snapped = snapToGridAndElementsHandler(target, updatedModule.position.x, updatedModule.position.y);
         updatedModule.position.x = snapped.x;
         updatedModule.position.y = snapped.y;
-        updatedModule.width =
-          Math.round(updatedModule.width / gridSettingsRef.current.size) * gridSettingsRef.current.size;
-        updatedModule.height =
-          Math.round(updatedModule.height / gridSettingsRef.current.size) * gridSettingsRef.current.size;
+
+        // If grid snapping is enabled, snap dimensions as well
+        if (gridSettingsRef.current.snapToGrid) {
+          updatedModule.width =
+              Math.round(updatedModule.width / gridSettingsRef.current.size) * gridSettingsRef.current.size;
+          updatedModule.height =
+              Math.round(updatedModule.height / gridSettingsRef.current.size) * gridSettingsRef.current.size;
+        }
       }
 
       // Store original state for history
@@ -824,6 +1140,266 @@ const FabricCanvas: React.FC = () => {
           floorId: activeFloor.id,
         },
       });
+
+      // Need to update wall positions after module is moved/resized
+      // First remove existing walls
+      const walls = fabricCanvasRef.current.getObjects().filter(
+          obj => obj.data?.type === 'wall' && obj.data?.moduleId === moduleId
+      );
+      walls.forEach(wall => fabricCanvasRef.current?.remove(wall));
+
+      // Then re-render the module with walls
+      const updatedModuleData = getModuleById(moduleId);
+      if (updatedModuleData) {
+        // Set target properties to match the updated module
+        target.set({
+          left: updatedModule.position.x,
+          top: updatedModule.position.y,
+          width: updatedModule.width,
+          height: updatedModule.height,
+        });
+
+        // Re-render walls
+        if (updatedModuleData.walls && updatedModuleData.rotation === 0) {
+          // Re-render walls using the same utility function
+          const walls = updatedModuleData.walls;
+
+          // Top wall
+          if (walls.top && walls.top.enabled) {
+            const wallThickness = walls.top.thickness;
+            const wallColor = walls.top.type === WallType.EXTERNAL ? '#333333' : '#666666';
+            const startOffset = walls.top.partialStart || 0;
+            const endOffset = walls.top.partialEnd || 0;
+
+            // Calculate wall position using utility function
+            // Calculate wall position using utility function
+            const wallPosition = calculateWallPosition(
+                updatedModuleData.position,
+                { width: updatedModuleData.width, height: updatedModuleData.height },
+                'top',
+                wallThickness,
+                walls.top.placement,
+                startOffset,
+                endOffset,
+                walls.top.extendStart || false,
+                walls.top.extendEnd || false,
+                walls // Pass all walls to check adjacency
+            );
+
+            // For inside walls, use a different style to make them visible through the module
+            const visualProperties = wallPosition.isInside ? {
+              fill: wallColor,
+              opacity: 0.5,
+            } : {
+              fill: wallColor,
+              stroke: undefined,
+              strokeWidth: 0,
+              opacity: 1
+            };
+
+            const topWall = new fabric.Rect({
+              left: wallPosition.left,
+              top: wallPosition.top,
+              width: wallPosition.width,
+              height: wallPosition.height,
+              ...visualProperties,
+              selectable: false,
+              evented: false,
+            });
+
+            topWall.data = {
+              type: 'wall',
+              moduleId: updatedModuleData.id,
+              edge: 'top',
+            };
+
+            fabricCanvasRef.current.add(topWall);
+
+            // For inside walls, bring to front instead of sending to back
+            if (wallPosition.isInside) {
+              fabricCanvasRef.current.bringToFront(topWall);
+            } else {
+              fabricCanvasRef.current.sendToBack(topWall);
+            }
+          }
+
+          // Right wall
+          if (walls.right && walls.right.enabled) {
+            const wallThickness = walls.right.thickness;
+            const wallColor = walls.right.type === WallType.EXTERNAL ? '#333333' : '#666666';
+            const startOffset = walls.right.partialStart || 0;
+            const endOffset = walls.right.partialEnd || 0;
+
+            // Calculate wall position using utility function
+            // Calculate wall position using utility function
+            const wallPosition = calculateWallPosition(
+                updatedModuleData.position,
+                { width: updatedModuleData.width, height: updatedModuleData.height },
+                'right',
+                wallThickness,
+                walls.right.placement,
+                startOffset,
+                endOffset,
+                walls.right.extendStart || false,
+                walls.right.extendEnd || false,
+                walls // Pass all walls to check adjacency
+            );
+
+            // For inside walls, use a different style to make them visible through the module
+            const visualProperties = wallPosition.isInside ? {
+              fill: wallColor,
+              opacity: 0.5,
+            } : {
+              fill: wallColor,
+              stroke: undefined,
+              strokeWidth: 0,
+              opacity: 1
+            };
+
+            const rightWall = new fabric.Rect({
+              left: wallPosition.left,
+              top: wallPosition.top,
+              width: wallPosition.width,
+              height: wallPosition.height,
+              ...visualProperties,
+              selectable: false,
+              evented: false,
+            });
+
+            rightWall.data = {
+              type: 'wall',
+              moduleId: updatedModuleData.id,
+              edge: 'right',
+            };
+
+            fabricCanvasRef.current.add(rightWall);
+
+            // For inside walls, bring to front instead of sending to back
+            if (wallPosition.isInside) {
+              fabricCanvasRef.current.bringToFront(rightWall);
+            } else {
+              fabricCanvasRef.current.sendToBack(rightWall);
+            }
+          }
+
+          // Bottom wall
+          if (walls.bottom && walls.bottom.enabled) {
+            const wallThickness = walls.bottom.thickness;
+            const wallColor = walls.bottom.type === WallType.EXTERNAL ? '#333333' : '#666666';
+            const startOffset = walls.bottom.partialStart || 0;
+            const endOffset = walls.bottom.partialEnd || 0;
+
+            // Calculate wall position using utility function
+            // Calculate wall position using utility function
+            const wallPosition = calculateWallPosition(
+                updatedModuleData.position,
+                { width: updatedModuleData.width, height: updatedModuleData.height },
+                'bottom',
+                wallThickness,
+                walls.bottom.placement,
+                startOffset,
+                endOffset,
+                walls.bottom.extendStart || false,
+                walls.bottom.extendEnd || false,
+                walls // Pass all walls to check adjacency
+            );
+
+            // For inside walls, use a different style to make them visible through the module
+            const visualProperties = wallPosition.isInside ? {
+              fill: wallColor,
+              opacity: 0.5,
+            } : {
+              fill: wallColor,
+              stroke: undefined,
+              strokeWidth: 0,
+              opacity: 1
+            };
+
+            const bottomWall = new fabric.Rect({
+              left: wallPosition.left,
+              top: wallPosition.top,
+              width: wallPosition.width,
+              height: wallPosition.height,
+              ...visualProperties,
+              selectable: false,
+              evented: false,
+            });
+
+            bottomWall.data = {
+              type: 'wall',
+              moduleId: updatedModuleData.id,
+              edge: 'bottom',
+            };
+
+            fabricCanvasRef.current.add(bottomWall);
+
+            // For inside walls, bring to front instead of sending to back
+            if (wallPosition.isInside) {
+              fabricCanvasRef.current.bringToFront(bottomWall);
+            } else {
+              fabricCanvasRef.current.sendToBack(bottomWall);
+            }
+          }
+
+          // Left wall
+          if (walls.left && walls.left.enabled) {
+            const wallThickness = walls.left.thickness;
+            const wallColor = walls.left.type === WallType.EXTERNAL ? '#333333' : '#666666';
+            const startOffset = walls.left.partialStart || 0;
+            const endOffset = walls.left.partialEnd || 0;
+
+            // Calculate wall position using utility function
+            // Calculate wall position using utility function
+            const wallPosition = calculateWallPosition(
+                updatedModuleData.position,
+                { width: updatedModuleData.width, height: updatedModuleData.height },
+                'left',
+                wallThickness,
+                walls.left.placement,
+                startOffset,
+                endOffset,
+                walls.left.extendStart || false,
+                walls.left.extendEnd || false,
+                walls // Pass all walls to check adjacency
+            );
+            // For inside walls, use a different style to make them visible through the module
+            const visualProperties = wallPosition.isInside ? {
+              fill: wallColor,
+              opacity: 0.5,
+            } : {
+              fill: wallColor,
+              stroke: undefined,
+              strokeWidth: 0,
+              opacity: 1
+            };
+
+            const leftWall = new fabric.Rect({
+              left: wallPosition.left,
+              top: wallPosition.top,
+              width: wallPosition.width,
+              height: wallPosition.height,
+              ...visualProperties,
+              selectable: false,
+              evented: false,
+            });
+
+            leftWall.data = {
+              type: 'wall',
+              moduleId: updatedModuleData.id,
+              edge: 'left',
+            };
+
+            fabricCanvasRef.current.add(leftWall);
+
+            // For inside walls, bring to front instead of sending to back
+            if (wallPosition.isInside) {
+              fabricCanvasRef.current.bringToFront(leftWall);
+            } else {
+              fabricCanvasRef.current.sendToBack(leftWall);
+            }
+          }
+        }
+      }
     } else if (objectData.type === 'balcony') {
       // Update balcony properties
       const balconyId = objectData.id;
@@ -839,14 +1415,18 @@ const FabricCanvas: React.FC = () => {
       };
 
       // Apply snapping if enabled
-      if (gridSettingsRef.current.snapToGrid) {
-        const snapped = snapToGrid(updatedBalcony.position.x, updatedBalcony.position.y);
+      if (gridSettingsRef.current.snapToGrid || gridSettingsRef.current.snapToElement) {
+        const snapped = snapToGridAndElementsHandler(target, updatedBalcony.position.x, updatedBalcony.position.y);
         updatedBalcony.position.x = snapped.x;
         updatedBalcony.position.y = snapped.y;
-        updatedBalcony.width =
-          Math.round(updatedBalcony.width / gridSettingsRef.current.size) * gridSettingsRef.current.size;
-        updatedBalcony.height =
-          Math.round(updatedBalcony.height / gridSettingsRef.current.size) * gridSettingsRef.current.size;
+
+        // If grid snapping is enabled, snap dimensions as well
+        if (gridSettingsRef.current.snapToGrid) {
+          updatedBalcony.width =
+              Math.round(updatedBalcony.width / gridSettingsRef.current.size) * gridSettingsRef.current.size;
+          updatedBalcony.height =
+              Math.round(updatedBalcony.height / gridSettingsRef.current.size) * gridSettingsRef.current.size;
+        }
       }
 
       // Store original state for history
@@ -961,6 +1541,12 @@ const FabricCanvas: React.FC = () => {
           const before = { module: JSON.parse(JSON.stringify(originalModule)), floorId: activeFloor.id };
 
           deleteModule(objectData.id);
+
+          // Remove module and its walls
+          const walls = canvas.getObjects().filter(
+              obj => obj.data?.type === 'wall' && obj.data?.moduleId === objectData.id
+          );
+          walls.forEach(wall => canvas.remove(wall));
           canvas.remove(activeObject);
           canvas.renderAll();
 
@@ -1074,9 +1660,9 @@ const FabricCanvas: React.FC = () => {
   }, []);
 
   return (
-    <CanvasContainer>
-      <canvas ref={canvasRef} />
-    </CanvasContainer>
+      <CanvasContainer>
+        <canvas ref={canvasRef} />
+      </CanvasContainer>
   );
 };
 
@@ -1096,6 +1682,8 @@ declare module 'fabric' {
       floorId?: string;
       category?: string;
       previousTool?: ToolType;
+      moduleId?: string;
+      edge?: string;
       [key: string]: any;
     };
   }

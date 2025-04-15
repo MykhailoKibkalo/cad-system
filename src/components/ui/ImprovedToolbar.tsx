@@ -671,6 +671,16 @@ const ImprovedToolbar: React.FC = () => {
               />
               <label htmlFor="snap-to-grid">Snap</label>
             </Checkbox>
+
+            <Checkbox>
+              <input
+                  type="checkbox"
+                  checked={gridSettings.snapToElement}
+                  onChange={(e) => setGridSettings({ snapToElement: e.target.checked })}
+                  id="snap-to-element"
+              />
+              <label htmlFor="snap-to-element">Snap to Elements</label>
+            </Checkbox>
           </GridControls>
         </ToolbarSection>
 
