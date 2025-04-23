@@ -5,6 +5,7 @@ import styled from '@emotion/styled';
 import useCadStore from '@/store/cadStore';
 import { addPdfToCanvas } from '@/utils/pdfLoader';
 import { exportCanvasToJSON, loadJSONToCanvas } from '@/utils/exportJSON';
+import { applyBackdropLock } from '@/utils/backdrop';
 
 const Button = styled.button`
   padding: 6px 12px;
@@ -38,7 +39,7 @@ const FileButtons: React.FC = () => {
     const file = event.target.files[0];
     try {
       const image = await addPdfToCanvas(file, canvas);
-      setBackdropId(image.id);
+      setBackdropId(image.data.id);
     } catch (error) {
       console.error('Error adding PDF to canvas:', error);
       alert('Failed to load PDF. Please try another file.');
@@ -84,6 +85,47 @@ const FileButtons: React.FC = () => {
       <HiddenInput ref={jsonInputRef} type="file" accept="application/json" onChange={handleJsonSelected} />
 
       <Button onClick={handleSaveJson}>Save JSON</Button>
+
+      {/* ─── Backdrop controls ─── */}
+      <span style={{ marginLeft: 12, borderLeft: '1px solid #ccc', paddingLeft: 12 }}>
+        <label style={{ marginRight: 8 }}>
+          Opacity&nbsp;
+          <input
+            type="range"
+            min={0.1}
+            max={1}
+            step={0.1}
+            value={useCadStore.getState().backdropOpacity}
+            onChange={e => {
+              const v = +e.target.value;
+              useCadStore.getState().setBackdropOpacity(v);
+              const { canvas, backdropId } = useCadStore.getState();
+              if (canvas && backdropId) {
+                canvas.getObjects().forEach(o => {
+                  if (o.data?.id === backdropId) o.set('opacity', v);
+                });
+                canvas.requestRenderAll();
+              }
+            }}
+          />
+        </label>
+
+        <label>
+          <input
+            type="checkbox"
+            checked={useCadStore.getState().backdropLocked}
+            onChange={e => {
+              const locked = e.target.checked;
+              useCadStore.getState().setBackdropLocked(locked);
+              const { canvas } = useCadStore.getState();
+              if (canvas) {
+                applyBackdropLock(canvas);
+              }
+            }}
+          />
+          &nbsp;Lock&nbsp;PDF
+        </label>
+      </span>
     </div>
   );
 };

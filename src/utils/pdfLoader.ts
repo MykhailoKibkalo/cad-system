@@ -1,6 +1,8 @@
 "use client";
 
 import { fabric } from 'fabric';
+import { v4 as uuidv4 } from 'uuid';
+import useCadStore from '@/store/cadStore';
 
 /**
  * Loads a PDF from a file and renders it on the canvas
@@ -19,6 +21,28 @@ export async function addPdfToCanvas(file: File, canvas: fabric.Canvas): Promise
     if (!pdfImage) {
       throw new Error('Failed to render PDF');
     }
+
+    // Set opacity from store
+    const { backdropOpacity, backdropLocked } = useCadStore.getState();
+
+    // Generate a unique ID
+    const imageId = uuidv4();
+
+    pdfImage.set({
+      opacity: backdropOpacity,
+      selectable: !backdropLocked,
+      evented: !backdropLocked,
+    });
+
+    // Store ID in data object
+    pdfImage.data = {
+      type: 'backdrop',
+      url: fileUrl,
+      id: imageId
+    };
+
+    // Store the ID in the store
+    useCadStore.getState().setBackdropId(imageId);
 
     return pdfImage;
   } catch (error) {
@@ -47,7 +71,7 @@ export async function loadPdfToCanvas(
       selectable?: boolean;
     } = {}
 ): Promise<fabric.Image | null> {
-  if (!canvas) return null;
+  if (!canvas || !canvas.getObjects) return null;
 
   // Load PDF.js dynamically
   if (typeof window !== 'undefined' && !window.pdfjsLib) {

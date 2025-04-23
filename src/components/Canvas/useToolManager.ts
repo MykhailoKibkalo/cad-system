@@ -1,0 +1,736 @@
+'use client';
+
+import { useEffect, useRef } from 'react';
+import { fabric } from 'fabric';
+import useCadStore from '@/store/cadStore';
+import { snap } from '@/utils/snap';
+import { createModule } from '@/utils/ModuleHelpers';
+import { attachChild } from '@/utils/attachChild';
+import { wallHit } from '@/utils/wallHit';
+import { disableAllExcept, enableAll } from '@/utils/selectionGuard';
+import { clampPodInside, placeOpening, snap10 } from '@/utils/geometry';
+
+interface Point {
+  x: number;
+  y: number;
+}
+
+const useToolManager = (canvas: fabric.Canvas | null) => {
+  const startPoint = useRef<Point | null>(null);
+  const rubberBand = useRef<fabric.Rect | null>(null);
+  const selectedModule = useRef<fabric.Group | null>(null);
+  const selectedWall = useRef<number>(0);
+
+  const currentTool = useCadStore(state => state.currentTool);
+
+  useEffect(() => {
+    if (!canvas || !canvas.getObjects) return;
+
+    // Clean up previous event listeners
+    canvas.off('mouse:down');
+    canvas.off('mouse:move');
+    canvas.off('mouse:up');
+    canvas.off('object:moving');
+    canvas.off('object:rotating');
+    canvas.off('object:scaling');
+    canvas.off('object:scaled');
+
+    // Get store actions
+    const { setTool, incModuleCounter, incOpening, incBalcony, incBathroom } = useCadStore.getState();
+
+    // Handle mouse down event
+    const onMouseDown = (opt: fabric.IEvent<Event>) => {
+      const pointer = canvas.getPointer(opt.e as any);
+      const x = snap(pointer.x);
+      const y = snap(pointer.y);
+
+      switch (currentTool) {
+        case 'draw-module':
+          startPoint.current = { x, y };
+
+          // Create rubber band
+          rubberBand.current = new fabric.Rect({
+            left: x,
+            top: y,
+            width: 0,
+            height: 0,
+            fill: 'transparent',
+            stroke: '#333',
+            strokeWidth: 1,
+            strokeDashArray: [5, 5],
+            selectable: false,
+            evented: false,
+          });
+
+          canvas.add(rubberBand.current);
+          break;
+
+        case 'draw-opening':
+        case 'draw-balcony':
+          // Check if a module is selected
+          const activeObj = canvas.getActiveObject();
+          if (activeObj && activeObj.data?.type === 'module' && activeObj instanceof fabric.Group) {
+            // Get the module rectangle (first object in group)
+            const targetRect = activeObj._objects[0] as fabric.Rect;
+
+            // Use wallHit to detect which wall was clicked
+            const wall = wallHit(targetRect, { x, y });
+            if (!wall) return; // require edge click
+
+            selectedModule.current = activeObj; // parent group
+            selectedWall.current = wall;
+            disableAllExcept(canvas, activeObj);
+
+            // Create rubber band for opening/balcony
+            rubberBand.current = new fabric.Rect({
+              left: x,
+              top: y,
+              width: 0,
+              height: 0,
+              fill: currentTool === 'draw-opening' ? '#cfe' : '#def',
+              stroke: currentTool === 'draw-opening' ? '#333' : '#08f',
+              strokeWidth: 1,
+              strokeDashArray: [5, 5],
+              selectable: false,
+              evented: false,
+            });
+
+            canvas.add(rubberBand.current);
+            startPoint.current = { x, y };
+          }
+          break;
+
+        case 'draw-bathroom':
+          // Check if a module is selected
+          const activeModule = canvas.getActiveObject();
+          if (activeModule && activeModule.data?.type === 'module' && activeModule instanceof fabric.Group) {
+            // Get the module rectangle (first object in group)
+            const targetRect = activeModule._objects[0] as fabric.Rect;
+
+            // Start point must be inside the module
+            const moduleLeft = targetRect.left! + activeModule.left!;
+            const moduleTop = targetRect.top! + activeModule.top!;
+            const moduleWidth = targetRect.width!;
+            const moduleHeight = targetRect.height!;
+
+            if (x >= moduleLeft && x <= moduleLeft + moduleWidth && y >= moduleTop && y <= moduleTop + moduleHeight) {
+              selectedModule.current = activeModule;
+              disableAllExcept(canvas, activeModule);
+
+              // Create rubber band for bathroom pod
+              rubberBand.current = new fabric.Rect({
+                left: x,
+                top: y,
+                width: 0,
+                height: 0,
+                fill: '#fff6cc',
+                stroke: '#333',
+                strokeWidth: 1,
+                strokeDashArray: [5, 5],
+                selectable: false,
+                evented: false,
+              });
+
+              canvas.add(rubberBand.current);
+              startPoint.current = { x, y };
+            }
+          }
+          break;
+      }
+    };
+
+    // Handle mouse move event
+    const onMouseMove = (opt: fabric.IEvent<Event>) => {
+      if (!startPoint.current || !rubberBand.current) return;
+
+      const pointer = canvas.getPointer(opt.e as any);
+      let x = snap(pointer.x);
+      let y = snap(pointer.y);
+
+      switch (currentTool) {
+        case 'draw-module':
+          // Update rubber band for module
+          const width = Math.abs(x - startPoint.current.x);
+          const height = Math.abs(y - startPoint.current.y);
+
+          rubberBand.current.set({
+            left: Math.min(startPoint.current.x, x),
+            top: Math.min(startPoint.current.y, y),
+            width: width,
+            height: height,
+          });
+          break;
+
+        case 'draw-opening':
+        case 'draw-balcony':
+          if (!selectedModule.current) return;
+
+          // Just update the rubber band size
+          const openingWidth = Math.abs(x - startPoint.current.x);
+          const openingHeight = Math.abs(y - startPoint.current.y);
+
+          rubberBand.current.set({
+            left: Math.min(startPoint.current.x, x),
+            top: Math.min(startPoint.current.y, y),
+            width: openingWidth,
+            height: openingHeight,
+          });
+          break;
+
+        case 'draw-bathroom':
+          if (!selectedModule.current) return;
+
+          // Just update the rubber band size
+          const bathroomWidth = Math.abs(x - startPoint.current.x);
+          const bathroomHeight = Math.abs(y - startPoint.current.y);
+
+          rubberBand.current.set({
+            left: Math.min(startPoint.current.x, x),
+            top: Math.min(startPoint.current.y, y),
+            width: bathroomWidth,
+            height: bathroomHeight,
+          });
+          break;
+      }
+
+      canvas.requestRenderAll();
+    };
+
+    // Handle mouse up event
+    const onMouseUp = (opt: fabric.IEvent<Event>) => {
+      if (!startPoint.current || !rubberBand.current) return;
+
+      const pointer = canvas.getPointer(opt.e as any);
+      const x = snap(pointer.x);
+      const y = snap(pointer.y);
+
+      switch (currentTool) {
+        case 'draw-module':
+          const width = Math.abs(x - startPoint.current.x);
+          const height = Math.abs(y - startPoint.current.y);
+
+          // Remove rubber band
+          canvas.remove(rubberBand.current);
+
+          // Create new module if dimensions are valid
+          if (width >= 10 && height >= 10) {
+            const moduleNumber = incModuleCounter();
+            const moduleName = `M ${moduleNumber}`;
+
+            createModule(
+              canvas,
+              Math.min(startPoint.current.x, x),
+              Math.min(startPoint.current.y, y),
+              width,
+              height,
+              moduleName
+            );
+          }
+          enableAll(canvas);
+          break;
+
+        case 'draw-opening':
+          if (!selectedModule.current) {
+            canvas.remove(rubberBand.current);
+            break;
+          }
+
+          // Get module rectangle
+          const targetRectOpening = selectedModule.current._objects[0] as fabric.Rect;
+
+          // Snap size & position
+          rubberBand.current.set({
+            width: snap10(rubberBand.current.width!),
+            height: snap10(rubberBand.current.height!),
+          });
+
+          placeOpening(selectedWall.current as 1 | 2 | 3 | 4, targetRectOpening, rubberBand.current);
+
+          // Now attach it to the module
+          if (rubberBand.current.width! >= 10 && rubberBand.current.height! >= 10) {
+            // Set opening data
+            rubberBand.current.data = {
+              type: 'opening',
+              moduleId: selectedModule.current.data.name,
+              wallSide: selectedWall.current,
+              width: rubberBand.current.width,
+              height: rubberBand.current.height,
+              distance: rubberBand.current.left! - targetRectOpening.left!,
+              y_offset: selectedWall.current === 3 ? rubberBand.current.height : 0,
+            };
+
+            attachChild(selectedModule.current, rubberBand.current);
+
+            // Don't remove the rubber band since it's now our opening
+            rubberBand.current = null;
+            enableAll(canvas);
+          } else {
+            canvas.remove(rubberBand.current);
+            enableAll(canvas);
+          }
+          break;
+
+        case 'draw-balcony':
+          if (!selectedModule.current) {
+            canvas.remove(rubberBand.current);
+            break;
+          }
+
+          // Get module rectangle
+          const targetRectBalcony = selectedModule.current._objects[0] as fabric.Rect;
+
+          // Snap size & position
+          rubberBand.current.set({
+            width: snap10(rubberBand.current.width!),
+            height: snap10(rubberBand.current.height!),
+          });
+
+          placeOpening(selectedWall.current as 1 | 2 | 3 | 4, targetRectBalcony, rubberBand.current);
+
+          // Now attach it to the module
+          if (rubberBand.current.width! >= 10 && rubberBand.current.height! >= 10) {
+            const balconyName = incBalcony();
+
+            // Set balcony data
+            rubberBand.current.data = {
+              type: 'balcony',
+              moduleId: selectedModule.current.data.name,
+              wallSide: selectedWall.current,
+              width: rubberBand.current.width,
+              length: rubberBand.current.height,
+              distance: rubberBand.current.left! - targetRectBalcony.left!,
+              name: balconyName,
+            };
+
+            attachChild(selectedModule.current, rubberBand.current);
+
+            // Don't remove the rubber band since it's now our balcony
+            rubberBand.current = null;
+            enableAll(canvas);
+          } else {
+            canvas.remove(rubberBand.current);
+            enableAll(canvas);
+          }
+          break;
+
+        case 'draw-bathroom':
+          if (!selectedModule.current) {
+            canvas.remove(rubberBand.current);
+            break;
+          }
+
+          // Get module rectangle
+          const targetRectBathroom = selectedModule.current._objects[0] as fabric.Rect;
+
+          // Snap size & position
+          rubberBand.current.set({
+            width: snap10(rubberBand.current.width!),
+            height: snap10(rubberBand.current.height!),
+          });
+
+          clampPodInside(rubberBand.current, targetRectBathroom);
+
+          // Now attach it to the module
+          if (rubberBand.current.width! >= 10 && rubberBand.current.height! >= 10) {
+            const bathroomId = incBathroom();
+
+            // Set bathroom data
+            rubberBand.current.data = {
+              type: 'bathroom',
+              moduleId: selectedModule.current.data.name,
+              width: rubberBand.current.width,
+              length: rubberBand.current.height,
+              x_offset: rubberBand.current.left! - targetRectBathroom.left!,
+              y_offset: rubberBand.current.top! - targetRectBathroom.top!,
+              id: bathroomId,
+            };
+
+            attachChild(selectedModule.current, rubberBand.current);
+
+            // Don't remove the rubber band since it's now our bathroom pod
+            rubberBand.current = null;
+            enableAll(canvas);
+          } else {
+            canvas.remove(rubberBand.current);
+            enableAll(canvas);
+          }
+          break;
+      }
+
+      // Reset state and switch to select tool
+      startPoint.current = null;
+      selectedModule.current = null;
+      selectedWall.current = 0;
+      canvas.requestRenderAll();
+      setTool('select');
+    };
+
+    // Handle object moving for snapping
+    const onObjectMoving = (opt: fabric.IEvent<Event>) => {
+      if (!opt.target) return;
+
+      const target = opt.target;
+
+      // Snap all objects to grid
+      if (target.left !== undefined) {
+        target.set('left', snap(target.left));
+      }
+      if (target.top !== undefined) {
+        target.set('top', snap(target.top));
+      }
+
+      // Special handling for components
+      if (target.data) {
+        switch (target.data.type) {
+          case 'opening':
+          case 'balcony':
+            // Restrict movement to parent module wall
+            const moduleId = target.data.moduleId;
+            const wallSide = target.data.wallSide;
+
+            const parentModule = canvas
+              .getObjects()
+              .find(obj => obj.data?.type === 'module' && obj.data?.name === moduleId);
+
+            if (parentModule) {
+              const moduleLeft = parentModule.left!;
+              const moduleTop = parentModule.top!;
+              const moduleWidth = parentModule.width!;
+              const moduleHeight = parentModule.height!;
+
+              switch (wallSide) {
+                case 1: // Bottom wall
+                  target.set({
+                    left: snap(Math.max(moduleLeft, Math.min(moduleLeft + moduleWidth - target.width!, target.left!))),
+                    top: moduleTop + moduleHeight - (target.data.type === 'opening' ? target.height! : 0),
+                  });
+                  break;
+                case 2: // Right wall
+                  target.set({
+                    left: moduleLeft + moduleWidth - (target.data.type === 'opening' ? target.width! : 0),
+                    top: snap(Math.max(moduleTop, Math.min(moduleTop + moduleHeight - target.height!, target.top!))),
+                  });
+                  break;
+                case 3: // Top wall
+                  target.set({
+                    left: snap(Math.max(moduleLeft, Math.min(moduleLeft + moduleWidth - target.width!, target.left!))),
+                    top: moduleTop - (target.data.type === 'balcony' ? target.height! : 0),
+                  });
+                  break;
+                case 4: // Left wall
+                  target.set({
+                    left: moduleLeft - (target.data.type === 'balcony' ? target.width! : 0),
+                    top: snap(Math.max(moduleTop, Math.min(moduleTop + moduleHeight - target.height!, target.top!))),
+                  });
+                  break;
+              }
+
+              // Update distance in data
+              if (wallSide === 1 || wallSide === 3) {
+                target.data.distance = target.left! - moduleLeft;
+              } else {
+                target.data.distance = target.top! - moduleTop;
+              }
+            }
+            break;
+
+          case 'bathroom':
+            // Restrict movement to inside parent module
+            const bathModuleId = target.data.moduleId;
+
+            const bathParentModule = canvas
+              .getObjects()
+              .find(obj => obj.data?.type === 'module' && obj.data?.name === bathModuleId);
+
+            if (bathParentModule) {
+              const bathModuleLeft = bathParentModule.left!;
+              const bathModuleTop = bathParentModule.top!;
+              const bathModuleWidth = bathParentModule.width!;
+              const bathModuleHeight = bathParentModule.height!;
+
+              // Constrain to module boundaries
+              target.set({
+                left: snap(
+                  Math.max(bathModuleLeft, Math.min(bathModuleLeft + bathModuleWidth - target.width!, target.left!))
+                ),
+                top: snap(
+                  Math.max(bathModuleTop, Math.min(bathModuleTop + bathModuleHeight - target.height!, target.top!))
+                ),
+              });
+
+              // Update offsets in data
+              target.data.x_offset = target.left! - bathModuleLeft;
+              target.data.y_offset = target.top! - bathModuleTop;
+            }
+            break;
+        }
+      }
+    };
+
+    // Handle object rotating to ensure origin at bottom-left
+    const onObjectRotating = (opt: fabric.IEvent<Event>) => {
+      if (opt.target && opt.target.data?.type === 'module') {
+        const target = opt.target;
+
+        // Ensure rotation origin is bottom-left
+        target.set({
+          originX: 'left',
+          originY: 'bottom',
+        });
+
+        // Update rotation in data
+        target.data.rotation = target.angle;
+      }
+    };
+
+    // Handle object scaling to prevent label distortion
+    const onObjectScaling = (opt: fabric.IEvent<Event>) => {
+      if (opt.target && opt.target.data?.type === 'module' && opt.target instanceof fabric.Group) {
+        const target = opt.target;
+        const objects = target._objects;
+
+        if (objects && objects.length >= 2) {
+          const rect = objects[0] as fabric.Rect;
+          const text = objects[1] as fabric.Text;
+
+          if (rect && text) {
+            // Maintain text scale inverse to rect scale to keep it undeformed
+            text.set({
+              scaleX: 1 / rect.scaleX!,
+              scaleY: 1 / rect.scaleY!,
+              fontSize: rect.width! < 60 || rect.height! < 60 ? 10 : 14,
+            });
+          }
+        }
+      }
+    };
+
+    // Handle when scaling is finished to snap size to grid
+    const onObjectScaled = (opt: fabric.IEvent<Event>) => {
+      if (opt.target && opt.target.data?.type === 'module' && opt.target instanceof fabric.Group) {
+        const target = opt.target;
+        const objects = target._objects;
+
+        if (objects && objects.length >= 2) {
+          const rect = objects[0] as fabric.Rect;
+
+          if (rect) {
+            // Snap dimensions to grid
+            const newWidth = snap(rect.width! * rect.scaleX!);
+            const newHeight = snap(rect.height! * rect.scaleY!);
+
+            // Reset scale to 1 and set new dimensions
+            rect.set({
+              width: newWidth,
+              height: newHeight,
+              scaleX: 1,
+              scaleY: 1,
+            });
+
+            // Update module metadata
+            target.data.width = newWidth;
+            target.data.length = newHeight;
+
+            // Update text position
+            const text = objects[1] as fabric.Text;
+            if (text) {
+              text.set({
+                left: newWidth / 2,
+                top: newHeight / 2,
+                scaleX: 1,
+                scaleY: 1,
+                fontSize: newWidth < 60 || newHeight < 60 ? 10 : 14,
+              });
+            }
+
+            target.setCoords();
+          }
+        }
+      }
+    };
+
+    // Copy the selected object
+    const copySelectedObject = () => {
+      const activeObject = canvas.getActiveObject();
+
+      if (activeObject) {
+        // Clone the object
+        activeObject.clone((cloned: fabric.Object) => {
+          // Offset the cloned object
+          cloned.set({
+            left: (cloned.left || 0) + 20,
+            top: (cloned.top || 0) + 20,
+          });
+
+          // Update metadata based on object type
+          if (cloned.data) {
+            switch (cloned.data.type) {
+              case 'module':
+                const moduleNumber = incModuleCounter();
+                const moduleName = `M ${moduleNumber}`;
+
+                cloned.data.name = moduleName;
+
+                // Update text if it's a group
+                if (cloned instanceof fabric.Group) {
+                  const textObject = cloned.getObjects().find(obj => obj instanceof fabric.Text) as fabric.Text;
+
+                  if (textObject) {
+                    textObject.set('text', moduleName);
+                  }
+                }
+                break;
+
+              case 'opening':
+                // Nothing special for openings
+                break;
+
+              case 'balcony':
+                const balconyName = incBalcony();
+                cloned.data.name = balconyName;
+                break;
+
+              case 'bathroom':
+                const bathroomId = incBathroom();
+                cloned.data.id = bathroomId;
+                break;
+            }
+          }
+
+          canvas.add(cloned);
+          canvas.setActiveObject(cloned);
+          canvas.requestRenderAll();
+        });
+      }
+
+      // Reset to select tool
+      setTool('select');
+    };
+
+    // Remove selected objects
+    const removeSelectedObjects = () => {
+      const activeObjects = canvas.getActiveObjects();
+
+      if (activeObjects.length > 0) {
+        canvas.remove(...activeObjects);
+        canvas.requestRenderAll();
+      }
+
+      // Reset to select tool
+      setTool('select');
+    };
+
+    // Set up tool handlers
+    const setupToolHandlers = () => {
+      // Handle copy tool
+      if (currentTool === 'copy') {
+        copySelectedObject();
+      }
+
+      // Handle remove tool
+      if (currentTool === 'remove') {
+        removeSelectedObjects();
+      }
+    };
+
+    // Set up keyboard event handler for delete key
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Delete' && document.activeElement === document.body) {
+        // Only handle delete key if the canvas has focus
+        const activeObjects = canvas.getActiveObjects();
+        if (activeObjects.length > 0) {
+          canvas.remove(...activeObjects);
+          canvas.requestRenderAll();
+        }
+      }
+    };
+
+    // Register all event listeners
+    canvas.on('mouse:down', onMouseDown);
+    canvas.on('mouse:move', onMouseMove);
+    canvas.on('mouse:up', onMouseUp);
+    canvas.on('object:moving', onObjectMoving);
+    canvas.on('object:rotating', onObjectRotating);
+    canvas.on('object:scaling', onObjectScaling);
+    canvas.on('object:scaled', onObjectScaled);
+    window.addEventListener('keydown', handleKeyDown);
+
+    // Set up the tool handlers when the tool changes
+    setupToolHandlers();
+
+    // Initialize counters from existing objects when loading JSON
+    const initializeCounters = () => {
+      const objects = canvas.getObjects();
+      let maxModule = 0;
+      let maxOpening = 0;
+      let maxBalcony = 0;
+      let maxBathroom = 0;
+
+      objects.forEach(obj => {
+        if (obj.data) {
+          switch (obj.data.type) {
+            case 'module':
+              const moduleMatch = obj.data.name.match(/M\s*(\d+)/);
+              if (moduleMatch && moduleMatch[1]) {
+                const num = parseInt(moduleMatch[1], 10);
+                if (num > maxModule) maxModule = num;
+              }
+              break;
+
+            case 'opening':
+              const openingMatch = obj.data.id?.match(/OP(\d+)/);
+              if (openingMatch && openingMatch[1]) {
+                const num = parseInt(openingMatch[1], 10);
+                if (num > maxOpening) maxOpening = num;
+              }
+              break;
+
+            case 'balcony':
+              const balconyMatch = obj.data.name?.match(/BC(\d+)/);
+              if (balconyMatch && balconyMatch[1]) {
+                const num = parseInt(balconyMatch[1], 10);
+                if (num > maxBalcony) maxBalcony = num;
+              }
+              break;
+
+            case 'bathroom':
+              // Bathrooms use letter IDs, no need to track
+              break;
+          }
+        }
+      });
+
+      // Update store with max counters
+      const store = useCadStore.getState();
+      if (maxModule > store.moduleCounter) {
+        store.moduleCounter = maxModule;
+      }
+      if (maxOpening > store.openingCounter) {
+        store.openingCounter = maxOpening;
+      }
+      if (maxBalcony > store.balconyCounter) {
+        store.balconyCounter = maxBalcony;
+      }
+    };
+
+    // Initialize counters when canvas is loaded
+    canvas.on('after:render', initializeCounters);
+
+    // Cleanup function
+    return () => {
+      canvas.off('mouse:down', onMouseDown);
+      canvas.off('mouse:move', onMouseMove);
+      canvas.off('mouse:up', onMouseUp);
+      canvas.off('object:moving', onObjectMoving);
+      canvas.off('object:rotating', onObjectRotating);
+      canvas.off('object:scaling', onObjectScaling);
+      canvas.off('object:scaled', onObjectScaled);
+      canvas.off('after:render', initializeCounters);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [canvas, currentTool]);
+
+  return {};
+};
+
+export default useToolManager;

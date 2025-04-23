@@ -21,6 +21,17 @@ a {
     text-decoration: none;
 }
 
+.canvas-wrap {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+}
+
+canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
 @media (prefers-color-scheme: dark) {
     html {
         color-scheme: dark;

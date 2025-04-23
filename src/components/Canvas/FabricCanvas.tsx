@@ -1,46 +1,133 @@
-"use client";
+'use client';
 
 import React, { useEffect, useRef } from 'react';
 import { fabric } from 'fabric';
 import useCadStore from '@/store/cadStore';
-import { drawGrid } from './grid';
+import useToolManager from './useToolManager';
 
 const FabricCanvas: React.FC = () => {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const { setCanvas, gridStep } = useCadStore();
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const gridRef = useRef<HTMLCanvasElement>(null);
+  const { setCanvas, gridStep } = useCadStore();
 
-    useEffect(() => {
-        if (!canvasRef.current) return;
+  useEffect(() => {
+    if (!canvasRef.current || !gridRef.current) return;
 
-        // Initialize Fabric canvas
-        const canvas = new fabric.Canvas(canvasRef.current, {
-            width: 1600,
-            height: 900,
-            preserveObjectStacking: true,
-            selection: true,
-        });
+    // Initialize Fabric canvas
+    const canvas = new fabric.Canvas(canvasRef.current, {
+      preserveObjectStacking: true,
+      selection: true,
+    });
 
-        // Save canvas to store
-        setCanvas(canvas);
+    // Initialize grid context
+    const gridCtx = gridRef.current.getContext('2d')!;
 
-        // Draw initial grid
-        drawGrid(canvas, gridStep);
+    // Draw grid function
+    const drawGrid = () => {
+      if (!gridRef.current) return;
 
-        // Cleanup on unmount
-        return () => {
-            canvas.dispose();
-        };
-    }, [setCanvas, gridStep]);
+      const step = useCadStore.getState().gridStep;
+      const width = gridRef.current.width;
+      const height = gridRef.current.height;
 
-    // Update grid when gridStep changes
-    useEffect(() => {
-        const canvas = useCadStore.getState().canvas;
-        if (canvas) {
-            drawGrid(canvas, gridStep);
-        }
-    }, [gridStep]);
+      gridCtx.clearRect(0, 0, width, height);
+      gridCtx.strokeStyle = '#eee';
+      gridCtx.lineWidth = 1;
 
-    return <canvas ref={canvasRef} id="fabric-canvas" />;
+      for (let x = 0; x < width; x += step) {
+        gridCtx.beginPath();
+        gridCtx.moveTo(x, 0);
+        gridCtx.lineTo(x, height);
+        gridCtx.stroke();
+      }
+
+      for (let y = 0; y < height; y += step) {
+        gridCtx.beginPath();
+        gridCtx.moveTo(0, y);
+        gridCtx.lineTo(width, y);
+        gridCtx.stroke();
+      }
+    };
+
+    // Make canvas responsive to parent size - defined AFTER canvas is initialized
+    const fit = () => {
+      const parent = canvasRef.current?.parentElement?.parentElement;
+      if (!parent || !canvas) return; // Added guard
+
+      const width = parent.clientWidth;
+      const height = parent.clientHeight;
+
+      console.log(width);
+
+      // Set both canvases to the same size
+      canvas.setDimensions({ width, height });
+
+      if (gridRef.current) {
+        gridRef.current.width = width;
+        gridRef.current.height = height;
+        drawGrid();
+      }
+    };
+
+    // Initial fit with delay to ensure parent dimensions are set
+    setTimeout(fit, 100);
+
+    // Add resize listener
+    window.addEventListener('resize', fit);
+
+    // Save canvas to store
+    setCanvas(canvas);
+
+    // Draw initial grid
+    drawGrid();
+
+    // Cleanup on unmount
+    return () => {
+      window.removeEventListener('resize', fit);
+      canvas.dispose();
+    };
+  }, [setCanvas, gridStep]);
+
+  // Get canvas from store for the tool manager
+  const canvas = useCadStore(state => state.canvas);
+
+  // Use the tool manager hook
+  useToolManager(canvas);
+
+  // Update grid when gridStep changes
+  useEffect(() => {
+    if (!gridRef.current) return;
+
+    const gridCtx = gridRef.current.getContext('2d')!;
+    const step = gridStep;
+    const width = gridRef.current.width;
+    const height = gridRef.current.height;
+
+    gridCtx.clearRect(0, 0, width, height);
+    gridCtx.strokeStyle = '#eee';
+    gridCtx.lineWidth = 1;
+
+    for (let x = 0; x < width; x += step) {
+      gridCtx.beginPath();
+      gridCtx.moveTo(x, 0);
+      gridCtx.lineTo(x, height);
+      gridCtx.stroke();
+    }
+
+    for (let y = 0; y < height; y += step) {
+      gridCtx.beginPath();
+      gridCtx.moveTo(0, y);
+      gridCtx.lineTo(width, y);
+      gridCtx.stroke();
+    }
+  }, [gridStep]);
+
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <canvas ref={gridRef} style={{ position: 'absolute', inset: 0 }} />
+      <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0 }} />
+    </div>
+  );
 };
 
 export default FabricCanvas;

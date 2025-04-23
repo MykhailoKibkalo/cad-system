@@ -1,7 +1,19 @@
-// This file will contain configurations for toolbar groups
-// Currently empty as per requirements, will be expanded in future prompts
-
-// Example structure for future implementation:
-export const fileGroup = [];
-export const drawingGroup = [];
-export const toolsGroup = [];
+export const TOOL_GROUPS = [
+    {
+        label: 'Tools',
+        buttons: [
+            { id: 'select', text: 'Select' },
+            { id: 'draw-module', text: 'Draw Module' },
+            { id: 'copy', text: 'Copy' },
+            { id: 'remove', text: 'Remove' }
+        ]
+    },
+    {
+        label: 'Components',
+        buttons: [
+            { id: 'draw-opening', text: 'Opening' },
+            { id: 'draw-balcony', text: 'Balcony' },
+            { id: 'draw-bathroom', text: 'Bathroom Pod' }
+        ]
+    }
+];
