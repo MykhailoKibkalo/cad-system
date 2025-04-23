@@ -4,7 +4,8 @@ import styled from '@emotion/styled';
 import { useCad } from '@/context/CadContext';
 import { useHistory } from '@/context/HistoryContext';
 import { ActionType, ModuleCategory, ToolType } from '@/types';
-import { fabric } from 'fabric'; // Styled components for the improved toolbar
+import { fabric } from 'fabric';
+import {createDimensionAnnotations} from "@/utils/dimensionUtils"; // Styled components for the improved toolbar
 
 // Styled components for the improved toolbar
 const ToolbarContainer = styled.div`
@@ -278,6 +279,16 @@ const RedoIcon = () => (
   </svg>
 );
 
+const RulerIcon = () => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M2 12h20" />
+      <path d="M6 8v8" />
+      <path d="M10 7v10" />
+      <path d="M14 8v8" />
+      <path d="M18 7v10" />
+    </svg>
+)
+
 // Main component
 const ImprovedToolbar: React.FC = () => {
   const {
@@ -291,6 +302,8 @@ const ImprovedToolbar: React.FC = () => {
     getModuleById,
     updateModule,
     getActiveFloor,
+    displaySettings,
+    setDisplaySettings,
   } = useCad();
 
   const { canUndo, canRedo, undo, redo, addAction } = useHistory();
@@ -562,6 +575,45 @@ const ImprovedToolbar: React.FC = () => {
     };
   }, [isCategoryOpen]);
 
+
+  const handleToggleDimensions = () => {
+    const newShowDimensions = !displaySettings.showDimensions;
+
+    // Update the display settings
+    setDisplaySettings({ showDimensions: newShowDimensions });
+
+    // If turning off dimensions, remove all dimension annotations from canvas
+    if (!newShowDimensions && fabricCanvasRef.current) {
+      const canvas = fabricCanvasRef.current;
+
+      // Find all dimension annotations
+      const dimensionObjects = canvas.getObjects().filter(
+          obj => obj.data?.type === 'dimensionAnnotation'
+      );
+
+      // Remove them
+      dimensionObjects.forEach(obj => {
+        canvas.remove(obj);
+      });
+
+      canvas.renderAll();
+    }
+
+    // If turning on dimensions and there's a selected object, show its dimensions
+    if (newShowDimensions && fabricCanvasRef.current && toolState.selectedObjectId) {
+      const canvas = fabricCanvasRef.current;
+      const selectedObject = canvas.getActiveObject();
+
+      if (selectedObject) {
+        createDimensionAnnotations(canvas, selectedObject, {
+          showDimensions: true,
+          unit: displaySettings.dimensionUnit,
+          fadeIn: true,
+        });
+      }
+    }
+  };
+
   return (
     <ToolbarContainer>
       <ToolbarRow>
@@ -611,15 +663,15 @@ const ImprovedToolbar: React.FC = () => {
           </ToolButton>
         </ToolbarSection>
 
-        <ToolbarSection>
-          <SectionTitle>Edit</SectionTitle>
-          <ToolButton onClick={handleUndoClick} disabled={!canUndo} title={`Undo (${isMac ? '⌘Z' : 'Ctrl+Z'})`}>
-            <UndoIcon />
-          </ToolButton>
-          <ToolButton onClick={handleRedoClick} disabled={!canRedo} title={`Redo (${isMac ? '⌘⇧Z' : 'Ctrl+Y'})`}>
-            <RedoIcon />
-          </ToolButton>
-        </ToolbarSection>
+        {/*<ToolbarSection>*/}
+        {/*  <SectionTitle>Edit</SectionTitle>*/}
+        {/*  <ToolButton onClick={handleUndoClick} disabled={!canUndo} title={`Undo (${isMac ? '⌘Z' : 'Ctrl+Z'})`}>*/}
+        {/*    <UndoIcon />*/}
+        {/*  </ToolButton>*/}
+        {/*  <ToolButton onClick={handleRedoClick} disabled={!canRedo} title={`Redo (${isMac ? '⌘⇧Z' : 'Ctrl+Y'})`}>*/}
+        {/*    <RedoIcon />*/}
+        {/*  </ToolButton>*/}
+        {/*</ToolbarSection>*/}
 
         <ToolbarSection>
           <SectionTitle>Module Category</SectionTitle>
@@ -684,6 +736,29 @@ const ImprovedToolbar: React.FC = () => {
           </GridControls>
         </ToolbarSection>
 
+        <ToolbarSection>
+          <SectionTitle>Display</SectionTitle>
+          <ToolButton
+              active={displaySettings.showDimensions}
+              onClick={handleToggleDimensions}
+              title="Show Dimensions"
+          >
+            <RulerIcon />
+          </ToolButton>
+
+          {displaySettings.showDimensions && (
+              <Select
+                  value={displaySettings.dimensionUnit}
+                  onChange={(e) => setDisplaySettings({ dimensionUnit: e.target.value })}
+              >
+                <option value="px">px</option>
+                <option value="cm">cm</option>
+                <option value="m">m</option>
+                <option value="in">in</option>
+              </Select>
+          )}
+        </ToolbarSection>
+
         {/* FIX: Use the div version instead of the component with nested shortcut components */}
         <KeyboardHintsDiv>
           <ShortcutHintSpan>V</ShortcutHintSpan> Select
@@ -699,3 +774,32 @@ const ImprovedToolbar: React.FC = () => {
 };
 
 export default ImprovedToolbar;
+
+
+const Select = styled.select`
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid #ced4da;
+  background-color: white;
+  color: #495057;
+  font-size: 14px;
+  cursor: pointer;
+  margin: 0 3px;
+  height: 40px;
+  min-width: 80px;
+
+  &:hover {
+    background-color: #f8f9fa;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+  }
+
+  &:disabled {
+    background-color: #e9ecef;
+    cursor: not-allowed;
+  }
+`;

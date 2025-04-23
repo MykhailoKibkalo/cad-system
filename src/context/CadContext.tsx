@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   Balcony,
   CanvasSettings,
-  createDefaultWalls,
+  createDefaultWalls, DisplaySettings,
   Floor,
   GridSettings,
   Module,
@@ -41,6 +41,8 @@ interface CadContextType {
   getModuleById: (id: string) => Module | undefined;
   getBalconyById: (id: string) => Balcony | undefined;
   ensureActiveFloor: () => string; // New function to ensure there's an active floor
+  displaySettings: DisplaySettings;
+  setDisplaySettings: (settings: Partial<DisplaySettings>) => void;
 }
 
 const defaultGridSettings: GridSettings = {
@@ -82,6 +84,11 @@ const defaultModuleColors: ModuleColors = {
   D2: '#FFA500', // Orange
 };
 
+const defaultDisplaySettings: DisplaySettings = {
+  showDimensions: true,
+  dimensionUnit: 'px',
+};
+
 const CadContext = createContext<CadContextType | undefined>(undefined);
 
 export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -92,6 +99,12 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [toolState, setToolState] = useState<ToolState>(defaultToolState);
   const [moduleColors, setModuleColors] = useState<ModuleColors>(defaultModuleColors);
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
+  const [displaySettings, setDisplaySettings] = useState<DisplaySettings>(defaultDisplaySettings);
+
+  const updateDisplaySettingsHandler = (settings: Partial<DisplaySettings>) => {
+    setDisplaySettings(prev => ({ ...prev, ...settings }));
+  };
+
 
   // Keep a direct reference to the current floors for access in event handlers
   // This prevents stale closure issues
@@ -499,6 +512,8 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         getModuleById,
         getBalconyById,
         ensureActiveFloor,
+        displaySettings,
+        setDisplaySettings: updateDisplaySettingsHandler,
       }}
     >
       {children}

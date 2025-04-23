@@ -15,3 +15,8 @@ export interface CanvasSettings {
   panX: number;
   panY: number;
 }
+
+export interface DisplaySettings {
+  showDimensions: boolean;
+  dimensionUnit: string;
+}

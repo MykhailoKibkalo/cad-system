@@ -51,7 +51,7 @@ export const createDefaultWallProperties = (type: WallType = WallType.EXTERNAL):
 // Create default walls for a module
 export const createDefaultWalls = (): ModuleWalls => ({
     top: createDefaultWallProperties(),
-    right: createDefaultWallProperties(),
     bottom: createDefaultWallProperties(),
+    right: createDefaultWallProperties(),
     left: createDefaultWallProperties(),
 });

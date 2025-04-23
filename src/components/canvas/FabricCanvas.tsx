@@ -9,6 +9,11 @@ import { loadPdfToCanvas } from '../pdf/PdfHandler';
 import { renderAlignmentGuidelines, clearAlignmentGuidelines, snapToGridAndElements } from '@/utils/snapUtils';
 import { WallType, createDefaultWalls } from '@/types/wall';
 import { calculateWallPosition } from '@/utils/wallUtils';
+import {
+  createDimensionAnnotations,
+  removeDimensionAnnotations,
+  updateDimensionAnnotations
+} from "@/utils/dimensionUtils";
 
 // Constants for zoom functionality
 const MIN_ZOOM = 0.1;
@@ -46,7 +51,8 @@ const FabricCanvas: React.FC = () => {
     ensureActiveFloor,
     getActiveFloor,
     setCanvasSettings,
-    getModuleById
+    getModuleById,
+    displaySettings,
   } = useCad();
 
   const { addAction, undo, redo } = useHistory();
@@ -177,6 +183,9 @@ const FabricCanvas: React.FC = () => {
       canvas.on('selection:updated', onSelectionCreated);
       canvas.on('selection:cleared', onSelectionCleared);
 
+      canvas.on('object:moving', onObjectMoving);
+      canvas.on('object:scaling', onObjectScaling);
+
       // Add new event for snapping during dragging
       canvas.on('object:moving', (event) => {
         // If we have a target object and grid settings with snapToElement
@@ -213,6 +222,45 @@ const FabricCanvas: React.FC = () => {
       };
     }
   }, []);
+
+
+  function onObjectMoving(event: fabric.IEvent) {
+    if (!fabricCanvasRef.current || !event.target) return;
+
+    // Update dimension annotations in real-time during movement
+    if (displaySettings.showDimensions) {
+      updateDimensionAnnotations(fabricCanvasRef.current, event.target, {
+        showDimensions: displaySettings.showDimensions,
+        unit: displaySettings.dimensionUnit,
+      });
+    }
+
+    if (displaySettings.showDimensions) {
+      updateDimensionAnnotations(fabricCanvasRef.current, event.target, {
+        showDimensions: true,
+        unit: displaySettings.dimensionUnit,
+      });
+    }
+  }
+
+  function onObjectScaling(event: fabric.IEvent) {
+    if (!fabricCanvasRef.current || !event.target) return;
+
+    // Update dimension annotations in real-time during scaling
+    if (displaySettings.showDimensions) {
+      updateDimensionAnnotations(fabricCanvasRef.current, event.target, {
+        showDimensions: displaySettings.showDimensions,
+        unit: displaySettings.dimensionUnit,
+      });
+    }
+
+    if (displaySettings.showDimensions) {
+      updateDimensionAnnotations(fabricCanvasRef.current, event.target, {
+        showDimensions: true,
+        unit: displaySettings.dimensionUnit,
+      });
+    }
+  }
 
   // Add wheel event listener for zooming
   useEffect(() => {
@@ -1455,6 +1503,13 @@ const FabricCanvas: React.FC = () => {
       // Handle PDF backdrop modification if needed
       console.log('PDF backdrop modified');
     }
+
+    if (displaySettings.showDimensions) {
+      updateDimensionAnnotations(fabricCanvasRef.current, event.target, {
+        showDimensions: displaySettings.showDimensions,
+        unit: displaySettings.dimensionUnit,
+      });
+    }
   }
 
   function onSelectionCreated(event: fabric.IEvent) {
@@ -1471,8 +1526,25 @@ const FabricCanvas: React.FC = () => {
       console.log('Selection created:', objectData);
 
       setToolState({
-        activeTool: toolStateRef.current.activeTool, // Keep the current tool
+        activeTool: toolStateRef.current.activeTool,
         selectedObjectId: objectData.id,
+      });
+
+      // Add dimension annotations for selected object
+      if (displaySettings.showDimensions) {
+        createDimensionAnnotations(canvas, activeObject, {
+          showDimensions: displaySettings.showDimensions,
+          unit: displaySettings.dimensionUnit,
+          fadeIn: true,
+        });
+      }
+    }
+
+    if (displaySettings.showDimensions) {
+      createDimensionAnnotations(canvas, activeObject, {
+        showDimensions: true,
+        unit: displaySettings.dimensionUnit,
+        fadeIn: true,
       });
     }
   }
@@ -1480,8 +1552,13 @@ const FabricCanvas: React.FC = () => {
   function onSelectionCleared() {
     setToolState({
       selectedObjectId: null,
-      activeTool: toolStateRef.current.activeTool, // Keep the current tool
+      activeTool: toolStateRef.current.activeTool,
     });
+
+    // Remove dimension annotations when selection is cleared
+    if (fabricCanvasRef.current && toolStateRef.current.selectedObjectId) {
+      removeDimensionAnnotations(fabricCanvasRef.current, toolStateRef.current.selectedObjectId);
+    }
   }
 
   // Keyboard shortcuts handler
