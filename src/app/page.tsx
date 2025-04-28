@@ -1,14 +1,18 @@
-import React from 'react';
-import Ribbon from '@/components/Ribbon/Ribbon';
-import ClientCanvas from '@/components/ClientCanvas';
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function Home() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.push('/editor');
+  }, [router]);
+
   return (
-    <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Ribbon />
-      <main className="canvas-wrap">
-        <ClientCanvas />
-      </main>
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+      Redirecting to editor...
     </div>
   );
 }

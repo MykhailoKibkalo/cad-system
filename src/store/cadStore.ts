@@ -1,90 +1,64 @@
-'use client';
-
 import { create } from 'zustand';
-import { fabric } from 'fabric';
+import { CADStore } from '@/types/cad';
+import { v4 as uuidv4 } from 'uuid';
 
-interface CadState {
-  canvas: fabric.Canvas | null;
-  gridStep: number; // in mm
-  backdropId: string | null;
-  backdropLocked: boolean;
-  backdropOpacity: number;
-  currentTool: 'select' | 'draw-module' | 'copy' | 'remove' | 'draw-opening' | 'draw-balcony' | 'draw-bathroom' | 'draw-corridor';
-  moduleCounter: number;
-  openingCounter: number;
-  balconyCounter: number;
-  bathroomCounter: number;
-  corridorCounter: number; // Added corridor counter
-  roofCounter: number; // Added for future roof implementation
-  setCanvas: (canvas: fabric.Canvas) => void;
-  setGridStep: (step: number) => void;
-  setBackdropId: (id: string | null) => void;
-  setBackdropLocked: (locked: boolean) => void;
-  setBackdropOpacity: (opacity: number) => void;
-  setTool: (tool: CadState['currentTool']) => void;
-  incModuleCounter: () => number;
-  incOpening: () => string;
-  incBalcony: () => string;
-  incBathroom: () => string;
-  incCorridor: () => string; // Added corridor increment function
-  incRoof: () => string; // Added for future roof implementation
-  selectedModuleId: string | null;
-  setSelectedModule: (id: string | null) => void;
-}
+const useCadStore = create<CADStore>((set, get) => ({
+  floors: [
+    {
+      id: uuidv4(),
+      name: 'Ground Floor',
+      backdrop: null,
+      gridResolution: 100, // Default 100mm (10cm) per cell
+      showLowerFloor: false,
+    },
+  ],
+  activeFloorIndex: 0,
+  snappingEnabled: true,
+  pixelsPerMm: 3.78, // ~96 DPI / 25.4 mm/inch = ~3.78 px/mm
+  // TODO: Replace with real DPI calculation based on screen properties
 
-const useCadStore = create<CadState>((set, get) => ({
-  canvas: null,
-  gridStep: 100, // Default grid step (100mm)
-  backdropId: null,
-  backdropLocked: false,
-  backdropOpacity: 1,
-  currentTool: 'select', // Default tool
-  moduleCounter: 0, // For module naming
-  openingCounter: 0,
-  balconyCounter: 0,
-  bathroomCounter: 0,
-  corridorCounter: 0, // Added corridor counter
-  roofCounter: 0, // Added for future roof implementation
-  setCanvas: canvas => set({ canvas }),
-  setGridStep: step => set({ gridStep: step }),
-  setBackdropId: id => set({ backdropId: id }),
-  setBackdropLocked: locked => set({ backdropLocked: locked }),
-  setBackdropOpacity: opacity => set({ backdropOpacity: opacity }),
-  setTool: tool => set({ currentTool: tool }),
-  incModuleCounter: () => {
-    const newCounter = get().moduleCounter + 1;
-    set({ moduleCounter: newCounter });
-    return newCounter;
+  addFloor: (name: string) => {
+    set(state => ({
+      floors: [
+        ...state.floors,
+        {
+          id: uuidv4(),
+          name,
+          backdrop: null,
+          gridResolution: state.floors[state.activeFloorIndex].gridResolution, // Copy from current floor
+          showLowerFloor: true, // Default to showing lower floor for new floors
+        },
+      ],
+    }));
   },
-  incOpening: () => {
-    const newCounter = get().openingCounter + 1;
-    set({ openingCounter: newCounter });
-    return `OP${newCounter}`;
+
+  setActiveFloor: (index: number) => {
+    set({ activeFloorIndex: index });
   },
-  incBalcony: () => {
-    const newCounter = get().balconyCounter + 1;
-    set({ balconyCounter: newCounter });
-    return `BC${newCounter}`;
+
+  updateGridResolution: (floorId: string, resolution: number) => {
+    set(state => ({
+      floors: state.floors.map(floor => (floor.id === floorId ? { ...floor, gridResolution: resolution } : floor)),
+    }));
   },
-  incBathroom: () => {
-    const newCounter = get().bathroomCounter + 1;
-    set({ bathroomCounter: newCounter });
-    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const letter = letters[(newCounter - 1) % letters.length];
-    return `BP${letter}`;
+
+  toggleLowerFloorBackdrop: (floorId: string) => {
+    set(state => ({
+      floors: state.floors.map(floor =>
+        floor.id === floorId ? { ...floor, showLowerFloor: !floor.showLowerFloor } : floor
+      ),
+    }));
   },
-  incCorridor: () => { // Added corridor increment function
-    const newCounter = get().corridorCounter + 1;
-    set({ corridorCounter: newCounter });
-    return `C${newCounter}`;
+
+  setBackdrop: (floorId: string, backdrop: any) => {
+    set(state => ({
+      floors: state.floors.map(floor => (floor.id === floorId ? { ...floor, backdrop } : floor)),
+    }));
   },
-  incRoof: () => { // Added for future roof implementation
-    const newCounter = get().roofCounter + 1;
-    set({ roofCounter: newCounter });
-    return `R${newCounter}`;
+
+  toggleSnapping: () => {
+    set(state => ({ snappingEnabled: !state.snappingEnabled }));
   },
-  selectedModuleId: null as string|null,
-  setSelectedModule: (id: string|null) => set({ selectedModuleId: id }),
 }));
 
 export default useCadStore;

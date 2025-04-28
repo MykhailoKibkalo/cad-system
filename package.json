@@ -11,10 +11,10 @@
   "dependencies": {
     "@emotion/react": "^11.11.1",
     "@emotion/styled": "^11.11.0",
-    "fabric": "^5.3.0",
+    "fabric": "^6.0.0",
     "file-saver": "^2.0.5",
     "next": "15.2.1",
-    "pdfjs-dist": "^4.0.379",
+    "pdfjs-dist": "3.11.174",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-pdf": "^9.2.1",
