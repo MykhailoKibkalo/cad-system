@@ -6,3 +6,5 @@
  */
 export const snap = (value: number, step = 10): number =>
     Math.round(value / step) * step;
+
+export const snap10 = (v: number) => Math.round(v / 10) * 10;

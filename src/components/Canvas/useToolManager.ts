@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { fabric } from 'fabric';
 import useCadStore from '@/store/cadStore';
 import { snap } from '@/utils/snap';
-import { createModule } from '@/utils/ModuleHelpers';
+import { createModule, createCorridor } from '@/utils/ModuleHelpers';
 import { attachChild } from '@/utils/attachChild';
 import { wallHit } from '@/utils/wallHit';
 import { clampPodInside, placeOpening, snap10 } from '@/utils/geometry';
@@ -34,7 +34,7 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
     canvas.off('object:scaled');
 
     // Get store actions
-    const { setTool, incModuleCounter, incBalcony, incBathroom, setSelectedModule } = useCadStore.getState();
+    const { setTool, incModuleCounter, incBalcony, incBathroom, incCorridor, setSelectedModule } = useCadStore.getState();
 
     // Add click-to-select handler
     canvas.on('mouse:down', e => {
@@ -81,6 +81,26 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
             height: 0,
             fill: 'transparent',
             stroke: '#333',
+            strokeWidth: 1,
+            strokeDashArray: [5, 5],
+            selectable: false,
+            evented: false,
+          });
+
+          canvas.add(rubberBand.current);
+          break;
+
+        case 'draw-corridor': // Handle corridor drawing
+          startPoint.current = { x, y };
+
+          // Create rubber band for corridor
+          rubberBand.current = new fabric.Rect({
+            left: x,
+            top: y,
+            width: 0,
+            height: 0,
+            fill: '#e0e0ff',
+            stroke: '#0000ee',
             strokeWidth: 1,
             strokeDashArray: [5, 5],
             selectable: false,
@@ -175,7 +195,8 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
 
       switch (currentTool) {
         case 'draw-module':
-          // Update rubber band for module
+        case 'draw-corridor': // Handle corridor similar to module
+          // Update rubber band for module/corridor
           const width = Math.abs(x - startPoint.current.x);
           const height = Math.abs(y - startPoint.current.y);
 
@@ -225,7 +246,7 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
           // Create new module if dimensions are valid
           if (width >= 10 && height >= 10) {
             const moduleNumber = incModuleCounter();
-            const moduleName = `M ${moduleNumber}`;
+            const moduleName = `M${moduleNumber}`;
 
             createModule(
                 canvas,
@@ -234,6 +255,28 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
                 width,
                 height,
                 moduleName
+            );
+          }
+          break;
+
+        case 'draw-corridor':
+          const corridorWidth = Math.abs(x - startPoint.current.x);
+          const corridorHeight = Math.abs(y - startPoint.current.y);
+
+          // Remove rubber band
+          canvas.remove(rubberBand.current);
+
+          // Create new corridor if dimensions are valid
+          if (corridorWidth >= 10 && corridorHeight >= 10) {
+            const corridorName = incCorridor();
+
+            createCorridor(
+                canvas,
+                Math.min(startPoint.current.x, x),
+                Math.min(startPoint.current.y, y),
+                corridorWidth,
+                corridorHeight,
+                corridorName
             );
           }
           break;
@@ -445,6 +488,42 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
               } else {
                 target.data.distance = target.top! - moduleTop;
               }
+
+              // For balconies check intersection with other modules
+              if (target.data.type === 'balcony') {
+                // Check if this balcony intersects with any module (except its parent)
+                const modules = canvas.getObjects().filter(
+                    o => o.data?.type === 'module' && o.data?.name !== moduleId
+                );
+
+                // Store original position
+                const originalLeft = target.left;
+                const originalTop = target.top;
+
+                // Check for intersection with any other module
+                const intersects = modules.some(mod => {
+                  const mLeft = mod.left!;
+                  const mTop = mod.top!;
+                  const mWidth = mod.width!;
+                  const mHeight = mod.height!;
+
+                  // Check for rectangle intersection
+                  return (
+                      target.left! < mLeft + mWidth &&
+                      target.left! + target.width! > mLeft &&
+                      target.top! < mTop + mHeight &&
+                      target.top! + target.height! > mTop
+                  );
+                });
+
+                // If intersecting, revert to previous valid position
+                if (intersects) {
+                  target.set({
+                    left: originalLeft,
+                    top: originalTop
+                  });
+                }
+              }
             }
             break;
 
@@ -477,6 +556,15 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
               target.data.y_offset = target.top! - bathModuleTop;
             }
             break;
+
+          case 'corridor':
+            // Update data on movement
+            target.data.x1 = target.left!;
+            target.data.y1 = target.top!;
+            target.data.x2 = target.left! + target.width!;
+            target.data.y2 = target.top! + target.height!;
+            target.data.direction = target.width! > target.height! ? 'horizontal' : 'vertical';
+            break;
         }
       }
     };
@@ -494,6 +582,31 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
 
         // Update rotation in data
         target.data.rotation = target.angle;
+
+        // Get the module's components (openings, bathrooms, balconies)
+        const moduleId = target.data.name;
+        const components = canvas.getObjects().filter(
+            obj => obj.data &&
+                ['opening', 'bathroom', 'balcony'].includes(obj.data.type) &&
+                obj.data.moduleId === moduleId
+        );
+
+        // For each component, update its position based on the module's rotation
+        components.forEach(comp => {
+          if (comp.parentId === target.id) {
+            // Update position based on parent's rotation
+            // This will use the attachChild relationship to maintain proper positioning
+            const parentMatrix = target.calcTransformMatrix();
+            const localPoint = comp.getCenterPoint();
+            const globalPoint = fabric.util.transformPoint(localPoint, parentMatrix);
+
+            comp.set({
+              left: globalPoint.x - comp.width!/2,
+              top: globalPoint.y - comp.height!/2,
+              angle: target.angle + (comp.data?.angle || 0)
+            });
+          }
+        });
       }
     };
 
@@ -560,6 +673,57 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
             target.setCoords();
           }
         }
+      } else if (opt.target && opt.target.data?.type === 'corridor') {
+        // Handle scaling of corridors
+        const target = opt.target;
+        const newWidth = snap(target.width! * target.scaleX!);
+        const newHeight = snap(target.height! * target.scaleY!);
+
+        // Reset scale to 1 and set new dimensions
+        target.set({
+          width: newWidth,
+          height: newHeight,
+          scaleX: 1,
+          scaleY: 1
+        });
+
+        // Update corridor metadata
+        target.data.width = newWidth;
+        target.data.height = newHeight;
+        target.data.x1 = target.left!;
+        target.data.y1 = target.top!;
+        target.data.x2 = target.left! + newWidth;
+        target.data.y2 = target.top! + newHeight;
+        target.data.direction = newWidth > newHeight ? 'horizontal' : 'vertical';
+
+        target.setCoords();
+      } else if (opt.target && ['opening', 'bathroom', 'balcony'].includes(opt.target.data?.type)) {
+        // Handle scaling of components
+        const target = opt.target;
+        const newWidth = snap10(target.width! * target.scaleX!);
+        const newHeight = snap10(target.height! * target.scaleY!);
+
+        // Reset scale to 1 and set new dimensions
+        target.set({
+          width: newWidth,
+          height: newHeight,
+          scaleX: 1,
+          scaleY: 1
+        });
+
+        // Update metadata
+        if (target.data.type === 'opening') {
+          target.data.width = newWidth;
+          target.data.height = newHeight;
+        } else if (target.data.type === 'bathroom') {
+          target.data.width = newWidth;
+          target.data.length = newHeight;
+        } else if (target.data.type === 'balcony') {
+          target.data.width = newWidth;
+          target.data.length = newHeight;
+        }
+
+        target.setCoords();
       }
     };
 
@@ -581,7 +745,7 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
             switch (cloned.data.type) {
               case 'module':
                 const moduleNumber = incModuleCounter();
-                const moduleName = `M ${moduleNumber}`;
+                const moduleName = `M${moduleNumber}`;
 
                 cloned.data.name = moduleName;
 
@@ -607,6 +771,17 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
               case 'bathroom':
                 const bathroomId = incBathroom();
                 cloned.data.id = bathroomId;
+                break;
+
+              case 'corridor':
+                const corridorName = incCorridor();
+                cloned.data.name = corridorName;
+
+                // Update corridor coordinates
+                cloned.data.x1 = cloned.left!;
+                cloned.data.y1 = cloned.top!;
+                cloned.data.x2 = cloned.left! + cloned.width!;
+                cloned.data.y2 = cloned.top! + cloned.height!;
                 break;
             }
           }
@@ -679,6 +854,7 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
       let maxOpening = 0;
       let maxBalcony = 0;
       let maxBathroom = 0;
+      let maxCorridor = 0; // Added for corridor tracking
 
       objects.forEach(obj => {
         if (obj.data) {
@@ -710,6 +886,14 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
             case 'bathroom':
               // Bathrooms use letter IDs, no need to track
               break;
+
+            case 'corridor':
+              const corridorMatch = obj.data.name?.match(/C(\d+)/);
+              if (corridorMatch && corridorMatch[1]) {
+                const num = parseInt(corridorMatch[1], 10);
+                if (num > maxCorridor) maxCorridor = num;
+              }
+              break;
           }
         }
       });
@@ -724,6 +908,9 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
       }
       if (maxBalcony > store.balconyCounter) {
         store.balconyCounter = maxBalcony;
+      }
+      if (maxCorridor > store.corridorCounter) {
+        store.corridorCounter = maxCorridor;
       }
     };
 

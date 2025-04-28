@@ -10,6 +10,7 @@ export const TOOL_GROUPS = (hasSelection: boolean) =>
       buttons: [
         { id: 'select', text: 'Select', disabled: false },
         { id: 'draw-module', text: 'Module', disabled: false },
+        { id: 'draw-corridor', text: 'Corridor', disabled: false }, // Added corridor tool
         { id: 'copy', text: 'Copy', disabled: false },
         { id: 'remove', text: 'Delete', disabled: false },
       ],

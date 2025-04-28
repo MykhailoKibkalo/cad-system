@@ -1,14 +1,17 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { fabric } from 'fabric';
 import useCadStore from '@/store/cadStore';
 import useToolManager from './useToolManager';
+import SettingsPanel from '@/components/SettingsPanel';
 
 const FabricCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gridRef = useRef<HTMLCanvasElement>(null);
   const { setCanvas, gridStep } = useCadStore();
+  const [selectedObject, setSelectedObject] = useState<fabric.Object | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     if (!canvasRef.current || !gridRef.current) return;
@@ -75,6 +78,16 @@ const FabricCanvas: React.FC = () => {
     // Add resize listener
     window.addEventListener('resize', fit);
 
+    // Add double-click handler
+    canvas.on('mouse:dblclick', opt => {
+      if (opt.target && opt.target.data) {
+        if (['module', 'opening', 'balcony', 'bathroom', 'corridor'].includes(opt.target.data.type)) {
+          setSelectedObject(opt.target);
+          setShowSettings(true);
+        }
+      }
+    });
+
     // Save canvas to store
     setCanvas(canvas);
 
@@ -84,6 +97,7 @@ const FabricCanvas: React.FC = () => {
     // Cleanup on unmount
     return () => {
       window.removeEventListener('resize', fit);
+      canvas.off('mouse:dblclick');
       canvas.dispose();
     };
   }, [setCanvas, gridStep]);
@@ -122,10 +136,16 @@ const FabricCanvas: React.FC = () => {
     }
   }, [gridStep]);
 
+  const handleCloseSettings = () => {
+    setShowSettings(false);
+    setSelectedObject(null);
+  };
+
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <canvas ref={gridRef} style={{ position: 'absolute', inset: 0 }} />
       <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0 }} />
+      {showSettings && selectedObject && <SettingsPanel object={selectedObject} onClose={handleCloseSettings} />}
     </div>
   );
 };

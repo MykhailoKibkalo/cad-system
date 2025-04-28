@@ -2,6 +2,7 @@
 
 import {saveAs} from 'file-saver';
 import {fabric} from 'fabric';
+import { getExportData } from './componentData';
 
 /**
  * Exports the canvas as a JSON file and initiates download
@@ -12,6 +13,20 @@ export function exportCanvasToJSON(canvas: fabric.Canvas, filename: string = 'ca
   if (!canvas) return;
 
   const json = JSON.stringify(canvas.toJSON(['data']), null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  saveAs(blob, filename);
+}
+
+/**
+ * Exports only the components data in a structured format according to specification
+ * @param canvas The fabric canvas with components
+ * @param filename The name of the file to download
+ */
+export function exportComponentsData(canvas: fabric.Canvas, filename: string = 'components-data.json'): void {
+  if (!canvas) return;
+
+  const data = getExportData(canvas);
+  const json = JSON.stringify(data, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
   saveAs(blob, filename);
 }

@@ -9,11 +9,13 @@ interface CadState {
   backdropId: string | null;
   backdropLocked: boolean;
   backdropOpacity: number;
-  currentTool: 'select' | 'draw-module' | 'copy' | 'remove' | 'draw-opening' | 'draw-balcony' | 'draw-bathroom';
+  currentTool: 'select' | 'draw-module' | 'copy' | 'remove' | 'draw-opening' | 'draw-balcony' | 'draw-bathroom' | 'draw-corridor';
   moduleCounter: number;
   openingCounter: number;
   balconyCounter: number;
   bathroomCounter: number;
+  corridorCounter: number; // Added corridor counter
+  roofCounter: number; // Added for future roof implementation
   setCanvas: (canvas: fabric.Canvas) => void;
   setGridStep: (step: number) => void;
   setBackdropId: (id: string | null) => void;
@@ -24,6 +26,8 @@ interface CadState {
   incOpening: () => string;
   incBalcony: () => string;
   incBathroom: () => string;
+  incCorridor: () => string; // Added corridor increment function
+  incRoof: () => string; // Added for future roof implementation
   selectedModuleId: string | null;
   setSelectedModule: (id: string | null) => void;
 }
@@ -39,6 +43,8 @@ const useCadStore = create<CadState>((set, get) => ({
   openingCounter: 0,
   balconyCounter: 0,
   bathroomCounter: 0,
+  corridorCounter: 0, // Added corridor counter
+  roofCounter: 0, // Added for future roof implementation
   setCanvas: canvas => set({ canvas }),
   setGridStep: step => set({ gridStep: step }),
   setBackdropId: id => set({ backdropId: id }),
@@ -66,6 +72,16 @@ const useCadStore = create<CadState>((set, get) => ({
     const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const letter = letters[(newCounter - 1) % letters.length];
     return `BP${letter}`;
+  },
+  incCorridor: () => { // Added corridor increment function
+    const newCounter = get().corridorCounter + 1;
+    set({ corridorCounter: newCounter });
+    return `C${newCounter}`;
+  },
+  incRoof: () => { // Added for future roof implementation
+    const newCounter = get().roofCounter + 1;
+    set({ roofCounter: newCounter });
+    return `R${newCounter}`;
   },
   selectedModuleId: null as string|null,
   setSelectedModule: (id: string|null) => set({ selectedModuleId: id }),

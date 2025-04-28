@@ -4,7 +4,7 @@ import React, { useRef } from 'react';
 import styled from '@emotion/styled';
 import useCadStore from '@/store/cadStore';
 import { addPdfToCanvas } from '@/utils/pdfLoader';
-import { exportCanvasToJSON, loadJSONToCanvas } from '@/utils/exportJSON';
+import { exportCanvasToJSON, exportComponentsData, loadJSONToCanvas } from '@/utils/exportJSON';
 import { applyBackdropLock } from '@/utils/backdrop';
 
 const Button = styled.button`
@@ -76,6 +76,11 @@ const FileButtons: React.FC = () => {
     exportCanvasToJSON(canvas);
   };
 
+  const handleExportComponents = () => {
+    if (!canvas) return;
+    exportComponentsData(canvas);
+  };
+
   return (
     <div>
       <Button onClick={handleUploadPdf}>Upload PDF</Button>
@@ -85,6 +90,8 @@ const FileButtons: React.FC = () => {
       <HiddenInput ref={jsonInputRef} type="file" accept="application/json" onChange={handleJsonSelected} />
 
       <Button onClick={handleSaveJson}>Save JSON</Button>
+
+      <Button onClick={handleExportComponents}>Export Components</Button>
 
       {/* ─── Backdrop controls ─── */}
       <span style={{ marginLeft: 12, borderLeft: '1px solid #ccc', paddingLeft: 12 }}>

@@ -250,3 +250,49 @@ export const createBathroomPod = (
   attachChild(parent, bathroomPod);
   return bathroomPod;
 };
+
+/**
+ * Creates a corridor
+ * @param canvas The fabric canvas to draw on
+ * @param left Left position
+ * @param top Top position
+ * @param width Width
+ * @param height Height
+ * @param name Corridor name
+ * @returns Fabric rectangle representing the corridor
+ */
+export const createCorridor = (
+    canvas: fabric.Canvas,
+    left: number,
+    top: number,
+    width: number,
+    height: number,
+    name: string
+): fabric.Rect => {
+  // Create the corridor rectangle
+  const corridor = new fabric.Rect({
+    left,
+    top,
+    width,
+    height,
+    fill: '#e0e0ff',
+    stroke: '#0000ee',
+    strokeWidth: 1,
+    strokeUniform: true,
+  });
+
+  // Add metadata according to spec
+  corridor.data = {
+    type: 'corridor',
+    name,
+    direction: width > height ? 'horizontal' : 'vertical',
+    floor: 1, // Default floor level, could be made configurable
+    x1: left,
+    y1: top,
+    x2: left + width,
+    y2: top + height,
+  };
+
+  canvas.add(corridor);
+  return corridor;
+};
