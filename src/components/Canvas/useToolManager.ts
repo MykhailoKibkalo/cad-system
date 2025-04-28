@@ -7,7 +7,6 @@ import { snap } from '@/utils/snap';
 import { createModule } from '@/utils/ModuleHelpers';
 import { attachChild } from '@/utils/attachChild';
 import { wallHit } from '@/utils/wallHit';
-import { disableAllExcept, enableAll } from '@/utils/selectionGuard';
 import { clampPodInside, placeOpening, snap10 } from '@/utils/geometry';
 
 interface Point {
@@ -18,7 +17,6 @@ interface Point {
 const useToolManager = (canvas: fabric.Canvas | null) => {
   const startPoint = useRef<Point | null>(null);
   const rubberBand = useRef<fabric.Rect | null>(null);
-  const selectedModule = useRef<fabric.Group | null>(null);
   const selectedWall = useRef<number>(0);
 
   const currentTool = useCadStore(state => state.currentTool);
@@ -36,7 +34,34 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
     canvas.off('object:scaled');
 
     // Get store actions
-    const { setTool, incModuleCounter, incOpening, incBalcony, incBathroom } = useCadStore.getState();
+    const { setTool, incModuleCounter, incBalcony, incBathroom, setSelectedModule } = useCadStore.getState();
+
+    // Add click-to-select handler
+    canvas.on('mouse:down', e => {
+      const tgt = canvas.findTarget(e.e as any,true);
+      canvas.discardActiveObject(); // prevent accidental move
+
+      if (tgt && tgt.data?.type === 'module' && tgt instanceof fabric.Group) {
+        setSelectedModule(tgt.id);
+        canvas.setActiveObject(tgt); // orange outline
+        tgt.set({ stroke:'#ff8800', strokeWidth:3, strokeUniform:true, objectCaching:false });
+      } else {
+        setSelectedModule(null);
+        canvas.getObjects().forEach(o => {
+          if (o.data?.type === 'module') o.set({ stroke:'#333', strokeWidth:1 });
+        });
+      }
+      canvas.requestRenderAll();
+    });
+
+    // Add ESC key handler to clear selection
+    window.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        setSelectedModule(null);
+        canvas.discardActiveObject();
+        canvas.requestRenderAll();
+      }
+    });
 
     // Handle mouse down event
     const onMouseDown = (opt: fabric.IEvent<Event>) => {
@@ -67,28 +92,66 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
 
         case 'draw-opening':
         case 'draw-balcony':
-          // Check if a module is selected
-          const activeObj = canvas.getActiveObject();
-          if (activeObj && activeObj.data?.type === 'module' && activeObj instanceof fabric.Group) {
-            // Get the module rectangle (first object in group)
-            const targetRect = activeObj._objects[0] as fabric.Rect;
+          // Get the selected module
+          const parent = canvas.getObjects().find(o => (o as any).id === useCadStore.getState().selectedModuleId) as fabric.Group | undefined;
+          if (!parent) {
+            alert('Select a module first');
+            return;
+          }
 
-            // Use wallHit to detect which wall was clicked
-            const wall = wallHit(targetRect, { x, y });
-            if (!wall) return; // require edge click
+          // Get the module rectangle (first object in group)
+          const targetRect = parent._objects[0] as fabric.Rect;
 
-            selectedModule.current = activeObj; // parent group
-            selectedWall.current = wall;
-            disableAllExcept(canvas, activeObj);
+          // Use wallHit to detect which wall was clicked
+          const wall = wallHit(targetRect, { x, y });
+          if (!wall) return; // require edge click
 
-            // Create rubber band for opening/balcony
+          selectedWall.current = wall;
+
+          // Create rubber band for opening/balcony
+          rubberBand.current = new fabric.Rect({
+            left: x,
+            top: y,
+            width: 0,
+            height: 0,
+            fill: currentTool === 'draw-opening' ? '#cfe' : '#def',
+            stroke: currentTool === 'draw-opening' ? '#333' : '#08f',
+            strokeWidth: 1,
+            strokeDashArray: [5, 5],
+            selectable: false,
+            evented: false,
+          });
+
+          canvas.add(rubberBand.current);
+          startPoint.current = { x, y };
+          break;
+
+        case 'draw-bathroom':
+          // Get the selected module
+          const bathParent = canvas.getObjects().find(o => (o as any).id === useCadStore.getState().selectedModuleId) as fabric.Group | undefined;
+          if (!bathParent) {
+            alert('Select a module first');
+            return;
+          }
+
+          // Get the module rectangle (first object in group)
+          const bathTargetRect = bathParent._objects[0] as fabric.Rect;
+
+          // Start point must be inside the module
+          const moduleLeft = bathTargetRect.left! + bathParent.left!;
+          const moduleTop = bathTargetRect.top! + bathParent.top!;
+          const moduleWidth = bathTargetRect.width!;
+          const moduleHeight = bathTargetRect.height!;
+
+          if (x >= moduleLeft && x <= moduleLeft + moduleWidth && y >= moduleTop && y <= moduleTop + moduleHeight) {
+            // Create rubber band for bathroom pod
             rubberBand.current = new fabric.Rect({
               left: x,
               top: y,
               width: 0,
               height: 0,
-              fill: currentTool === 'draw-opening' ? '#cfe' : '#def',
-              stroke: currentTool === 'draw-opening' ? '#333' : '#08f',
+              fill: '#fff6cc',
+              stroke: '#333',
               strokeWidth: 1,
               strokeDashArray: [5, 5],
               selectable: false,
@@ -97,43 +160,6 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
 
             canvas.add(rubberBand.current);
             startPoint.current = { x, y };
-          }
-          break;
-
-        case 'draw-bathroom':
-          // Check if a module is selected
-          const activeModule = canvas.getActiveObject();
-          if (activeModule && activeModule.data?.type === 'module' && activeModule instanceof fabric.Group) {
-            // Get the module rectangle (first object in group)
-            const targetRect = activeModule._objects[0] as fabric.Rect;
-
-            // Start point must be inside the module
-            const moduleLeft = targetRect.left! + activeModule.left!;
-            const moduleTop = targetRect.top! + activeModule.top!;
-            const moduleWidth = targetRect.width!;
-            const moduleHeight = targetRect.height!;
-
-            if (x >= moduleLeft && x <= moduleLeft + moduleWidth && y >= moduleTop && y <= moduleTop + moduleHeight) {
-              selectedModule.current = activeModule;
-              disableAllExcept(canvas, activeModule);
-
-              // Create rubber band for bathroom pod
-              rubberBand.current = new fabric.Rect({
-                left: x,
-                top: y,
-                width: 0,
-                height: 0,
-                fill: '#fff6cc',
-                stroke: '#333',
-                strokeWidth: 1,
-                strokeDashArray: [5, 5],
-                selectable: false,
-                evented: false,
-              });
-
-              canvas.add(rubberBand.current);
-              startPoint.current = { x, y };
-            }
           }
           break;
       }
@@ -163,32 +189,16 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
 
         case 'draw-opening':
         case 'draw-balcony':
-          if (!selectedModule.current) return;
-
-          // Just update the rubber band size
-          const openingWidth = Math.abs(x - startPoint.current.x);
-          const openingHeight = Math.abs(y - startPoint.current.y);
-
-          rubberBand.current.set({
-            left: Math.min(startPoint.current.x, x),
-            top: Math.min(startPoint.current.y, y),
-            width: openingWidth,
-            height: openingHeight,
-          });
-          break;
-
         case 'draw-bathroom':
-          if (!selectedModule.current) return;
-
-          // Just update the rubber band size
-          const bathroomWidth = Math.abs(x - startPoint.current.x);
-          const bathroomHeight = Math.abs(y - startPoint.current.y);
+          // Shared rubber band sizing for all child components
+          const dx = snap(pointer.x) - startPoint.current.x;
+          const dy = snap(pointer.y) - startPoint.current.y;
 
           rubberBand.current.set({
-            left: Math.min(startPoint.current.x, x),
-            top: Math.min(startPoint.current.y, y),
-            width: bathroomWidth,
-            height: bathroomHeight,
+            width: Math.abs(dx),
+            height: Math.abs(dy),
+            left: dx < 0 ? snap(pointer.x) : startPoint.current.x,
+            top: dy < 0 ? snap(pointer.y) : startPoint.current.y,
           });
           break;
       }
@@ -218,25 +228,26 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
             const moduleName = `M ${moduleNumber}`;
 
             createModule(
-              canvas,
-              Math.min(startPoint.current.x, x),
-              Math.min(startPoint.current.y, y),
-              width,
-              height,
-              moduleName
+                canvas,
+                Math.min(startPoint.current.x, x),
+                Math.min(startPoint.current.y, y),
+                width,
+                height,
+                moduleName
             );
           }
-          enableAll(canvas);
           break;
 
         case 'draw-opening':
-          if (!selectedModule.current) {
+          // Get the selected module
+          const openingParent = canvas.getObjects().find(o => (o as any).id === useCadStore.getState().selectedModuleId) as fabric.Group | undefined;
+          if (!openingParent) {
             canvas.remove(rubberBand.current);
             break;
           }
 
           // Get module rectangle
-          const targetRectOpening = selectedModule.current._objects[0] as fabric.Rect;
+          const targetRectOpening = openingParent._objects[0] as fabric.Rect;
 
           // Snap size & position
           rubberBand.current.set({
@@ -251,7 +262,7 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
             // Set opening data
             rubberBand.current.data = {
               type: 'opening',
-              moduleId: selectedModule.current.data.name,
+              moduleId: openingParent.data.name,
               wallSide: selectedWall.current,
               width: rubberBand.current.width,
               height: rubberBand.current.height,
@@ -259,25 +270,27 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
               y_offset: selectedWall.current === 3 ? rubberBand.current.height : 0,
             };
 
-            attachChild(selectedModule.current, rubberBand.current);
+            // Ensure it's on the root canvas before attaching
+            canvas.add(rubberBand.current);
+            attachChild(openingParent, rubberBand.current);
 
             // Don't remove the rubber band since it's now our opening
             rubberBand.current = null;
-            enableAll(canvas);
           } else {
             canvas.remove(rubberBand.current);
-            enableAll(canvas);
           }
           break;
 
         case 'draw-balcony':
-          if (!selectedModule.current) {
+          // Get the selected module
+          const balconyParent = canvas.getObjects().find(o => (o as any).id === useCadStore.getState().selectedModuleId) as fabric.Group | undefined;
+          if (!balconyParent) {
             canvas.remove(rubberBand.current);
             break;
           }
 
           // Get module rectangle
-          const targetRectBalcony = selectedModule.current._objects[0] as fabric.Rect;
+          const targetRectBalcony = balconyParent._objects[0] as fabric.Rect;
 
           // Snap size & position
           rubberBand.current.set({
@@ -294,7 +307,7 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
             // Set balcony data
             rubberBand.current.data = {
               type: 'balcony',
-              moduleId: selectedModule.current.data.name,
+              moduleId: balconyParent.data.name,
               wallSide: selectedWall.current,
               width: rubberBand.current.width,
               length: rubberBand.current.height,
@@ -302,25 +315,27 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
               name: balconyName,
             };
 
-            attachChild(selectedModule.current, rubberBand.current);
+            // Ensure it's on the root canvas before attaching
+            canvas.add(rubberBand.current);
+            attachChild(balconyParent, rubberBand.current);
 
             // Don't remove the rubber band since it's now our balcony
             rubberBand.current = null;
-            enableAll(canvas);
           } else {
             canvas.remove(rubberBand.current);
-            enableAll(canvas);
           }
           break;
 
         case 'draw-bathroom':
-          if (!selectedModule.current) {
+          // Get the selected module
+          const bathroomParent = canvas.getObjects().find(o => (o as any).id === useCadStore.getState().selectedModuleId) as fabric.Group | undefined;
+          if (!bathroomParent) {
             canvas.remove(rubberBand.current);
             break;
           }
 
           // Get module rectangle
-          const targetRectBathroom = selectedModule.current._objects[0] as fabric.Rect;
+          const targetRectBathroom = bathroomParent._objects[0] as fabric.Rect;
 
           // Snap size & position
           rubberBand.current.set({
@@ -337,7 +352,7 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
             // Set bathroom data
             rubberBand.current.data = {
               type: 'bathroom',
-              moduleId: selectedModule.current.data.name,
+              moduleId: bathroomParent.data.name,
               width: rubberBand.current.width,
               length: rubberBand.current.height,
               x_offset: rubberBand.current.left! - targetRectBathroom.left!,
@@ -345,21 +360,20 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
               id: bathroomId,
             };
 
-            attachChild(selectedModule.current, rubberBand.current);
+            // Ensure it's on the root canvas before attaching
+            canvas.add(rubberBand.current);
+            attachChild(bathroomParent, rubberBand.current);
 
             // Don't remove the rubber band since it's now our bathroom pod
             rubberBand.current = null;
-            enableAll(canvas);
           } else {
             canvas.remove(rubberBand.current);
-            enableAll(canvas);
           }
           break;
       }
 
       // Reset state and switch to select tool
       startPoint.current = null;
-      selectedModule.current = null;
       selectedWall.current = 0;
       canvas.requestRenderAll();
       setTool('select');
@@ -389,8 +403,8 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
             const wallSide = target.data.wallSide;
 
             const parentModule = canvas
-              .getObjects()
-              .find(obj => obj.data?.type === 'module' && obj.data?.name === moduleId);
+                .getObjects()
+                .find(obj => obj.data?.type === 'module' && obj.data?.name === moduleId);
 
             if (parentModule) {
               const moduleLeft = parentModule.left!;
@@ -439,8 +453,8 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
             const bathModuleId = target.data.moduleId;
 
             const bathParentModule = canvas
-              .getObjects()
-              .find(obj => obj.data?.type === 'module' && obj.data?.name === bathModuleId);
+                .getObjects()
+                .find(obj => obj.data?.type === 'module' && obj.data?.name === bathModuleId);
 
             if (bathParentModule) {
               const bathModuleLeft = bathParentModule.left!;
@@ -451,10 +465,10 @@ const useToolManager = (canvas: fabric.Canvas | null) => {
               // Constrain to module boundaries
               target.set({
                 left: snap(
-                  Math.max(bathModuleLeft, Math.min(bathModuleLeft + bathModuleWidth - target.width!, target.left!))
+                    Math.max(bathModuleLeft, Math.min(bathModuleLeft + bathModuleWidth - target.width!, target.left!))
                 ),
                 top: snap(
-                  Math.max(bathModuleTop, Math.min(bathModuleTop + bathModuleHeight - target.height!, target.top!))
+                    Math.max(bathModuleTop, Math.min(bathModuleTop + bathModuleHeight - target.height!, target.top!))
                 ),
               });
 

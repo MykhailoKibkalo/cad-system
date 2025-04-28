@@ -1,5 +1,6 @@
 import { fabric } from 'fabric';
 import { attachChild } from './attachChild';
+import { v4 as uuid } from 'uuid'; // npm i uuid
 
 /**
  * Creates a module with label
@@ -51,6 +52,9 @@ export const createModule = (
     originY: 'top',
     hasControls: true,
   });
+
+  // Add UUID to the group
+  group.id = uuid();
 
   // Add metadata to the group
   group.data = {

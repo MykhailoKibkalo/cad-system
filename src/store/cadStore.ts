@@ -24,6 +24,8 @@ interface CadState {
   incOpening: () => string;
   incBalcony: () => string;
   incBathroom: () => string;
+  selectedModuleId: string | null;
+  setSelectedModule: (id: string | null) => void;
 }
 
 const useCadStore = create<CadState>((set, get) => ({
@@ -65,6 +67,8 @@ const useCadStore = create<CadState>((set, get) => ({
     const letter = letters[(newCounter - 1) % letters.length];
     return `BP${letter}`;
   },
+  selectedModuleId: null as string|null,
+  setSelectedModule: (id: string|null) => set({ selectedModuleId: id }),
 }));
 
 export default useCadStore;
