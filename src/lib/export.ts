@@ -4,7 +4,7 @@ import useCadStore from '@/store/cadStore';
  * Exports the current CAD state to a JSON string
  */
 export const exportCad = (): string => {
-    const { floors, activeFloorIndex, snappingEnabled, pixelsPerMm } = useCadStore.getState();
+    const { floors, activeFloorIndex, snappingEnabled, pixelsPerMm, snapToElementGap } = useCadStore.getState();
 
     // Prepare floors data without circular references
     const floorsData = floors.map(floor => {
@@ -12,7 +12,6 @@ export const exportCad = (): string => {
         let backdropData = null;
         if (floor.backdrop) {
             backdropData = {
-                // Save only essential properties
                 left: floor.backdrop.left,
                 top: floor.backdrop.top,
                 width: floor.backdrop.width,
@@ -20,29 +19,40 @@ export const exportCad = (): string => {
                 scaleX: floor.backdrop.scaleX,
                 scaleY: floor.backdrop.scaleY,
                 angle: floor.backdrop.angle,
-                // The actual image data would be stored separately or as a URL reference
-                // For now, we'll just store a placeholder
                 src: 'image_placeholder',
             };
         }
 
+        // Return serializable floor data
         return {
             id: floor.id,
             name: floor.name,
             backdropData,
             gridResolution: floor.gridResolution,
             showLowerFloor: floor.showLowerFloor,
+            modules: floor.modules.map(module => ({
+                id: module.id,
+                name: module.name,
+                width: module.width,
+                length: module.length,
+                height: module.height,
+                x0: module.x0,
+                y0: module.y0,
+                rotation: module.rotation,
+                floorBeamsDir: module.floorBeamsDir,
+            })),
+            moduleCounter: floor.moduleCounter,
         };
     });
 
     // Construct the export data
     const exportData = {
-        version: '1.0.0', // Include a version for future compatibility
+        version: '1.0.0',
         activeFloorIndex,
         snappingEnabled,
+        snapToElementGap,
         pixelsPerMm,
         floors: floorsData,
-        // Additional metadata could be added here
         exportDate: new Date().toISOString(),
     };
 
