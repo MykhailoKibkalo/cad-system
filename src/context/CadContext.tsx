@@ -1,15 +1,20 @@
-// src/context/CadContext.tsx - Fixed floor access
+// FILE: src/context/CadContext.tsx
 import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import { fabric } from 'fabric';
 import { v4 as uuidv4 } from 'uuid';
 import {
   Balcony,
+  BathroomPod,
   CanvasSettings,
-  createDefaultWalls, DisplaySettings,
+  Corridor,
+  createDefaultWalls,
+  DisplaySettings,
   Floor,
   GridSettings,
   Module,
   ModuleColors,
+  Opening,
+  Roof,
   ToolState,
   ToolType
 } from '@/types';
@@ -23,41 +28,62 @@ interface CadContextType {
   moduleColors: ModuleColors;
   fabricCanvasRef: React.MutableRefObject<fabric.Canvas | null>;
   setFloors: (floors: Floor[]) => void;
-  addFloor: (name: string) => string; // Return the new floor ID
-  duplicateFloor: (id: string) => string; // Return the new floor ID
+  addFloor: (name: string) => string;
+  duplicateFloor: (id: string) => string;
   deleteFloor: (id: string) => void;
   setActiveFloorId: (id: string) => void;
   updateFloor: (id: string, floor: Partial<Floor>) => void;
-  addModule: (module: Omit<Module, 'id'>) => string; // Return the new module ID
+  addModule: (module: Omit<Module, 'id'>) => string;
   updateModule: (id: string, module: Partial<Module>) => void;
   deleteModule: (id: string) => void;
-  addBalcony: (balcony: Omit<Balcony, 'id'>) => string; // Return the new balcony ID
+  addBalcony: (balcony: Omit<Balcony, 'id'>) => string;
   updateBalcony: (id: string, balcony: Partial<Balcony>) => void;
   deleteBalcony: (id: string) => void;
+  addCorridor: (corridor: Omit<Corridor, 'id'>) => string; // New method for corridors
+  updateCorridor: (id: string, corridor: Partial<Corridor>) => void; // New method for corridors
+  deleteCorridor: (id: string) => void; // New method for corridors
+  addRoof: (roof: Omit<Roof, 'id'>) => string; // New method for roofs
+  updateRoof: (id: string, roof: Partial<Roof>) => void; // New method for roofs
+  deleteRoof: (id: string) => void; // New method for roofs
+  addBathroomPod: (moduleId: string, pod: Omit<BathroomPod, 'id'>) => string; // New method for bathroom pods
+  updateBathroomPod: (moduleId: string, podId: string, pod: Partial<BathroomPod>) => void; // New method for bathroom pods
+  deleteBathroomPod: (moduleId: string, podId: string) => void; // New method for bathroom pods
+  addOpening: (moduleId: string, opening: Omit<Opening, 'id'>) => string; // New method for openings
+  updateOpening: (moduleId: string, openingId: string, opening: Partial<Opening>) => void; // New method for openings
+  deleteOpening: (moduleId: string, openingId: string) => void; // New method for openings
   setGridSettings: (settings: Partial<GridSettings>) => void;
   setCanvasSettings: (settings: Partial<CanvasSettings>) => void;
   setToolState: (state: Partial<ToolState>) => void;
   getActiveFloor: () => Floor | undefined;
   getModuleById: (id: string) => Module | undefined;
   getBalconyById: (id: string) => Balcony | undefined;
-  ensureActiveFloor: () => string; // New function to ensure there's an active floor
+  getCorridorById: (id: string) => Corridor | undefined; // New getter
+  getRoofById: (id: string) => Roof | undefined; // New getter
+  ensureActiveFloor: () => string;
   displaySettings: DisplaySettings;
   setDisplaySettings: (settings: Partial<DisplaySettings>) => void;
+  moduleNamePrefix: string; // For configurable naming prefix (spec p.2, line 32)
+  setModuleNamePrefix: (prefix: string) => void;
+  getNextModuleName: () => string; // For automatic naming (M1, M2, etc.)
+  getNextCorridorName: () => string; // For automatic naming (C1, C2, etc.)
+  getNextRoofName: () => string; // For automatic naming (R1, R2, etc.)
+  getNextBalconyName: () => string; // For automatic naming (BC1, BC2, etc.)
 }
 
 const defaultGridSettings: GridSettings = {
-  size: 20,
+  size: 100, // Default: 1 grid = 100 mm (spec p.2, line 3)
   color: '#cccccc',
   opacity: 0.5,
   visible: true,
   snapToGrid: true,
-  snapToElement: true, // Enable snap to element by default
-  snapThreshold: 10, // 10px threshold for snapping
+  snapToElement: true,
+  snapThreshold: 10,
+  elementGap: 50, // Default gap 50mm (spec p.2, line 10)
 };
 
 const defaultCanvasSettings: CanvasSettings = {
-  width: 1200,
-  height: 800,
+  width: 10000, // Support for 100m×100m (spec p.2, line 7)
+  height: 10000,
   zoom: 1,
   panX: 0,
   panY: 0,
@@ -86,7 +112,8 @@ const defaultModuleColors: ModuleColors = {
 
 const defaultDisplaySettings: DisplaySettings = {
   showDimensions: true,
-  dimensionUnit: 'px',
+  dimensionUnit: 'mm', // Default to mm for architectural design
+  showFloorBeams: true, // Show floor beams CC 600mm (spec p.2, line 26)
 };
 
 const CadContext = createContext<CadContextType | undefined>(undefined);
@@ -100,14 +127,9 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [moduleColors, setModuleColors] = useState<ModuleColors>(defaultModuleColors);
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
   const [displaySettings, setDisplaySettings] = useState<DisplaySettings>(defaultDisplaySettings);
-
-  const updateDisplaySettingsHandler = (settings: Partial<DisplaySettings>) => {
-    setDisplaySettings(prev => ({ ...prev, ...settings }));
-  };
-
+  const [moduleNamePrefix, setModuleNamePrefix] = useState<string>('M'); // Default prefix 'M' (spec p.2, line 31)
 
   // Keep a direct reference to the current floors for access in event handlers
-  // This prevents stale closure issues
   const floorsRef = useRef<Floor[]>([]);
   const activeFloorIdRef = useRef<string>('');
 
@@ -115,119 +137,162 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     floorsRef.current = floors;
     activeFloorIdRef.current = activeFloorId;
-
-    console.log('Updated floors ref:', floors.length, 'floors, active ID:', activeFloorId);
   }, [floors, activeFloorId]);
 
   // Initialize with a default floor on first render
   useEffect(() => {
-    console.log('CadProvider: Initializing with default floor');
-
     if (floors.length === 0) {
       const firstFloorId = uuidv4();
-      console.log('Creating first floor with ID:', firstFloorId);
-
       const initialFloors = [
         {
           id: firstFloorId,
           name: 'Floor 1',
           modules: [],
           balconies: [],
+          corridors: [], // Initialize empty corridors array
+          roofs: [], // Initialize empty roofs array
           visible: true,
         },
       ];
 
       setFloors(initialFloors);
       setActiveFloorId(firstFloorId);
-
-      // Update refs immediately for synchronous access
       floorsRef.current = initialFloors;
       activeFloorIdRef.current = firstFloorId;
-
-      console.log('Initial floors set:', initialFloors);
-      console.log('Active floor ID set to:', firstFloorId);
     }
   }, [floors.length]);
 
   // Make sure active floor ID is set whenever floors change
   useEffect(() => {
-    console.log('Floors updated, floors count:', floors.length);
-    console.log('Current activeFloorId:', activeFloorId);
-
-    // If we have floors but no active floor ID, set the first floor as active
     if (floors.length > 0 && (!activeFloorId || !floors.find(f => f.id === activeFloorId))) {
       const newActiveId = floors[0].id;
-      console.log('Setting new active floor ID:', newActiveId);
       setActiveFloorId(newActiveId);
-      // Update ref immediately for synchronous access
       activeFloorIdRef.current = newActiveId;
     }
   }, [floors, activeFloorId]);
 
-  // CRITICAL: Direct access to active floor using current values
+  // Get active floor using current ref values
   const getActiveFloor = () => {
-    // Use the current ref values to avoid stale closures
     const currentFloors = floorsRef.current;
     const currentId = activeFloorIdRef.current;
 
-    if (!currentId) {
-      console.log('No active floor ID, creating one');
-      return undefined;
-    }
+    if (!currentId) return undefined;
 
-    const floor = currentFloors.find(f => f.id === currentId);
-
-    if (!floor) {
-      console.log(`No floor found with ID ${currentId}`);
-      return undefined;
-    }
-
-    return floor;
+    return currentFloors.find(f => f.id === currentId);
   };
 
-  // Ensure there's an active floor, creating one if needed
+  // Ensure there's an active floor
   const ensureActiveFloor = (): string => {
-    // Use the current ref values to avoid stale closures
     const currentFloors = floorsRef.current;
     const currentId = activeFloorIdRef.current;
 
-    // Check if we already have an active floor
     if (currentFloors.length > 0 && currentId && currentFloors.find(f => f.id === currentId)) {
-      console.log('Active floor already exists:', currentId);
       return currentId;
     }
 
-    // Try to use an existing floor
     if (currentFloors.length > 0) {
       const firstFloorId = currentFloors[0].id;
-      console.log('Using first floor as active:', firstFloorId);
       setActiveFloorId(firstFloorId);
-      // Update ref immediately for synchronous access
       activeFloorIdRef.current = firstFloorId;
       return firstFloorId;
     }
 
-    // No floors, create one
     const newFloorId = uuidv4();
-    console.log('Creating new floor with ID:', newFloorId);
-
     const newFloor: Floor = {
       id: newFloorId,
       name: 'Floor 1',
       modules: [],
       balconies: [],
+      corridors: [],
+      roofs: [],
       visible: true,
     };
 
     setFloors([newFloor]);
-    // Update refs immediately for synchronous access
     floorsRef.current = [newFloor];
-
     setActiveFloorId(newFloorId);
-    // Update ref immediately
     activeFloorIdRef.current = newFloorId;
-
     return newFloorId;
+  };
+
+  // Auto-generate next module name (M1, M2, etc.)
+  const getNextModuleName = (): string => {
+    const activeFloor = getActiveFloor();
+    if (!activeFloor) return `${moduleNamePrefix}1`;
+
+    // Find the highest number used in module names
+    let highestNumber = 0;
+    activeFloor.modules.forEach(module => {
+      if (module.name.startsWith(moduleNamePrefix)) {
+        const numberPart = module.name.substring(moduleNamePrefix.length);
+        const number = parseInt(numberPart, 10);
+        if (!isNaN(number) && number > highestNumber) {
+          highestNumber = number;
+        }
+      }
+    });
+
+    return `${moduleNamePrefix}${highestNumber + 1}`;
+  };
+
+  // Auto-generate next corridor name (C1, C2, etc.)
+  const getNextCorridorName = (): string => {
+    const activeFloor = getActiveFloor();
+    if (!activeFloor) return "C1";
+
+    // Find the highest number used in corridor names
+    let highestNumber = 0;
+    activeFloor.corridors.forEach(corridor => {
+      if (corridor.name.startsWith('C')) {
+        const numberPart = corridor.name.substring(1);
+        const number = parseInt(numberPart, 10);
+        if (!isNaN(number) && number > highestNumber) {
+          highestNumber = number;
+        }
+      }
+    });
+
+    return `C${highestNumber + 1}`;
+  };
+
+  // Auto-generate next roof name (R1, R2, etc.)
+  const getNextRoofName = (): string => {
+    const activeFloor = getActiveFloor();
+    if (!activeFloor) return "R1";
+
+    // Find the highest number used in roof names
+    let highestNumber = 0;
+    activeFloor.roofs.forEach(roof => {
+      if (roof.name.startsWith('R')) {
+        const numberPart = roof.name.substring(1);
+        const number = parseInt(numberPart, 10);
+        if (!isNaN(number) && number > highestNumber) {
+          highestNumber = number;
+        }
+      }
+    });
+
+    return `R${highestNumber + 1}`;
+  };
+
+  // Auto-generate next balcony name (BC1, BC2, etc.)
+  const getNextBalconyName = (): string => {
+    const activeFloor = getActiveFloor();
+    if (!activeFloor) return "BC1";
+
+    // Find the highest number used in balcony names
+    let highestNumber = 0;
+    activeFloor.balconies.forEach(balcony => {
+      if (balcony.name.startsWith('BC')) {
+        const numberPart = balcony.name.substring(2);
+        const number = parseInt(numberPart, 10);
+        if (!isNaN(number) && number > highestNumber) {
+          highestNumber = number;
+        }
+      }
+    });
+
+    return `BC${highestNumber + 1}`;
   };
 
   const addFloor = (name: string): string => {
@@ -236,28 +301,25 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       name,
       modules: [],
       balconies: [],
+      corridors: [],
+      roofs: [],
       visible: true,
     };
 
-    console.log('Adding new floor:', newFloor);
     setFloors(prevFloors => {
       const newFloors = [...prevFloors, newFloor];
-      // Update ref immediately for synchronous access
       floorsRef.current = newFloors;
       return newFloors;
     });
 
-    // Set as active floor
     setActiveFloorId(newFloor.id);
-    // Update ref immediately
     activeFloorIdRef.current = newFloor.id;
-
     return newFloor.id;
   };
 
   const duplicateFloor = (id: string): string => {
     const floorToDuplicate = floorsRef.current.find(floor => floor.id === id);
-    if (!floorToDuplicate) return id; // Return the original ID if floor not found
+    if (!floorToDuplicate) return id;
 
     const newFloor: Floor = {
       ...floorToDuplicate,
@@ -270,43 +332,49 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           ...opening,
           id: uuidv4(),
         })),
+        bathroomPods: (module.bathroomPods || []).map(pod => ({
+          ...pod,
+          id: uuidv4(),
+        })),
       })),
       balconies: floorToDuplicate.balconies.map(balcony => ({
         ...balcony,
+        id: uuidv4(),
+      })),
+      corridors: floorToDuplicate.corridors.map(corridor => ({
+        ...corridor,
+        id: uuidv4(),
+      })),
+      roofs: floorToDuplicate.roofs.map(roof => ({
+        ...roof,
         id: uuidv4(),
       })),
     };
 
     setFloors(prevFloors => {
       const newFloors = [...prevFloors, newFloor];
-      // Update ref immediately for synchronous access
       floorsRef.current = newFloors;
       return newFloors;
     });
 
     setActiveFloorId(newFloor.id);
-    // Update ref immediately
     activeFloorIdRef.current = newFloor.id;
-
     return newFloor.id;
   };
 
   const deleteFloor = (id: string) => {
-    if (floorsRef.current.length <= 1) return; // Always keep at least one floor
+    if (floorsRef.current.length <= 1) return;
 
     setFloors(prevFloors => {
       const newFloors = prevFloors.filter(floor => floor.id !== id);
-      // Update ref immediately
       floorsRef.current = newFloors;
       return newFloors;
     });
 
-    // If the deleted floor was active, set the first available floor as active
     if (activeFloorIdRef.current === id) {
       const newActiveFloor = floorsRef.current.find(floor => floor.id !== id);
       if (newActiveFloor) {
         setActiveFloorId(newActiveFloor.id);
-        // Update ref immediately
         activeFloorIdRef.current = newActiveFloor.id;
       }
     }
@@ -315,34 +383,32 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const updateFloor = (id: string, updatedFloor: Partial<Floor>) => {
     setFloors(prevFloors => {
       const newFloors = prevFloors.map(floor => (floor.id === id ? { ...floor, ...updatedFloor } : floor));
-      // Update ref immediately
       floorsRef.current = newFloors;
       return newFloors;
     });
   };
 
   const addModule = (module: Omit<Module, 'id'> | Module): string => {
-    // Ensure we have an active floor
     const activeId = ensureActiveFloor();
 
-    // Check if the module already has an ID (for redo operations)
     let newModule: Module;
-
     if ('id' in module) {
       newModule = module as Module;
-      // Ensure walls exist
       if (!newModule.walls) {
         newModule.walls = createDefaultWalls();
+      }
+      if (!newModule.bathroomPods) {
+        newModule.bathroomPods = [];
       }
     } else {
       newModule = {
         ...module,
         id: uuidv4(),
-        walls: module.walls || createDefaultWalls() // Add default walls if not provided
+        name: module.name || getNextModuleName(),
+        walls: module.walls || createDefaultWalls(),
+        bathroomPods: module.bathroomPods || [],
       };
     }
-
-    console.log('Adding module:', newModule);
 
     setFloors(prevFloors => {
       const newFloors = prevFloors.map(floor =>
@@ -353,8 +419,6 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               }
               : floor
       );
-
-      // Update ref immediately
       floorsRef.current = newFloors;
       return newFloors;
     });
@@ -368,8 +432,6 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         ...floor,
         modules: floor.modules.map(module => (module.id === id ? { ...module, ...updatedModule } : module)),
       }));
-
-      // Update ref immediately
       floorsRef.current = newFloors;
       return newFloors;
     });
@@ -381,36 +443,32 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         ...floor,
         modules: floor.modules.filter(module => module.id !== id),
       }));
-
-      // Update ref immediately
       floorsRef.current = newFloors;
       return newFloors;
     });
   };
 
   const addBalcony = (balcony: Omit<Balcony, 'id'> | Balcony): string => {
-    // Ensure we have an active floor
     const activeId = ensureActiveFloor();
 
-    // Check if the balcony already has an ID (for redo operations)
     const newBalcony =
-      'id' in balcony
-        ? (balcony as Balcony) // Use the existing balcony with its ID
-        : { ...balcony, id: uuidv4() }; // Create a new balcony with a new ID
-
-    console.log('Adding balcony:', newBalcony);
+        'id' in balcony
+            ? (balcony as Balcony)
+            : {
+              ...balcony,
+              id: uuidv4(),
+              name: balcony.name || getNextBalconyName(),
+            };
 
     setFloors(prevFloors => {
       const newFloors = prevFloors.map(floor =>
-        floor.id === activeId
-          ? {
-              ...floor,
-              balconies: [...floor.balconies, newBalcony],
-            }
-          : floor
+          floor.id === activeId
+              ? {
+                ...floor,
+                balconies: [...floor.balconies, newBalcony],
+              }
+              : floor
       );
-
-      // Update ref immediately
       floorsRef.current = newFloors;
       return newFloors;
     });
@@ -424,8 +482,6 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         ...floor,
         balconies: floor.balconies.map(balcony => (balcony.id === id ? { ...balcony, ...updatedBalcony } : balcony)),
       }));
-
-      // Update ref immediately
       floorsRef.current = newFloors;
       return newFloors;
     });
@@ -437,8 +493,240 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         ...floor,
         balconies: floor.balconies.filter(balcony => balcony.id !== id),
       }));
+      floorsRef.current = newFloors;
+      return newFloors;
+    });
+  };
 
-      // Update ref immediately
+  // New methods for corridors
+  const addCorridor = (corridor: Omit<Corridor, 'id'> | Corridor): string => {
+    const activeId = ensureActiveFloor();
+
+    const newCorridor =
+        'id' in corridor
+            ? (corridor as Corridor)
+            : {
+              ...corridor,
+              id: uuidv4(),
+              name: corridor.name || getNextCorridorName(),
+            };
+
+    setFloors(prevFloors => {
+      const newFloors = prevFloors.map(floor =>
+          floor.id === activeId
+              ? {
+                ...floor,
+                corridors: [...floor.corridors, newCorridor],
+              }
+              : floor
+      );
+      floorsRef.current = newFloors;
+      return newFloors;
+    });
+
+    return newCorridor.id;
+  };
+
+  const updateCorridor = (id: string, updatedCorridor: Partial<Corridor>) => {
+    setFloors(prevFloors => {
+      const newFloors = prevFloors.map(floor => ({
+        ...floor,
+        corridors: floor.corridors.map(corridor =>
+            corridor.id === id ? { ...corridor, ...updatedCorridor } : corridor
+        ),
+      }));
+      floorsRef.current = newFloors;
+      return newFloors;
+    });
+  };
+
+  const deleteCorridor = (id: string) => {
+    setFloors(prevFloors => {
+      const newFloors = prevFloors.map(floor => ({
+        ...floor,
+        corridors: floor.corridors.filter(corridor => corridor.id !== id),
+      }));
+      floorsRef.current = newFloors;
+      return newFloors;
+    });
+  };
+
+  // New methods for roofs
+  const addRoof = (roof: Omit<Roof, 'id'> | Roof): string => {
+    const activeId = ensureActiveFloor();
+
+    const newRoof =
+        'id' in roof
+            ? (roof as Roof)
+            : {
+              ...roof,
+              id: uuidv4(),
+              name: roof.name || getNextRoofName(),
+            };
+
+    setFloors(prevFloors => {
+      const newFloors = prevFloors.map(floor =>
+          floor.id === activeId
+              ? {
+                ...floor,
+                roofs: [...floor.roofs, newRoof],
+              }
+              : floor
+      );
+      floorsRef.current = newFloors;
+      return newFloors;
+    });
+
+    return newRoof.id;
+  };
+
+  const updateRoof = (id: string, updatedRoof: Partial<Roof>) => {
+    setFloors(prevFloors => {
+      const newFloors = prevFloors.map(floor => ({
+        ...floor,
+        roofs: floor.roofs.map(roof =>
+            roof.id === id ? { ...roof, ...updatedRoof } : roof
+        ),
+      }));
+      floorsRef.current = newFloors;
+      return newFloors;
+    });
+  };
+
+  const deleteRoof = (id: string) => {
+    setFloors(prevFloors => {
+      const newFloors = prevFloors.map(floor => ({
+        ...floor,
+        roofs: floor.roofs.filter(roof => roof.id !== id),
+      }));
+      floorsRef.current = newFloors;
+      return newFloors;
+    });
+  };
+
+  // New methods for bathroom pods
+  const addBathroomPod = (moduleId: string, pod: Omit<BathroomPod, 'id'>): string => {
+    const newPod = { ...pod, id: uuidv4() };
+
+    setFloors(prevFloors => {
+      const newFloors = prevFloors.map(floor => ({
+        ...floor,
+        modules: floor.modules.map(module => {
+          if (module.id === moduleId) {
+            return {
+              ...module,
+              bathroomPods: [...(module.bathroomPods || []), newPod]
+            };
+          }
+          return module;
+        })
+      }));
+      floorsRef.current = newFloors;
+      return newFloors;
+    });
+
+    return newPod.id;
+  };
+
+  const updateBathroomPod = (moduleId: string, podId: string, updatedPod: Partial<BathroomPod>) => {
+    setFloors(prevFloors => {
+      const newFloors = prevFloors.map(floor => ({
+        ...floor,
+        modules: floor.modules.map(module => {
+          if (module.id === moduleId) {
+            return {
+              ...module,
+              bathroomPods: (module.bathroomPods || []).map(pod =>
+                  pod.id === podId ? { ...pod, ...updatedPod } : pod
+              )
+            };
+          }
+          return module;
+        })
+      }));
+      floorsRef.current = newFloors;
+      return newFloors;
+    });
+  };
+
+  const deleteBathroomPod = (moduleId: string, podId: string) => {
+    setFloors(prevFloors => {
+      const newFloors = prevFloors.map(floor => ({
+        ...floor,
+        modules: floor.modules.map(module => {
+          if (module.id === moduleId) {
+            return {
+              ...module,
+              bathroomPods: (module.bathroomPods || []).filter(pod => pod.id !== podId)
+            };
+          }
+          return module;
+        })
+      }));
+      floorsRef.current = newFloors;
+      return newFloors;
+    });
+  };
+
+  // New methods for openings
+  const addOpening = (moduleId: string, opening: Omit<Opening, 'id'>): string => {
+    const newOpening = { ...opening, id: uuidv4() };
+
+    setFloors(prevFloors => {
+      const newFloors = prevFloors.map(floor => ({
+        ...floor,
+        modules: floor.modules.map(module => {
+          if (module.id === moduleId) {
+            return {
+              ...module,
+              openings: [...module.openings, newOpening]
+            };
+          }
+          return module;
+        })
+      }));
+      floorsRef.current = newFloors;
+      return newFloors;
+    });
+
+    return newOpening.id;
+  };
+
+  const updateOpening = (moduleId: string, openingId: string, updatedOpening: Partial<Opening>) => {
+    setFloors(prevFloors => {
+      const newFloors = prevFloors.map(floor => ({
+        ...floor,
+        modules: floor.modules.map(module => {
+          if (module.id === moduleId) {
+            return {
+              ...module,
+              openings: module.openings.map(opening =>
+                  opening.id === openingId ? { ...opening, ...updatedOpening } : opening
+              )
+            };
+          }
+          return module;
+        })
+      }));
+      floorsRef.current = newFloors;
+      return newFloors;
+    });
+  };
+
+  const deleteOpening = (moduleId: string, openingId: string) => {
+    setFloors(prevFloors => {
+      const newFloors = prevFloors.map(floor => ({
+        ...floor,
+        modules: floor.modules.map(module => {
+          if (module.id === moduleId) {
+            return {
+              ...module,
+              openings: module.openings.filter(opening => opening.id !== openingId)
+            };
+          }
+          return module;
+        })
+      }));
       floorsRef.current = newFloors;
       return newFloors;
     });
@@ -447,22 +735,23 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const updateGridSettingsHandler = (settings: Partial<GridSettings>) => {
     setGridSettings(prev => {
       const updatedSettings = { ...prev, ...settings };
-      console.log('Updated grid settings:', updatedSettings);
       return updatedSettings;
     });
   };
 
   const updateCanvasSettingsHandler = (settings: Partial<CanvasSettings>) => {
-    setCanvasSettings({ ...canvasSettings, ...settings });
+    setCanvasSettings(prev => ({ ...prev, ...settings }));
   };
 
   const updateToolStateHandler = (state: Partial<ToolState>) => {
-    console.log('Setting tool state:', state, 'from previous:', toolState);
     setToolState(prev => {
       const newState = { ...prev, ...state };
-      console.log('New tool state:', newState);
       return newState;
     });
+  };
+
+  const updateDisplaySettingsHandler = (settings: Partial<DisplaySettings>) => {
+    setDisplaySettings(prev => ({ ...prev, ...settings }));
   };
 
   const getModuleById = (id: string) => {
@@ -483,41 +772,79 @@ export const CadProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return undefined;
   };
 
+  const getCorridorById = (id: string) => {
+    // Use the current floor ref to avoid stale data
+    for (const floor of floorsRef.current) {
+      const corridor = floor.corridors.find(c => c.id === id);
+      if (corridor) return corridor;
+    }
+    return undefined;
+  };
+
+  const getRoofById = (id: string) => {
+    // Use the current floor ref to avoid stale data
+    for (const floor of floorsRef.current) {
+      const roof = floor.roofs.find(r => r.id === id);
+      if (roof) return roof;
+    }
+    return undefined;
+  };
+
   return (
-    <CadContext.Provider
-      value={{
-        floors,
-        activeFloorId,
-        gridSettings,
-        canvasSettings,
-        toolState,
-        moduleColors,
-        fabricCanvasRef,
-        setFloors,
-        addFloor,
-        duplicateFloor,
-        deleteFloor,
-        setActiveFloorId,
-        updateFloor,
-        addModule,
-        updateModule,
-        deleteModule,
-        addBalcony,
-        updateBalcony,
-        deleteBalcony,
-        setGridSettings: updateGridSettingsHandler,
-        setCanvasSettings: updateCanvasSettingsHandler,
-        setToolState: updateToolStateHandler,
-        getActiveFloor,
-        getModuleById,
-        getBalconyById,
-        ensureActiveFloor,
-        displaySettings,
-        setDisplaySettings: updateDisplaySettingsHandler,
-      }}
-    >
-      {children}
-    </CadContext.Provider>
+      <CadContext.Provider
+          value={{
+            floors,
+            activeFloorId,
+            gridSettings,
+            canvasSettings,
+            toolState,
+            moduleColors,
+            fabricCanvasRef,
+            setFloors,
+            addFloor,
+            duplicateFloor,
+            deleteFloor,
+            setActiveFloorId,
+            updateFloor,
+            addModule,
+            updateModule,
+            deleteModule,
+            addBalcony,
+            updateBalcony,
+            deleteBalcony,
+            addCorridor,
+            updateCorridor,
+            deleteCorridor,
+            addRoof,
+            updateRoof,
+            deleteRoof,
+            addBathroomPod,
+            updateBathroomPod,
+            deleteBathroomPod,
+            addOpening,
+            updateOpening,
+            deleteOpening,
+            setGridSettings: updateGridSettingsHandler,
+            setCanvasSettings: updateCanvasSettingsHandler,
+            setToolState: updateToolStateHandler,
+            getActiveFloor,
+            getModuleById,
+            getBalconyById,
+            getCorridorById,
+            getRoofById,
+            ensureActiveFloor,
+            displaySettings,
+            setDisplaySettings: updateDisplaySettingsHandler,
+            moduleNamePrefix,
+            setModuleNamePrefix,
+            getNextModuleName,
+            getNextCorridorName,
+            getNextRoofName,
+            getNextBalconyName,
+          }}
+      >
+        {children}
+      </CadContext.Provider>
   );
 };
 

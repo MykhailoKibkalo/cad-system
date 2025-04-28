@@ -1,3 +1,4 @@
+// FILE: src/utils/snapUtils.ts
 // src/utils/snapUtils.ts
 import { fabric } from 'fabric';
 
@@ -9,6 +10,7 @@ export interface SnapSettings {
     snapToElement: boolean;
     gridSize: number;
     snapThreshold: number;
+    elementGap?: number; // Added parameter for gap between elements (spec p.2, line 10)
 }
 
 /**
@@ -32,14 +34,15 @@ export interface AlignmentGuideline {
 }
 
 /**
- * Snaps a point to nearby elements
+ * Snaps a point to nearby elements with configurable gap
  */
 export const snapToElement = (
     canvas: fabric.Canvas,
     target: fabric.Object | null,
     x: number,
     y: number,
-    threshold: number
+    threshold: number,
+    elementGap: number = 50 // Default gap 50mm (spec p.2, line 10)
 ): { x: number; y: number; guidelines: AlignmentGuideline[] } => {
     // Default return values
     let snappedX = x;
@@ -58,7 +61,13 @@ export const snapToElement = (
     }
 
     // Get all other objects on the canvas
-    const objects = canvas.getObjects().filter(obj => obj !== target && obj.data?.type !== 'grid' && obj.data?.type !== 'pdfBackdrop');
+    const objects = canvas.getObjects().filter(obj =>
+        obj !== target &&
+        obj.data?.type !== 'grid' &&
+        obj.data?.type !== 'pdfBackdrop' &&
+        obj.data?.type !== 'dimensionAnnotation' &&
+        obj.data?.type !== 'alignmentGuideline'
+    );
 
     // Skip if no other objects
     if (objects.length === 0) {
@@ -83,8 +92,8 @@ export const snapToElement = (
 
     // Check each object for potential snapping
     objects.forEach(obj => {
-        // Skip if not a module or balcony
-        if (!obj.data?.type || !['module', 'balcony'].includes(obj.data.type)) {
+        // Skip if not a valid object type
+        if (!obj.data?.type || !['module', 'balcony', 'corridor', 'roof'].includes(obj.data.type)) {
             return;
         }
 
@@ -122,9 +131,9 @@ export const snapToElement = (
                     y2: Math.max(targetBottom + threshold, objBottom + threshold),
                 });
             }
-            // Left edge to right edge
-            else if (Math.abs(targetLeft - objRight) < threshold) {
-                snappedX = objRight;
+            // Left edge to right edge (with gap)
+            else if (Math.abs(targetLeft - (objRight + elementGap)) < threshold) {
+                snappedX = objRight + elementGap;
                 hasSnappedX = true;
                 guidelines.push({
                     x1: objRight,
@@ -133,9 +142,9 @@ export const snapToElement = (
                     y2: Math.max(targetBottom + threshold, objBottom + threshold),
                 });
             }
-            // Right edge to left edge
-            else if (Math.abs(targetRight - objLeft) < threshold) {
-                snappedX = objLeft - targetWidth;
+            // Right edge to left edge (with gap)
+            else if (Math.abs(targetRight - (objLeft - elementGap)) < threshold) {
+                snappedX = objLeft - elementGap - targetWidth;
                 hasSnappedX = true;
                 guidelines.push({
                     x1: objLeft,
@@ -181,9 +190,9 @@ export const snapToElement = (
                     y2: objBottom,
                 });
             }
-            // Top edge to bottom edge
-            else if (Math.abs(targetTop - objBottom) < threshold) {
-                snappedY = objBottom;
+            // Top edge to bottom edge (with gap)
+            else if (Math.abs(targetTop - (objBottom + elementGap)) < threshold) {
+                snappedY = objBottom + elementGap;
                 hasSnappedY = true;
                 guidelines.push({
                     x1: Math.min(targetLeft - threshold, objLeft - threshold),
@@ -192,9 +201,9 @@ export const snapToElement = (
                     y2: objBottom,
                 });
             }
-            // Bottom edge to top edge
-            else if (Math.abs(targetBottom - objTop) < threshold) {
-                snappedY = objTop - targetHeight;
+            // Bottom edge to top edge (with gap)
+            else if (Math.abs(targetBottom - (objTop - elementGap)) < threshold) {
+                snappedY = objTop - elementGap - targetHeight;
                 hasSnappedY = true;
                 guidelines.push({
                     x1: Math.min(targetLeft - threshold, objLeft - threshold),
@@ -243,7 +252,14 @@ export const snapToGridAndElements = (
 
     // Then snap to elements if enabled
     if (settings.snapToElement) {
-        const elementSnapped = snapToElement(canvas, target, snappedX, snappedY, settings.snapThreshold);
+        const elementSnapped = snapToElement(
+            canvas,
+            target,
+            snappedX,
+            snappedY,
+            settings.snapThreshold,
+            settings.elementGap || 50 // Default gap 50mm (spec p.2, line 10)
+        );
         snappedX = elementSnapped.x;
         snappedY = elementSnapped.y;
         guidelines = elementSnapped.guidelines;

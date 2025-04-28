@@ -1,3 +1,4 @@
+// FILE: src/types/wall.ts
 // src/types/wall.ts
 export enum WallType {
     EXTERNAL = 'external',
@@ -5,9 +6,9 @@ export enum WallType {
 }
 
 export enum WallPlacement {
-    CENTER = 'center', // Half inside, half outside (default)
-    INSIDE = 'inside',  // Fully inside the module
-    OUTSIDE = 'outside' // Fully outside the module
+    CENTER = 'center',
+    INSIDE = 'inside',
+    OUTSIDE = 'outside'
 }
 
 export type WallEdge = 'top' | 'right' | 'bottom' | 'left';
@@ -24,10 +25,10 @@ export interface WallProperties {
 }
 
 export interface ModuleWalls {
-    top: WallProperties;
-    right: WallProperties;
-    bottom: WallProperties;
-    left: WallProperties;
+    top: WallProperties; // Wall 2 (spec p.3, line 9)
+    right: WallProperties; // Wall 3 (spec p.3, line 9)
+    bottom: WallProperties; // Wall 4 (spec p.3, line 9)
+    left: WallProperties; // Wall 1 (spec p.3, line 9)
 }
 
 // Default wall thickness values
@@ -41,11 +42,11 @@ export const createDefaultWallProperties = (type: WallType = WallType.EXTERNAL):
     enabled: true,
     type,
     thickness: DEFAULT_WALL_THICKNESS[type],
-    placement: WallPlacement.OUTSIDE, // Default to centered placement
+    placement: WallPlacement.OUTSIDE,
     partialStart: 0,
     partialEnd: 0,
-    extendStart: false, // Don't extend by default
-    extendEnd: false,   // Don't extend by default
+    extendStart: false,
+    extendEnd: false,
 });
 
 // Create default walls for a module

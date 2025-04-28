@@ -32,6 +32,7 @@ const ContentContainer = styled.div`
 
 const MainContent = styled.div`
   flex-grow: 1;
+  width: 85%;
   display: flex;
   flex-direction: column;
   overflow: hidden;

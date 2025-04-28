@@ -1,3 +1,4 @@
+// FILE: src/types/module.ts
 // src/types/module.ts
 import { ModuleWalls } from '@/types/wall';
 
@@ -47,17 +48,25 @@ export interface Opening {
   type: OpeningType;
   width: number;
   height: number;
-  position: {
-    x: number;
-    y: number;
-  };
-  rotation: number;
-  wall: 'top' | 'right' | 'bottom' | 'left';
+  yOffset: number; // y-offset property (spec p.4, line 2)
+  distanceAlongWall: number; // Distance along wall (spec p.4, line 7)
+  wall: 'top' | 'right' | 'bottom' | 'left'; // Wall side [1, 2, 3, 4] (spec p.4, line 6)
+  presetName?: string; // For saved presets (spec p.4, line 3)
+}
+
+export interface BathroomPod {
+  id: string;
+  name: string; // "Required to start with BPx" (spec p.8, line 41)
+  width: number; // Width property (spec p.5, line 3)
+  length: number; // Length property (spec p.5, line 3)
+  xOffset: number; // x_offset property (spec p.5, line 4)
+  yOffset: number; // y_offset property (spec p.5, line 4)
+  type: string; // Default "F"/Free (spec p.5, line 8)
 }
 
 export interface Module {
   id: string;
-  name?: string;
+  name: string; // M1, M2, M3 naming convention (spec p.2, line 31)
   category: ModuleCategory;
   width: number;
   height: number;
@@ -65,31 +74,19 @@ export interface Module {
     x: number;
     y: number;
   };
-  rotation: number;
+  rotation: number; // Based on bottom-left corner (spec p.2, line 27)
+  floorBeamDirection: 'short' | 'long'; // Default short side (spec p.2, line 25)
   openings: Opening[];
-  walls?: ModuleWalls; // New walls property for edge configuration
+  walls?: ModuleWalls; // Wall configuration
+  bathroomPods: BathroomPod[]; // Bathroom pods (spec p.5, line 1-8)
 }
 
 export interface Balcony {
   id: string;
-  width: number;
-  height: number;
-  position: {
-    x: number;
-    y: number;
-  };
-  rotation: number;
-  attachedToModuleId?: string;
-}
-
-export interface Balcony {
-  id: string;
-  width: number;
-  height: number;
-  position: {
-    x: number;
-    y: number;
-  };
-  rotation: number;
-  attachedToModuleId?: string;
+  name: string; // "Required to start with BC" (spec p.8, line 25)
+  width: number; // Width along wall (spec p.6, line 3)
+  length: number; // Protruding from wall (spec p.6, line 4)
+  wall: 'top' | 'right' | 'bottom' | 'left'; // Wall side [1, 2, 3, 4] (spec p.6, line 3)
+  distanceAlongWall: number; // Distance along wall positioning (spec p.6, line 5)
+  moduleId: string; // Cannot belong to multiple modules (spec p.6, line 6)
 }
