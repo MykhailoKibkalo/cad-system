@@ -1,18 +1,21 @@
+// src/app/page.tsx
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import styled from '@emotion/styled';
+import Ribbon from '../components/Ribbon/Ribbon';
+import CanvasArea from '../components/Canvas/CanvasArea';
 
-export default function Home() {
-  const router = useRouter();
+const PageContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+`;
 
-  useEffect(() => {
-    router.push('/editor');
-  }, [router]);
-
+export default function Page() {
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-      Redirecting to editor...
-    </div>
+      <PageContainer>
+        <Ribbon />
+        <CanvasArea />
+      </PageContainer>
   );
 }

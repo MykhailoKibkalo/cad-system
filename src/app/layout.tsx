@@ -1,23 +1,16 @@
-import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+// src/app/layout.tsx
 import './globals.css';
-import React from 'react';
+import Script from 'next/script';
 
-const inter = Inter({ subsets: ['latin'] });
+export const metadata = { title: '2D Web CAD' };
 
-export const metadata: Metadata = {
-  title: 'CAD Web Editor',
-  description: 'Browser-based 2D CAD editor',
-};
-
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={inter.className}>{children}</body>
+      <head>
+        <Script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js" strategy="beforeInteractive" />
+      </head>
+      <body>{children}</body>
     </html>
   );
 }
