@@ -10,16 +10,17 @@ export interface Module {
     zOffset: number;
     rotation: number;
     stackedFloors: number;
+    showBorder?: boolean;  // нове
 }
 
 export interface Opening {
     id: string;
     moduleId: string;
-    wallSide: 1 | 2 | 3 | 4;
-    width: number;
-    height: number;
-    distance: number;
-    yOffset: number;
+    wallSide: 1 | 2 | 3 | 4;       // 1–низ, 2–ліва, 3–верх, 4–права стіна (за CCW)
+    distanceAlongWall: number;     // в мм
+    yOffset: number;               // в мм, від низу перегляду фасаду
+    width: number;                 // в мм
+    height: number;                // в мм
 }
 
 export interface Balcony {
@@ -42,12 +43,11 @@ export interface BathroomPod {
 
 export interface Corridor {
     id: string;
-    direction: 'horizontal' | 'vertical';
-    floor: number;
     x1: number;
     y1: number;
     x2: number;
     y2: number;
+    floor: number;
 }
 
 export interface Roof {

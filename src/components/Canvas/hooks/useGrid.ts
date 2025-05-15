@@ -1,49 +1,66 @@
 // src/components/Canvas/hooks/useGrid.ts
-import React, { useEffect } from 'react';
-import { Canvas, Line } from 'fabric';
-import { DEFAULT_GRID_MM } from '@/utils/fabricUtils';
+import { useEffect } from 'react';
+import type { Canvas } from 'fabric';
+import * as fabric from 'fabric';
+import { useCanvasStore } from '@/state/canvasStore';
 
 export default function useGrid(
-  canvasRef: Canvas | null,
-  scaleFactor: number,
-  gridMm: number = DEFAULT_GRID_MM
+    canvas: Canvas | null,
+    scaleFactor: number,
+    gridMm: number = 100
 ) {
+  const { zoomLevel } = useCanvasStore();
+
   useEffect(() => {
-    const canvas = canvasRef;
     if (!canvas) return;
 
-    // очистити попередню
-    canvas.getObjects().forEach(o => {
-      if ((o as any).isGrid) canvas.remove(o);
+    // 1) Створюємо pattern-канвас
+    const basePx = gridMm * scaleFactor;
+    const size   = basePx * zoomLevel;
+    const patternCanvas = document.createElement('canvas');
+    patternCanvas.width = patternCanvas.height = size;
+    const ctx = patternCanvas.getContext('2d')!;
+    ctx.strokeStyle = '#9e9e9e';
+    ctx.lineWidth   = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, size);
+    ctx.moveTo(0, 0);
+    ctx.lineTo(size, 0);
+    ctx.stroke();
+
+    // 2) Встановлюємо як backgroundColor
+    //    (замість виклику неіснуючого setBackgroundColor)
+    canvas.backgroundColor = new fabric.Pattern({ source: patternCanvas, repeat: 'repeat' }) as any;
+    canvas.requestRenderAll();
+
+    // 3) Затемнення поза робочою областю — додаємо прямокутник
+    const workingPx = 1000 * scaleFactor * zoomLevel; // <- підставте свій реальний розмір
+    const cover = new fabric.Rect({
+      left: 0,
+      top: 0,
+      width: workingPx,
+      height: workingPx,
+      fill: 'rgba(255,255,255,0)', // прозорий всередині
+      selectable: false,
+      evented: false,
     });
+    // темна підкладка поза зоною:
+    // const overlay = new fabric.Rect({
+    //   left: 0,
+    //   top: 0,
+    //   width: canvas.getWidth(),
+    //   height: canvas.getHeight(),
+    //   fill: 'rgba(0,0,0,0.1)',
+    //   selectable: false,
+    //   evented: false,
+    // });
 
-    const gridPx = gridMm * scaleFactor;
-    const w = canvas.getWidth();
-    const h = canvas.getHeight();
-
-    // вертикальні
-    for (let x = 0; x <= w; x += gridPx) {
-      const line = new Line([x, 0, x, h], {
-        stroke: '#ddd',
-        selectable: false,
-        evented: false,
-      });
-      (line as any).isGrid = true;
-      canvas.add(line);
-      canvas.sendObjectToBack(line);
-    }
-    // горизонтальні
-    for (let y = 0; y <= h; y += gridPx) {
-      const line = new Line([0, y, w, y], {
-        stroke: '#ddd',
-        selectable: false,
-        evented: false,
-      });
-      (line as any).isGrid = true;
-      canvas.add(line);
-      canvas.sendObjectToBack(line);
-    }
+    // додаємо та штовхаємо вниз
+    canvas.add(cover);
+    // canvas.sendObjectToBack(overlay);
+    canvas.sendObjectBackwards(cover);
 
     canvas.requestRenderAll();
-  }, [canvasRef, scaleFactor, gridMm]);
+  }, [canvas, scaleFactor, gridMm, zoomLevel]);
 }

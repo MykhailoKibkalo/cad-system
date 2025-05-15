@@ -3,13 +3,9 @@
 
 import { useEffect, useRef } from 'react';
 import { Canvas as FabricCanvasClass } from 'fabric';
-import { useCanvasStore } from '@/state/canvasStore';
-import useGrid from './hooks/useGrid';
-import useSnapping from './hooks/useSnapping';
 
 export default function FabricCanvas() {
   const canvasRef = useRef<FabricCanvasClass>();
-  const { scaleFactor, gridSizeMm, snapMode } = useCanvasStore();
 
   // Ініціалізація
   useEffect(() => {
@@ -19,10 +15,6 @@ export default function FabricCanvas() {
       });
     }
   }, []);
-
-  // Grid + Snapping
-  useGrid(canvasRef, scaleFactor, gridSizeMm);
-  useSnapping(canvasRef, snapMode);
 
   return null;
 }

@@ -1,4 +1,3 @@
-// src/components/Canvas/PdfLoader.tsx
 'use client';
 
 import { useEffect } from 'react';
@@ -20,25 +19,16 @@ export default function PdfLoader({ canvas }: PdfLoaderProps) {
         const img = new fabric.Image(cEl, {
           originX: 'left',
           originY: 'top',
+          scaleX: scale,
+          scaleY: scale,
           selectable: true,
           hasControls: true,
           lockUniScaling: false,
-          scaleX: scale,
-          scaleY: scale,
         });
-
-        // робимо білий фон прозорим
-        const filtersStatic = (fabric.Image as any).filters;
-        if (filtersStatic && filtersStatic.RemoveWhite) {
-          const removeWhite = new filtersStatic.RemoveWhite({
-            threshold: 200,
-            distance: 0,
-          });
-          img.filters = [removeWhite];
-          img.applyFilters();
-        }
-
-        canvas.add(img); // <— тут canvas вже не undefined
+        // Позначаємо, що це PDF-зображення
+        ;(img as any).isPdfImage = true;
+        canvas.add(img);
+        canvas.sendObjectToBack(img);
       }
       canvas.requestRenderAll();
     };

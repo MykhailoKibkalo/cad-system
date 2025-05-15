@@ -8,7 +8,13 @@ interface ObjState {
   corridors: Corridor[];
   addModule: (m: Module) => void;
   addOpening: (o: Opening) => void;
-  addCorridor: (c: Corridor) => void;
+  updateModule: (id: string, updates: Partial<Module>) => void;
+  deleteModule: (id: string) => void;
+  updateOpening: (id: string, props: Partial<Opening>) => void;
+  deleteOpening: (id: string) => void;
+  addCorridor: (c: Corridor) => void; // ← добавили
+  updateCorridor: (id: string, props: Partial<Corridor>) => void;
+  deleteCorridor: (id: string) => void;
 }
 
 export const useObjectStore = create<ObjState>(set => ({
@@ -17,5 +23,25 @@ export const useObjectStore = create<ObjState>(set => ({
   corridors: [],
   addModule: m => set(state => ({ modules: [...state.modules, m] })),
   addOpening: o => set(state => ({ openings: [...state.openings, o] })),
-  addCorridor: c => set(state => ({ corridors: [...state.corridors, c] })),
+  updateModule: (id, updates) =>
+    set(s => ({
+      modules: s.modules.map(m => (m.id === id ? { ...m, ...updates } : m)),
+    })),
+  deleteModule: id =>
+    set(s => ({
+      modules: s.modules.filter(m => m.id !== id),
+      // каскадно прибираємо openings, що належали цьому модулю
+      openings: s.openings.filter(o => o.moduleId !== id),
+    })),
+  updateOpening: (id, props) =>
+    set(s => ({
+      openings: s.openings.map(o => (o.id === id ? { ...o, ...props } : o)),
+    })),
+  deleteOpening: id => set(s => ({ openings: s.openings.filter(o => o.id !== id) })),
+  addCorridor: c => set(s => ({ corridors: [...s.corridors, c] })),
+  updateCorridor: (id, props) =>
+    set(s => ({
+      corridors: s.corridors.map(c => (c.id === id ? { ...c, ...props } : c)),
+    })),
+  deleteCorridor: id => set(s => ({ corridors: s.corridors.filter(c => c.id !== id) })),
 }));
