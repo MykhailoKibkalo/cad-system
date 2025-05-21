@@ -118,10 +118,6 @@ export default function CanvasArea() {
 
 
 
-  console.log('gridSizePx: ',gridSizePx);
-  console.log('offsetX: ',offsetX);
-  console.log('offsetY: ',offsetY);
-
   return (
     <Wrapper ref={wrapperRef}>
       <CanvasContainer>

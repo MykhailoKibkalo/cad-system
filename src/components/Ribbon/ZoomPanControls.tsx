@@ -30,7 +30,6 @@ export default function ZoomPanControls() {
     const handMode  = useCanvasStore(s => s.handMode);
     const setHand   = useCanvasStore(s => s.setHandMode);
 
-    console.log(zoomLevel);
 
     return (
         <Group>

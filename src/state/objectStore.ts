@@ -15,12 +15,18 @@ interface ObjState {
   addCorridor: (c: Corridor) => void; // ← добавили
   updateCorridor: (id: string, props: Partial<Corridor>) => void;
   deleteCorridor: (id: string) => void;
+  balconies: [];
+  bathroomPods: []
+  roofs: []
 }
 
 export const useObjectStore = create<ObjState>(set => ({
   modules: [],
   openings: [],
   corridors: [],
+  balconies: [],
+  bathroomPods: [],
+  roofs: [],
   addModule: m => set(state => ({ modules: [...state.modules, m] })),
   addOpening: o => set(state => ({ openings: [...state.openings, o] })),
   updateModule: (id, updates) =>

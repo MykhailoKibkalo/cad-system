@@ -5,22 +5,9 @@ import styled from '@emotion/styled';
 import { useSelectionStore } from '@/state/selectionStore';
 import { useObjectStore } from '@/state/objectStore';
 import { useCanvasStore } from '@/state/canvasStore';
-import OpeningEditor from './OpeningEditor';
 import type { Canvas } from 'fabric';
 import { Module } from '@/types/geometry';
-
-const Panel = styled.div`
-  position: absolute;
-  right: 0;
-  top: 56px;
-  width: 540px;
-  bottom: 0;
-  background: #f9fafb;
-  padding: 16px;
-  box-shadow: -2px 0 4px rgba(0, 0, 0, 0.1);
-  overflow-y: auto;
-  z-index: 1100;
-`;
+import {Panel} from "@/components/ui/Panel";
 
 const Field = styled.div`
   margin-bottom: 12px;
@@ -106,15 +93,6 @@ export default function ModuleProperties({ canvas }: { canvas: Canvas }) {
     setSelModule(null);
   };
 
-  const [adding, setAdding] = useState(false);
-  const [editingOpeningId, setEditingOpeningId] = useState<string | null>(null);
-
-  if (editingOpeningId) {
-    return <OpeningEditor moduleId={moduleId} openingId={editingOpeningId} onClose={() => setEditingOpeningId(null)} />;
-  }
-
-
-  console.log('here is ok');
 
   return (
     <Panel>
@@ -145,7 +123,7 @@ export default function ModuleProperties({ canvas }: { canvas: Canvas }) {
       {openings.map(o => (
         <div key={o.id} style={{ marginBottom: 8 }}>
           Side {o.wallSide}, dist {o.distanceAlongWall} mm, y {o.yOffset} mm
-          <button style={{ marginLeft: 12 }} onClick={() => setEditingOpeningId(o.id)}>
+          <button style={{ marginLeft: 12 }} onClick={() => setSelOpening(o.id)}>
             Edit
           </button>
           <button
@@ -166,7 +144,7 @@ export default function ModuleProperties({ canvas }: { canvas: Canvas }) {
           </button>
         </div>
       ))}
-      <button onClick={() => setAdding(true)}>Add Opening</button>
+      <button onClick={() => setSelOpening('new')}>Add Opening</button>
 
       <div style={{ marginTop: 16, borderTop: '1px solid #ddd', paddingTop: 12 }}>
         <button
