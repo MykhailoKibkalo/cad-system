@@ -1,7 +1,5 @@
 import { create } from 'zustand';
 
-
-
 interface CanvasState {
   scaleFactor: number;
   gridSizeMm: number;
@@ -9,13 +7,13 @@ interface CanvasState {
   pdfLocked: boolean;
   setScaleFactor: (f: number) => void;
   setGridSize: (g: number) => void;
-  setSnapMode: (m: 'off'|'grid'|'element') => void;
+  setSnapMode: (m: 'off' | 'grid' | 'element') => void;
   setPdfLocked: (locked: boolean) => void;
   floorName: string;
   floorHeightMm: number;
   setFloorName: (n: string) => void;
   setFloorHeight: (h: number) => void;
-  elementGapMm: number;            // gap між модулями
+  elementGapMm: number;
   setElementGapMm: (g: number) => void;
   zoomLevel: number;
   setZoomLevel: (z: number) => void;
@@ -28,6 +26,8 @@ interface CanvasState {
   setPan: (x: number, y: number) => void;
   currentFloor: number;
   setCurrentFloor: (floor: number) => void;
+  isInfoOpen: boolean;
+  toggleInfo: () => void;
 }
 
 export const useCanvasStore = create<CanvasState>(set => ({
@@ -46,13 +46,15 @@ export const useCanvasStore = create<CanvasState>(set => ({
   elementGapMm: 50,
   setElementGapMm: g => set({ elementGapMm: g }),
   zoomLevel: 1,
-  setZoomLevel: (zoomLevel) => set({ zoomLevel }),
+  setZoomLevel: zoomLevel => set({ zoomLevel }),
   handMode: false,
-  setHandMode: (handMode) => set({ handMode }),
-  setCenterCanvas: (centerCanvas) => set({ centerCanvas }),
-  panX: 0, panY: 0,
+  setHandMode: handMode => set({ handMode }),
+  setCenterCanvas: centerCanvas => set({ centerCanvas }),
+  panX: 0,
+  panY: 0,
   setPan: (panX, panY) => set({ panX, panY }),
-
   currentFloor: 1,
-  setCurrentFloor: (currentFloor) => set({ currentFloor }),
+  setCurrentFloor: currentFloor => set({ currentFloor }),
+  isInfoOpen: false,
+  toggleInfo: () => set((s) => ({ isInfoOpen: !s.isInfoOpen })),
 }));

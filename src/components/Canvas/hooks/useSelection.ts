@@ -25,7 +25,6 @@ export default function useSelection(canvas: Canvas | null) {
       if (obj.isOpening) {
         setSelOpening(obj.isOpening as string);
       } else if (obj.isModule) {
-        console.log('set Module',obj.isModule);
         setSelModule(obj.isModule as string);
       } else if (obj.isCorridor) {
         setSelCorridor(obj.isCorridor as string);

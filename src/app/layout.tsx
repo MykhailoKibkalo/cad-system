@@ -2,7 +2,7 @@
 import './globals.css';
 import Script from 'next/script';
 
-export const metadata = { title: '2D Web CAD' };
+export const metadata = { title: '2D Web CAD | Verida' };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

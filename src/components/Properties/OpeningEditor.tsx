@@ -3,10 +3,10 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import styled from '@emotion/styled';
-import { useObjectStore } from '../../state/objectStore';
-import { useCanvasStore } from '../../state/canvasStore';
-import { useTemplateStore } from '../../state/templateStore';
-import { Module } from '../../types/geometry';
+import { useObjectStore } from '@/state/objectStore';
+import { useCanvasStore } from '@/state/canvasStore';
+import { useTemplateStore } from '@/state/templateStore';
+import { Module } from '@/types/geometry';
 
 const Overlay = styled.div`
   position: fixed;

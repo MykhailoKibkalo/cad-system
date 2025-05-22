@@ -8,19 +8,7 @@ import { useObjectStore } from '@/state/objectStore';
 import { useCanvasStore } from '@/state/canvasStore';
 import type { Canvas } from 'fabric';
 import { Corridor } from '@/types/geometry';
-
-const Panel = styled.div`
-    position: absolute;
-    right: 0;
-    top: 56px;
-    width: 540px;
-    bottom: 0;
-    background: #f9fafb;
-    padding: 16px;
-    box-shadow: -2px 0 4px rgba(0, 0, 0, 0.1);
-    overflow-y: auto;
-    z-index: 1100;
-`;
+import {Panel} from "@/components/ui/Panel";
 
 const Field = styled.div`
   margin-bottom: 12px;

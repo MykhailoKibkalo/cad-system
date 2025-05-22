@@ -17,9 +17,17 @@ import useOpeningTool from '@/components/Canvas/hooks/useOpeningTool';
 import useRenderOpenings from '@/components/Canvas/hooks/useRenderOpenings';
 import useModuleResize from '@/components/Canvas/hooks/useModuleResize';
 import usePanZoom from '@/components/Canvas/hooks/usePanZoom';
-import useCorridorTool from "@/components/Canvas/hooks/useCorridorTool";
-import useRenderCorridors from "@/components/Canvas/hooks/useRenderCorridors";
+import useCorridorTool from '@/components/Canvas/hooks/useCorridorTool';
+import useRenderCorridors from '@/components/Canvas/hooks/useRenderCorridors';
 import useCorridorMovement from './hooks/useCorridorMovement';
+import useBathroomPodTool from '@/components/Canvas/hooks/useBathroomPodTool';
+import useRenderBathroomPods from '@/components/Canvas/hooks/useRenderBathroomPods';
+import useBathroomPodMovement from '@/components/Canvas/hooks/useBathroomPodMovement';
+import useIgnoreModulesFindTarget from '@/components/Canvas/hooks/useIgnoreModulesFindTarget';
+import CanvasContextMenu from '@/components/Canvas/CanvasContextMenu';
+import useBalconyTool from "@/components/Canvas/hooks/useBalconyTool";
+import useRenderBalconies from "@/components/Canvas/hooks/useRenderBalconies";
+import useBalconyMovement from "@/components/Canvas/hooks/useBalconyMovement";
 
 const CanvasContainer = styled.div<{ gridSizePx?: number; offsetX?: number; offsetY?: number }>`
   flex: 1;
@@ -27,17 +35,18 @@ const CanvasContainer = styled.div<{ gridSizePx?: number; offsetX?: number; offs
   background-color: #ffffff;
 `;
 
-
-const GridOverlay = styled.div<{gridSizePx:number;offsetX:number;offsetY:number}>`
+const GridOverlay = styled.div<{ gridSizePx: number; offsetX: number; offsetY: number }>`
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   pointer-events: none;
   background-image:
-    linear-gradient(to right, #ddd 1px, transparent 1px),
-    linear-gradient(to bottom, #ddd 1px, transparent 1px);
+    linear-gradient(to right, #ddd 1px, transparent 1px), linear-gradient(to bottom, #ddd 1px, transparent 1px);
   background-size: ${p => p.gridSizePx}px ${p => p.gridSizePx}px;
   background-position: ${p => p.offsetX}px ${p => p.offsetY}px;
-  z-index: 1000;  
+  z-index: 1000;
 `;
 
 const Wrapper = styled.div`
@@ -93,19 +102,34 @@ export default function CanvasArea() {
 
   // 3) Grid та Snapping
   // useGrid(canvas, scaleFactor, gridSizeMm);
+
+  useSelection(canvas);
+
   useSnapping(canvas);
   useScaleCalibration(canvas);
   usePdfLock(canvas);
+
+  usePanZoom(canvas);
+
   useModuleTool(canvas);
+  useModuleMovement(canvas);
+  useModuleResize(canvas);
+
+  useOpeningTool(canvas);
+  useRenderOpenings(canvas);
+
   useCorridorTool(canvas);
   useRenderCorridors(canvas);
   useCorridorMovement(canvas);
-  useModuleMovement(canvas);
-  useSelection(canvas);
-  useOpeningTool(canvas);
-  useRenderOpenings(canvas);
-  useModuleResize(canvas);
-  usePanZoom(canvas);
+
+  useBathroomPodTool(canvas);
+  useRenderBathroomPods(canvas);
+  useBathroomPodMovement(canvas);
+  useIgnoreModulesFindTarget(canvas);
+
+  useBalconyTool(canvas)
+  useRenderBalconies(canvas)
+  useBalconyMovement(canvas)
 
   // Розмір клітини в px
   const baseGridPx = gridSizeMm * scaleFactor;
@@ -116,22 +140,13 @@ export default function CanvasArea() {
   const offsetX = vpt[4] % gridSizePx;
   const offsetY = vpt[5] % gridSizePx;
 
-
-
-  console.log('gridSizePx: ',gridSizePx);
-  console.log('offsetX: ',offsetX);
-  console.log('offsetY: ',offsetY);
-
   return (
     <Wrapper ref={wrapperRef}>
       <CanvasContainer>
         <canvas id="fabricCanvas" />
-        <GridOverlay
-            gridSizePx={gridSizePx}
-            offsetX={offsetX}
-            offsetY={offsetY}
-        />
+        <GridOverlay gridSizePx={gridSizePx} offsetX={offsetX} offsetY={offsetY} />
       </CanvasContainer>
+      {/*{canvas && <CanvasContextMenu canvas={canvas} />}*/}
       {canvas && <PdfLoader canvas={canvas} />}
       {canvas && <PropertyPanel canvas={canvas} />}
     </Wrapper>

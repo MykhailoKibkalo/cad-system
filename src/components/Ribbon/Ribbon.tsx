@@ -13,7 +13,9 @@ import SnapModeToggle from '@/components/Ribbon/SnapModeToggle';
 import ElementGapControl from '@/components/Ribbon/ElementGapControl';
 import ZoomPanControls from '@/components/Ribbon/ZoomPanControls';
 import CenterViewButton from '@/components/Ribbon/CenterViewButton';
-import AddCorridorButton from "@/components/Ribbon/AddCorridorButton";
+import AddCorridorButton from '@/components/Ribbon/AddCorridorButton';
+import { useCanvasStore } from '@/state/canvasStore';
+import AddBathroomPodButton from '@/components/Ribbon/AddBathroomPodButton';
 
 const Container = styled.div`
   display: flex;
@@ -24,7 +26,19 @@ const Container = styled.div`
   color: white;
 `;
 
+const Button = styled.button`
+  margin-left: 8px;
+  padding: 4px 12px;
+  background: #0070f3;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+`;
+
 export default function Ribbon() {
+  const toggleInfo = useCanvasStore(s => s.toggleInfo);
+
   return (
     <Container>
       <ImportPdfButton />
@@ -34,11 +48,13 @@ export default function Ribbon() {
       <CalibrateScaleButton />
       <GridSizeControl />
       <AddModuleButton />
-        <AddCorridorButton/>
+      <AddCorridorButton />
+      <AddBathroomPodButton />
       {/*<AddOpeningButton />*/}
       <FloorSettingsButton />
       <SnapModeToggle />
       <ElementGapControl />
+      <Button onClick={toggleInfo}>Show Floor Info</Button>
     </Container>
   );
 }
