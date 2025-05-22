@@ -1,6 +1,15 @@
 // src/state/toolStore.ts
 import { create } from 'zustand';
-import { Tool } from '@/types/tool';
+
+export type Tool =
+    | 'select'
+    | 'module'
+    | 'opening'
+    | 'corridor'
+    | 'balcony'
+    | 'bathroomPod'
+    | 'calibrate';
+
 
 interface ToolState {
   tool: Tool;

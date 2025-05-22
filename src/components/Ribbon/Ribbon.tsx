@@ -15,6 +15,7 @@ import ZoomPanControls from '@/components/Ribbon/ZoomPanControls';
 import CenterViewButton from '@/components/Ribbon/CenterViewButton';
 import AddCorridorButton from '@/components/Ribbon/AddCorridorButton';
 import { useCanvasStore } from '@/state/canvasStore';
+import AddBathroomPodButton from '@/components/Ribbon/AddBathroomPodButton';
 
 const Container = styled.div`
   display: flex;
@@ -48,6 +49,7 @@ export default function Ribbon() {
       <GridSizeControl />
       <AddModuleButton />
       <AddCorridorButton />
+      <AddBathroomPodButton />
       {/*<AddOpeningButton />*/}
       <FloorSettingsButton />
       <SnapModeToggle />

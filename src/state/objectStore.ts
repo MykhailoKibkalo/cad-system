@@ -1,6 +1,6 @@
 // src/state/objectStore.ts
 import { create } from 'zustand';
-import { Corridor, Module, Opening } from '@/types/geometry';
+import { Balcony, BathroomPod, Corridor, Module, Opening } from '@/types/geometry';
 
 interface ObjState {
   modules: Module[];
@@ -15,9 +15,18 @@ interface ObjState {
   addCorridor: (c: Corridor) => void; // ← добавили
   updateCorridor: (id: string, props: Partial<Corridor>) => void;
   deleteCorridor: (id: string) => void;
-  balconies: [];
-  bathroomPods: []
-  roofs: []
+  balconies: Balcony[];
+  bathroomPods: BathroomPod[];
+  roofs: [];
+  addBathroomPod: (bp: BathroomPod) => void;
+  updateBathroomPod: (id: string, props: Partial<BathroomPod>) => void;
+  deleteBathroomPod: (id: string) => void;
+
+  addBalcony(b: Balcony): void;
+
+  updateBalcony(id: string, props: Partial<Balcony>): void;
+
+  deleteBalcony(id: string): void;
 }
 
 export const useObjectStore = create<ObjState>(set => ({
@@ -50,4 +59,17 @@ export const useObjectStore = create<ObjState>(set => ({
       corridors: s.corridors.map(c => (c.id === id ? { ...c, ...props } : c)),
     })),
   deleteCorridor: id => set(s => ({ corridors: s.corridors.filter(c => c.id !== id) })),
+  addBathroomPod: b => set(state => ({ bathroomPods: [...state.bathroomPods, b] })),
+  updateBathroomPod: (id, updates) =>
+    set(s => ({
+      bathroomPods: s.bathroomPods.map(b => (b.id === id ? { ...b, ...updates } : b)),
+    })),
+  deleteBathroomPod: id => set(s => ({ bathroomPods: s.bathroomPods.filter(b => b.id !== id) })),
+
+  addBalcony: b => set(state => ({ balconies: [...state.balconies, b] })),
+  updateBalcony: (id, updates) =>
+    set(s => ({
+      balconies: s.balconies.map(b => (b.id === id ? { ...b, ...updates } : b)),
+    })),
+  deleteBalcony: id => set(s => ({ balconies: s.balconies.filter(b => b.id !== id) })),
 }));
