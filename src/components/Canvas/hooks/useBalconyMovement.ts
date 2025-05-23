@@ -5,89 +5,85 @@ import { useObjectStore } from '@/state/objectStore';
 import { useCanvasStore } from '@/state/canvasStore';
 
 export default function useBalconyMovement(canvas: Canvas | null) {
-  const updateBalcony = useObjectStore(s => s.updateBalcony);
   const balconies = useObjectStore(s => s.balconies);
   const modules = useObjectStore(s => s.modules);
+  const updateBalcony = useObjectStore(s => s.updateBalcony);
   const scale = useCanvasStore(s => s.scaleFactor);
 
   useEffect(() => {
     if (!canvas) return;
 
     const onMoving = (opt: any) => {
-      const obj = opt.target as any;
-      const id = obj.isBalcony as string | undefined;
-      if (!id) return;
-      const bc = balconies.find(b => b.id === id)!;
-      const mod = modules.find(m => m.id === bc.moduleId)!;
-      // bounding box
-      const b = obj.getBoundingRect(true);
-      let left = b.left,
-        top = b.top,
-        w = b.width,
-        h = b.height;
+      const obj: any = opt.target;
+      const balconyId = obj.isBalcony as string | undefined;
+      if (!balconyId) return;
 
-      // clamp based on wallSide
-      const mx = mod.x0! * scale,
-        my = mod.y0! * scale;
-      const mw = mod.width! * scale,
-        mh = mod.length! * scale;
+      const bc = balconies.find(b => b.id === balconyId)!;
+      const mod = modules.find(m => m.id === bc.moduleId)!;
+
+      // Поточні pixel‐координати
+      const brect = obj.getBoundingRect(true);
+      let left = brect.left;
+      let top = brect.top;
+      const w = brect.width;
+      const h = brect.height;
+
+      // межі модуля
+      const mx = mod.x0! * scale;
+      const my = mod.y0! * scale;
+      const mw = mod.width! * scale;
+      const mh = mod.length! * scale;
 
       switch (bc.wallSide) {
-        case 1: // top
+        case 1: // верхня стіна — фіксуємо top, рухаємо left у межах [mx, mx+mw−w]
           top = my - h;
           left = Math.min(Math.max(left, mx), mx + mw - w);
           break;
-        case 3: // bottom
+        case 3: // нижня стіна — фіксуємо top, рухаємо left
           top = my + mh;
           left = Math.min(Math.max(left, mx), mx + mw - w);
           break;
-        case 2: // right
+        case 2: // права стіна — фіксуємо left, рухаємо top у межах [my, my+mh−h]
           left = mx + mw;
           top = Math.min(Math.max(top, my), my + mh - h);
           break;
-        case 4: // left
+        case 4: // ліва стіна — фіксуємо left, рухаємо top
           left = mx - w;
           top = Math.min(Math.max(top, my), my + mh - h);
           break;
       }
 
       obj.set({ left, top });
+      obj.setCoords();
     };
 
     const onModified = (opt: any) => {
-      const obj = opt.target as any;
-      const id = obj.isBalcony as string | undefined;
-      if (!id) return;
-      const bc = balconies.find(b => b.id === id)!;
+      const obj: any = opt.target;
+      const balconyId = obj.isBalcony as string | undefined;
+      if (!balconyId) return;
+
+      const bc = balconies.find(b => b.id === balconyId)!;
       const mod = modules.find(m => m.id === bc.moduleId)!;
-      const b = obj.getBoundingRect(true);
+      const brect = obj.getBoundingRect(true);
 
       let distanceAlongWall: number, widthMm: number, lengthMm: number;
 
       switch (bc.wallSide) {
         case 1:
-          distanceAlongWall = (b.left - mod.x0! * scale) / scale;
-          widthMm = b.width / scale;
-          lengthMm = b.height / scale;
-          break;
         case 3:
-          distanceAlongWall = (b.left - mod.x0! * scale) / scale;
-          widthMm = b.width / scale;
-          lengthMm = b.height / scale;
+          distanceAlongWall = (brect.left - mod.x0! * scale) / scale;
+          widthMm = brect.width / scale;
+          lengthMm = brect.height / scale;
           break;
         case 2:
-          distanceAlongWall = (b.top - mod.y0! * scale) / scale;
-          widthMm = b.height / scale;
-          lengthMm = b.width / scale;
-          break;
         case 4:
-          distanceAlongWall = (b.top - mod.y0! * scale) / scale;
-          widthMm = b.height / scale;
-          lengthMm = b.width / scale;
+          distanceAlongWall = (brect.top - mod.y0! * scale) / scale;
+          widthMm = brect.height / scale;
+          lengthMm = brect.width / scale;
           break;
       }
 
-      updateBalcony(id, {
+      updateBalcony(balconyId, {
         distanceAlongWall,
         width: widthMm,
         length: lengthMm,
@@ -96,6 +92,7 @@ export default function useBalconyMovement(canvas: Canvas | null) {
 
     canvas.on('object:moving', onMoving);
     canvas.on('object:modified', onModified);
+
     return () => {
       canvas.off('object:moving', onMoving);
       canvas.off('object:modified', onModified);
