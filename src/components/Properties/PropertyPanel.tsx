@@ -38,7 +38,6 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
   const selectedBalconyId = useSelectionStore(s => s.selectedBalconyId);
   const [adding, setAdding] = useState(false);
   const [editingOpeningId, setEditingOpeningId] = useState<string | null>(null);
-  const [addingBalcony, setAddingBalcony] = useState(false);
 
   // Беремо тільки сирі масиви з боку
   const modules = useObjectStore(s => s.modules);
@@ -53,6 +52,9 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
   const deleteBalcony = useObjectStore(s => s.deleteBalcony);
   const { setTool } = useToolStore();
 
+  const [addingBalcony, setAddingBalcony] = useState(false);
+  const [editingBalconyId, setEditingBalconyId] = useState<string | null>(null);
+
   // Мемоізовано вибраний модуль
   const module = useMemo(() => modules.find(m => m.id === selectedModuleId) ?? null, [modules, selectedModuleId]);
   // відкриття, що належать модулю
@@ -65,6 +67,10 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
   const balconies = balconiesAll.filter(b => b.moduleId === selectedModuleId);
 
   const [form, setForm] = useState({ name: '', width: '', length: '' });
+
+  useEffect(() => {
+    console.log('addingBalcony is changed: ', addingBalcony);
+  }, [addingBalcony]);
 
   // Синхронізуємо форму при зміні module
   useEffect(() => {
@@ -153,16 +159,16 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
     );
   }
 
-  // 1) Якщо користувач натиснув "Add Balcony" — показуємо форму додавання **першим**
-  if (addingBalcony && module) {
+  if (editingBalconyId && module) {
     return (
       <BalconyEditor
         module={module}
-        onSave={() => {
-          setAddingBalcony(false);
+        balconyId={editingBalconyId} // нова пропса
+        onSave={updated => {
+          setEditingBalconyId(null);
           canvas?.requestRenderAll();
         }}
-        onCancel={() => setAddingBalcony(false)}
+        onCancel={() => setEditingBalconyId(null)}
       />
     );
   }
@@ -170,12 +176,6 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
   // Якщо обрано BathroomPod — показуємо власну панель
   if (selectedBathroomPodId && canvas) {
     return <BathroomPodProperties canvas={canvas} />;
-  }
-
-  console.log('selectedBalconyId: ', selectedBalconyId);
-  // Balcony
-  if (selectedBalconyId && canvas) {
-    return <BalconyProperties canvas={canvas} />;
   }
 
   if (!module) return null;
@@ -273,12 +273,12 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
       </ul>
       <button onClick={() => setTool('bathroomPod')}>Add Bathroom Pod</button>
 
-      {/*<h4>Balconies</h4>*/}
+      <h4>Balconies</h4>
       <ul>
         {balconies.map(b => (
           <li key={b.id} style={{ marginBottom: 8 }}>
             {b.name}: {b.width}×{b.length} mm @ {b.distanceAlongWall} mm on side {b.wallSide}
-            <button style={{ marginLeft: 12 }} onClick={() => useSelectionStore.getState().setSelectedBalconyId(b.id)}>
+            <button style={{ marginLeft: 12 }} onClick={() => setEditingBalconyId(b.id)}>
               Edit
             </button>
             <button
@@ -300,7 +300,20 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
           </li>
         ))}
       </ul>
-      {/*<button onClick={() => setAddingBalcony(true)}>Add Balcony</button>*/}
+      <button onClick={() => setAddingBalcony(true)}>Add Balcony</button>
+
+        {addingBalcony && (
+            <BalconyEditor
+                module={module}
+                onSave={() => {
+                    setAddingBalcony(false);
+                    canvas?.requestRenderAll();
+                }}
+                onCancel={() => setAddingBalcony(false)}
+            />
+        )}
+
+      {selectedBalconyId && canvas && <BalconyProperties canvas={canvas} />}
 
       <div style={{ marginTop: 16, borderTop: '1px solid #ddd', paddingTop: 12 }}>
         <button
