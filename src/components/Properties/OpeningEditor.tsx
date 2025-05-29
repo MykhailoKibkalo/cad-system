@@ -1,12 +1,18 @@
-// src/components/Properties/OpeningEditor.tsx
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import styled from '@emotion/styled';
 import { useObjectStore } from '@/state/objectStore';
 import { useCanvasStore } from '@/state/canvasStore';
 import { useTemplateStore } from '@/state/templateStore';
 import { Module } from '@/types/geometry';
+import { Text } from '@/components/ui/Text';
+import { HiMiniXMark } from 'react-icons/hi2';
+import { Divider } from '@/components/ui/Divider';
+import { Input } from '@/components/ui/InputWithAffix';
+import { Button } from '@/components/ui/Button';
+import { Dropdown, DropdownOption } from '@/components/ui/Dropdown';
+import { LuPlus, LuSave, LuTrash2 } from 'react-icons/lu';
 
 const Overlay = styled.div`
   position: fixed;
@@ -23,31 +29,21 @@ const Overlay = styled.div`
 
 const Box = styled.div`
   background: white;
-  padding: 24px;
   border-radius: 8px;
-  width: 400px;
+  width: 860px;
   max-width: 90%;
+  max-height: 80vh; /* Changed from height to max-height */
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   font-family: sans-serif;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* Added to contain content */
 `;
 
-const Field = styled.div`
-  margin-bottom: 12px;
-
-  label {
-    display: block;
-    font-weight: 500;
-    margin-bottom: 4px;
-  }
-
-  input,
-  select {
-    width: 100%;
-    padding: 6px 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-size: 14px;
-  }
+const InputLabel = styled(Text)`
+  font-size: 16px;
+  font-weight: 400;
+  margin-bottom: 8px;
 `;
 
 const Preview = styled.div`
@@ -75,34 +71,96 @@ const OpeningMark = styled.div<{
   pointer-events: none;
 `;
 
-const ButtonRow = styled.div`
+const MenuHeader = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 16px;
+  padding: 24px;
+  flex-shrink: 0;
+`;
 
-  button {
-    padding: 6px 12px;
-    border: none;
-    border-radius: 4px;
-    font-size: 14px;
-    cursor: pointer;
-  }
+const MenuWrap = styled.div`
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+`;
 
-  .cancel {
-    background: #e5e7eb;
-    color: #374151;
-  }
+const MenuItem = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  gap: 8px;
+`;
 
-  .saveTpl {
-    background: #10b981;
-    color: white;
-  }
+const Row = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+`;
 
-  .add {
-    background: #f59e0b;
-    color: white;
-  }
+// Fixed: Added overflow handling
+const ContentWrapper = styled.div`
+  display: flex;
+  flex: 1;
+  gap: 32px;
+  min-height: 0; 
+  overflow: hidden; 
+`;
+
+const LeftPanel = styled.div`
+  width: 50%;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 24px;
+  min-height: 0;
+`;
+
+const RightPanel = styled.div`
+  display: flex;
+  flex: 1;
+  width: 50%;
+  padding: 24px;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+`;
+
+const ScrollContent = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 24px;
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 8px;
+`;
+
+const Footer = styled.div`
+  margin-top: 24px;
+  flex-shrink: 0;
+`;
+
+const ButtonRow = styled.div`
+  display: flex;
+  width: 100%;
+  gap: 12px;
+  margin-bottom: 12px;
+`;
+
+const HalfWidthButton = styled(Button)`
+  flex: 1;
+`;
+
+const SaveTemplateRow = styled.div`
+  width: 100%;
+`;
+
+const FullWidthButton = styled(Button)`
+  width: 100%;
 `;
 
 interface OpeningEditorProps {
@@ -188,7 +246,6 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
 
   const onSubmit = () => {
     if (opening) {
-      // режим редагування
       updateOpening(opening.id, {
         wallSide,
         distanceAlongWall: distance,
@@ -197,7 +254,6 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
         height,
       });
     } else {
-      // режим створення
       const id = Date.now().toString();
       addOpening({ id, moduleId, wallSide, distanceAlongWall: distance, yOffset, width, height });
     }
@@ -214,103 +270,169 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
     });
   };
 
+  // Template selector dropdown
+  const templateOptions: DropdownOption[] = [
+    { value: '', label: 'Select template' },
+    ...openingTemplates.map((t, i) => ({
+      value: i,
+      label: `tpl ${i + 1}: w${t.width}×h${t.height}`,
+    })),
+  ];
+
+  // Wall side dropdown
+  const wallSideOptions: DropdownOption[] = [
+    { value: 1, label: 'Bottom' },
+    { value: 2, label: 'Left' },
+    { value: 3, label: 'Top' },
+    { value: 4, label: 'Right' },
+  ];
+
   return (
     <Overlay>
       <Box>
-        <h3>New Opening</h3>
+        <MenuWrap>
+          <MenuHeader>
+            <Text weight={700} size={32}>
+              {opening ? 'Edit opening' : 'Add opening'}
+            </Text>
+            <HiMiniXMark style={{ cursor: 'pointer' }} onClick={onClose} size={24} />
+          </MenuHeader>
+          <Divider orientation={'horizontal'} />
+        </MenuWrap>
 
-        <Field>
-          <label>Template</label>
-          <select value={tplIndex} onChange={e => setTplIndex(e.target.value === '' ? '' : +e.target.value)}>
-            <option value="">— choose —</option>
-            {openingTemplates.map((t, i) => (
-              <option key={i} value={i}>
-                tpl {i + 1}: w{t.width}×h{t.height}
-              </option>
-            ))}
-          </select>
-        </Field>
+        <ContentWrapper>
+          <LeftPanel>
+            <MenuItem>
+              <Text weight={700} size={20}>
+                Preview
+              </Text>
+              <Preview ref={previewRef}>
+                <OpeningMark left={previewLeft} width={previewWidth} bottom={previewBottom} height={previewHeight} />
+              </Preview>
+            </MenuItem>
+          </LeftPanel>
 
-        <Field>
-          <label>Wall side</label>
-          <select value={wallSide} onChange={e => setWallSide(+e.target.value as 1 | 2 | 3 | 4)}>
-            <option value={1}>Bottom</option>
-            <option value={2}>Left</option>
-            <option value={3}>Top</option>
-            <option value={4}>Right</option>
-          </select>
-        </Field>
+          <RightPanel>
+            <ScrollContent>
+              {/* — Template selector — */}
+              <MenuItem>
+                <Text weight={700} size={20}>
+                  Template
+                </Text>
+                <InputLabel>Select template</InputLabel>
+                <Dropdown
+                  options={templateOptions}
+                  value={tplIndex}
+                  onChange={value => setTplIndex(value === '' ? '' : Number(value))}
+                  placeholder="Select template"
+                />
+              </MenuItem>
 
-        <Preview ref={previewRef}>
-          <OpeningMark left={previewLeft} width={previewWidth} bottom={previewBottom} height={previewHeight} />
-        </Preview>
+              {/* — Wall side — */}
+              <MenuItem>
+                <Text weight={700} size={20}>
+                  Wall side
+                </Text>
+                <InputLabel>Select wall</InputLabel>
+                <Dropdown
+                  options={wallSideOptions}
+                  value={wallSide}
+                  onChange={value => setWallSide(Number(value) as 1 | 2 | 3 | 4)}
+                  placeholder="Select wall side"
+                />
+              </MenuItem>
 
-        <Field>
-          <label>Distance along wall (mm)</label>
-          <input
-            type="number"
-            min={0}
-            max={maxDistance}
-            value={distance}
-            onChange={e => setDistance(Math.min(maxDistance, Math.max(0, +e.target.value)))}
-          />
-        </Field>
+              {/* — Dimensions — */}
+              <MenuItem>
+                <Text weight={700} size={20}>
+                  Dimensions
+                </Text>
+                <Row>
+                  <div style={{ width: '50%' }}>
+                    <Input
+                      label="Width"
+                      suffix="mm"
+                      type="number"
+                      min={1}
+                      max={maxWidth}
+                      value={width}
+                      onChange={e => setWidth(Math.min(maxWidth, Math.max(1, +e.target.value)))}
+                    />
+                  </div>
+                  <div style={{ width: '50%' }}>
+                    <Input
+                      label="Height"
+                      suffix="mm"
+                      type="number"
+                      min={1}
+                      max={maxHeight}
+                      value={height}
+                      onChange={e => setHeight(Math.min(maxHeight, Math.max(1, +e.target.value)))}
+                    />
+                  </div>
+                </Row>
+              </MenuItem>
 
-        <Field>
-          <label>Y-offset (mm)</label>
-          <input
-            type="number"
-            min={0}
-            max={maxYOffset}
-            value={yOffset}
-            onChange={e => setYOffset(Math.min(maxYOffset, Math.max(0, +e.target.value)))}
-          />
-        </Field>
+              {/* — Position — */}
+              <MenuItem>
+                <Text weight={700} size={20}>
+                  Position
+                </Text>
+                <Row>
+                  <div style={{ width: '50%' }}>
+                    <Input
+                      label="X-position"
+                      suffix="mm"
+                      type="number"
+                      min={0}
+                      max={maxDistance}
+                      value={distance}
+                      onChange={e => setDistance(Math.min(maxDistance, Math.max(0, +e.target.value)))}
+                    />
+                  </div>
+                  <div style={{ width: '50%' }}>
+                    <Input
+                      label="Y-position"
+                      suffix="mm"
+                      type="number"
+                      min={0}
+                      max={maxYOffset}
+                      value={yOffset}
+                      onChange={e => setYOffset(Math.min(maxYOffset, Math.max(0, +e.target.value)))}
+                    />
+                  </div>
+                </Row>
+              </MenuItem>
+            </ScrollContent>
 
-        <Field>
-          <label>Width (mm)</label>
-          <input
-            type="number"
-            min={1}
-            max={maxWidth}
-            value={width}
-            onChange={e => setWidth(Math.min(maxWidth, Math.max(1, +e.target.value)))}
-          />
-        </Field>
+            <Footer>
+              <ButtonRow>
+                <HalfWidthButton
+                  variant="danger"
+                  icon={<LuTrash2 size={20} />}
+                  onClick={() => {
+                    if (opening) {
+                      deleteOpening(opening.id);
+                    }
+                    onClose();
+                  }}
+                >
+                  {opening ? 'Delete' : 'Cancel'}
+                </HalfWidthButton>
 
-        <Field>
-          <label>Height (mm)</label>
-          <input
-            type="number"
-            min={1}
-            max={maxHeight}
-            value={height}
-            onChange={e => setHeight(Math.min(maxHeight, Math.max(1, +e.target.value)))}
-          />
-        </Field>
+                <HalfWidthButton variant="primary" icon={<LuPlus size={20} />} onClick={onSubmit}>
+                  {opening ? 'Save' : 'Add'}
+                </HalfWidthButton>
+              </ButtonRow>
 
-        <ButtonRow>
-          <button className="cancel" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="saveTpl" onClick={onSaveTpl}>
-            Save template
-          </button>
-          {opening && (
-            <button
-              className="delete"
-              onClick={() => {
-                deleteOpening(opening.id);
-                onClose();
-              }}
-            >
-              Delete
-            </button>
-          )}
-          <button className={opening ? 'save' : 'add'} onClick={onSubmit}>
-            {opening ? 'Save' : 'Add'}
-          </button>
-        </ButtonRow>
+              <SaveTemplateRow>
+                <FullWidthButton variant="ghost" icon={<LuSave size={20} />} onClick={onSaveTpl}>
+                  Save as template
+                </FullWidthButton>
+              </SaveTemplateRow>
+            </Footer>
+          </RightPanel>
+        </ContentWrapper>
       </Box>
     </Overlay>
   );

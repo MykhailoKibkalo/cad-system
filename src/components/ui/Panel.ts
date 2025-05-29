@@ -1,15 +1,14 @@
-import styled from "@emotion/styled";
+import styled from '@emotion/styled';
 
 export const Panel = styled.div`
   position: absolute;
-  top: 36px;
-  right: 28px;
-  width: 340px;
-  bottom: 36px;
-  background: #FFF;
-  padding: 16px;
+  top: 0;
+  right: 0;
+  width: 397px;
+  bottom: 0;
+  background: #fff;
   box-shadow: -4px 0 4px rgba(0, 0, 0, 0.1);
-  overflow-y: auto;
-  border-radius: 16px;
   z-index: 1100;
+  display: flex;
+  flex-direction: column;
 `;

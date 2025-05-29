@@ -24,10 +24,11 @@ import useBathroomPodTool from '@/components/Canvas/hooks/useBathroomPodTool';
 import useRenderBathroomPods from '@/components/Canvas/hooks/useRenderBathroomPods';
 import useBathroomPodMovement from '@/components/Canvas/hooks/useBathroomPodMovement';
 import useIgnoreModulesFindTarget from '@/components/Canvas/hooks/useIgnoreModulesFindTarget';
-import CanvasContextMenu from '@/components/Canvas/CanvasContextMenu';
 import useBalconyTool from "@/components/Canvas/hooks/useBalconyTool";
 import useRenderBalconies from "@/components/Canvas/hooks/useRenderBalconies";
 import useBalconyMovement from "@/components/Canvas/hooks/useBalconyMovement";
+import ZoomControl from "@/components/ui/ZoomControl";
+import ControlWrap from "@/components/ui/ControlPanel";
 
 const CanvasContainer = styled.div<{ gridSizePx?: number; offsetX?: number; offsetY?: number }>`
   flex: 1;
@@ -149,6 +150,8 @@ export default function CanvasArea() {
       {/*{canvas && <CanvasContextMenu canvas={canvas} />}*/}
       {canvas && <PdfLoader canvas={canvas} />}
       {canvas && <PropertyPanel canvas={canvas} />}
+      <ZoomControl/>
+      <ControlWrap/>
     </Wrapper>
   );
 }

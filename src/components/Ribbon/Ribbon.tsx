@@ -42,7 +42,7 @@ export default function Ribbon() {
   return (
     <Container>
       <ImportPdfButton />
-      <ZoomPanControls />
+      {/*<ZoomPanControls />*/}
       <CenterViewButton />
       <PdfLockToggle />
       <CalibrateScaleButton />

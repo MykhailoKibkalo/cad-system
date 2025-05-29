@@ -1,4 +1,3 @@
-// src/components/Properties/PropertyPanel.tsx
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -15,20 +14,65 @@ import { useToolStore } from '@/state/toolStore';
 import GroupProperties from '@/components/Properties/GroupProperties';
 import BalconyProperties from '@/components/Properties/BalconyProperties';
 import BalconyEditor from '@/components/Properties/BalconyEditor';
+import { Text } from '@/components/ui/Text';
+import { HiMiniXMark } from 'react-icons/hi2';
+import { Divider } from '@/components/ui/Divider';
+import { Button } from '../ui/Button';
+import { LuBath, LuDoorClosed } from 'react-icons/lu';
+import { MdBalcony } from 'react-icons/md';
+import { InputWithAffix } from '@/components/ui/InputWithAffix';
 
 const Field = styled.div`
-  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
 `;
+
 const Label = styled.label`
   display: block;
-  font-size: 14px;
+  font-size: 16px;
   margin-bottom: 4px;
 `;
-const Input = styled.input`
+
+const MenuHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px;
+  flex-shrink: 0;
+
+`;
+
+const MenuItem = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 24px;
   width: 100%;
-  padding: 6px;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
+  gap: 16px;
+  border-top: 1px solid #f1f5f9;
+`;
+
+const Row = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+`;
+
+const ScrollContent = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  overflow-y: auto;
+  min-height: 0;
+`;
+
+const Footer = styled.div`
+  flex-shrink: 0; /* Prevent footer from shrinking */
+  background: white;
+  border-top: 1px solid #f1f5f9;
 `;
 
 export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
@@ -39,7 +83,6 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
   const [adding, setAdding] = useState(false);
   const [editingOpeningId, setEditingOpeningId] = useState<string | null>(null);
 
-  // Беремо тільки сирі масиви з боку
   const modules = useObjectStore(s => s.modules);
   const deleteModule = useObjectStore(s => s.deleteModule);
   const openingsAll = useObjectStore(s => s.openings);
@@ -55,9 +98,7 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
   const [addingBalcony, setAddingBalcony] = useState(false);
   const [editingBalconyId, setEditingBalconyId] = useState<string | null>(null);
 
-  // Мемоізовано вибраний модуль
   const module = useMemo(() => modules.find(m => m.id === selectedModuleId) ?? null, [modules, selectedModuleId]);
-  // відкриття, що належать модулю
   const openings = useMemo(
     () => openingsAll.filter(o => o.moduleId === selectedModuleId),
     [openingsAll, selectedModuleId]
@@ -72,7 +113,6 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
     console.log('addingBalcony is changed: ', addingBalcony);
   }, [addingBalcony]);
 
-  // Синхронізуємо форму при зміні module
   useEffect(() => {
     if (module) {
       setForm({
@@ -94,7 +134,6 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
     if (field === 'showBorder') {
       const show = e.target.checked;
       updateModule(module.id, { showBorder: show });
-      // знайти rect і оновити
       const obj = canvas?.getObjects().find(o => (o as any).isModule === module.id);
       obj?.set({ strokeWidth: show ? 2 : 0 });
       canvas?.requestRenderAll();
@@ -106,7 +145,6 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
       const num = parseFloat(v);
       if (isNaN(num)) return;
       updates[field] = num;
-      // Знайти об’єкт на канвасі
       const obj = canvas?.getObjects().find(o => (o as any).isModule === module.id);
       if (obj) {
         if (field === 'width') obj.set({ width: num * scaleFactor });
@@ -120,7 +158,6 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
 
   const onDeleteModule = () => {
     if (module && module.id) {
-      // 1) Видаляємо з canvas всі об’єкти, що належать модулю:
       canvas?.getObjects().forEach(o => {
         const anyO = o as any;
         if (anyO.isModule === module.id) {
@@ -133,9 +170,7 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
 
       canvas?.requestRenderAll();
 
-      // 2) Видаляємо зі стору модуль + каскадно — всі його openings
       deleteModule(module.id);
-      // 3) Скидаємо selection
       useSelectionStore.getState().setSelectedModuleId(null);
     }
   };
@@ -163,7 +198,7 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
     return (
       <BalconyEditor
         module={module}
-        balconyId={editingBalconyId} // нова пропса
+        balconyId={editingBalconyId}
         onSave={updated => {
           setEditingBalconyId(null);
           canvas?.requestRenderAll();
@@ -173,7 +208,6 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
     );
   }
 
-  // Якщо обрано BathroomPod — показуємо власну панель
   if (selectedBathroomPodId && canvas) {
     return <BathroomPodProperties canvas={canvas} />;
   }
@@ -182,153 +216,218 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
 
   return (
     <Panel>
-      <h3>Module Properties</h3>
-      <Field>
-        <Label htmlFor="prop-name">Name</Label>
-        <Input id="prop-name" value={form.name} onChange={onChange('name')} />
-      </Field>
+      {/* Fixed Header */}
+      <MenuHeader>
+        <Text weight={700} size={24}>
+          Module Properties
+        </Text>
+        <HiMiniXMark
+          style={{ cursor: 'pointer' }}
+          onClick={() => useSelectionStore.getState().setSelectedModuleId(null)}
+          size={24}
+        />
+      </MenuHeader>
 
-      <Field>
-        <Label htmlFor="prop-showBorder">
-          <input id="prop-showBorder" type="checkbox" checked={!!module.showBorder} onChange={onChange('showBorder')} />
-          Show Border
-        </Label>
-      </Field>
+      {/* Scrollable Content */}
+      <ScrollContent>
+        <MenuItem>
+          <Text weight={700} size={20}>
+            Information
+          </Text>
+          <Field>
+            <Text size={16}>Name</Text>
+            <InputWithAffix value={form.name} onChange={onChange('name')} />
+          </Field>
+        </MenuItem>
 
-      <Field>
-        <Label htmlFor="prop-width">Width (mm)</Label>
-        <Input id="prop-width" type="number" value={form.width} onChange={onChange('width')} />
-      </Field>
-      <Field>
-        <Label htmlFor="prop-length">Length (mm)</Label>
-        <Input id="prop-length" type="number" value={form.length} onChange={onChange('length')} />
-      </Field>
+        <Divider orientation={'horizontal'} />
 
-      <h4>Openings</h4>
-      <ul>
-        {openings.map(o => (
-          <li key={o.id} style={{ marginBottom: 8 }}>
-            <span>
-              Side {o.wallSide}, dist {o.distanceAlongWall} mm, y {o.yOffset} mm
-            </span>
-            <button
-              style={{ marginLeft: 12 }}
-              onClick={() => {
-                setEditingOpeningId(o.id);
-              }}
-            >
-              Edit
-            </button>
-            <button
-              style={{
-                marginLeft: 6,
-                color: 'white',
-                background: '#ef4444',
-                border: 'none',
-                padding: '4px 8px',
-                borderRadius: 4,
-              }}
-              onClick={() => {
-                deleteOpening(o.id);
-                // після видалення перемалювати полотно:
-                canvas?.requestRenderAll();
-              }}
-            >
-              Delete
-            </button>
-          </li>
-        ))}
-      </ul>
-      <button onClick={() => setAdding(true)}>Add Opening</button>
+        <MenuItem>
+          <Text weight={700} size={20}>
+            Dimensions
+          </Text>
+          <Row>
+            <Field>
+              <Label htmlFor="prop-width">Width</Label>
+              <InputWithAffix
+                suffix={'mm'}
+                id="prop-width"
+                type="number"
+                value={form.width}
+                onChange={onChange('width')}
+              />
+            </Field>
+            <Field>
+              <Label htmlFor="prop-length">Length</Label>
+              <InputWithAffix
+                suffix={'mm'}
+                id="prop-length"
+                type="number"
+                value={form.length}
+                onChange={onChange('length')}
+              />
+            </Field>
+          </Row>
+        </MenuItem>
 
-      <h4>Bathroom Pods</h4>
-      <ul>
-        {bathroomPods.map(bp => (
-          <li key={bp.id} style={{ marginBottom: 8 }}>
-            {bp.name}: {bp.width}×{bp.length} mm @ ({bp.x_offset},{bp.y_offset})
-            <button
-              style={{ marginLeft: 12 }}
-              onClick={() => useSelectionStore.getState().setSelectedBathroomPodId(bp.id)}
-            >
-              Edit
-            </button>
-            <button
-              style={{
-                marginLeft: 6,
-                color: 'white',
-                background: '#ef4444',
-                border: 'none',
-                padding: '4px 8px',
-                borderRadius: 4,
-              }}
-              onClick={() => {
-                deleteBathroomPod(bp.id);
-                canvas?.requestRenderAll();
-              }}
-            >
-              Delete
-            </button>
-          </li>
-        ))}
-      </ul>
-      <button onClick={() => setTool('bathroomPod')}>Add Bathroom Pod</button>
+        <Divider orientation={'horizontal'} />
 
-      <h4>Balconies</h4>
-      <ul>
-        {balconies.map(b => (
-          <li key={b.id} style={{ marginBottom: 8 }}>
-            {b.name}: {b.width}×{b.length} mm @ {b.distanceAlongWall} mm on side {b.wallSide}
-            <button style={{ marginLeft: 12 }} onClick={() => setEditingBalconyId(b.id)}>
-              Edit
-            </button>
-            <button
-              style={{
-                marginLeft: 6,
-                color: 'white',
-                background: '#ef4444',
-                border: 'none',
-                padding: '4px 8px',
-                borderRadius: 4,
-              }}
-              onClick={() => {
-                deleteBalcony(b.id);
-                canvas?.requestRenderAll();
-              }}
-            >
-              Delete
-            </button>
-          </li>
-        ))}
-      </ul>
-      <button onClick={() => setAddingBalcony(true)}>Add Balcony</button>
-
-        {addingBalcony && (
-            <BalconyEditor
-                module={module}
-                onSave={() => {
-                    setAddingBalcony(false);
+        <MenuItem>
+          <Text weight={700} size={20}>
+            Openings
+          </Text>
+          <ul style={{ marginLeft: 28 }}>
+            {openings.map(o => (
+              <li key={o.id} style={{ marginBottom: 8 }}>
+                <span>
+                  Side {o.wallSide}, dist {o.distanceAlongWall} mm, y {o.yOffset} mm
+                </span>
+                <button
+                  style={{ marginLeft: 12 }}
+                  onClick={() => {
+                    setEditingOpeningId(o.id);
+                  }}
+                >
+                  Edit
+                </button>
+                <button
+                  style={{
+                    marginLeft: 6,
+                    color: 'white',
+                    background: '#ef4444',
+                    border: 'none',
+                    padding: '4px 8px',
+                    borderRadius: 4,
+                  }}
+                  onClick={() => {
+                    deleteOpening(o.id);
                     canvas?.requestRenderAll();
-                }}
-                onCancel={() => setAddingBalcony(false)}
-            />
-        )}
+                  }}
+                >
+                  Delete
+                </button>
+              </li>
+            ))}
+          </ul>
+          <Button
+            onClick={() => setAdding(true)}
+            style={{ width: '100%' }}
+            variant={'secondary'}
+            icon={<LuDoorClosed size={20} />}
+          >
+            Add Opening
+          </Button>
+        </MenuItem>
 
-      {selectedBalconyId && canvas && <BalconyProperties canvas={canvas} />}
+        <Divider orientation={'horizontal'} />
 
-      <div style={{ marginTop: 16, borderTop: '1px solid #ddd', paddingTop: 12 }}>
-        <button
-          style={{
-            background: '#ef4444',
-            color: 'white',
-            padding: '6px 12px',
-            border: 'none',
-            borderRadius: 4,
+        <MenuItem>
+          <Text weight={700} size={20}>
+            Bathroom Pods
+          </Text>
+          <ul>
+            {bathroomPods.map(bp => (
+              <li key={bp.id} style={{ marginBottom: 8 }}>
+                {bp.name}: {bp.width}×{bp.length} mm @ ({bp.x_offset},{bp.y_offset})
+                <button
+                  style={{ marginLeft: 12 }}
+                  onClick={() => useSelectionStore.getState().setSelectedBathroomPodId(bp.id)}
+                >
+                  Edit
+                </button>
+                <button
+                  style={{
+                    marginLeft: 6,
+                    color: 'white',
+                    background: '#ef4444',
+                    border: 'none',
+                    padding: '4px 8px',
+                    borderRadius: 4,
+                  }}
+                  onClick={() => {
+                    deleteBathroomPod(bp.id);
+                    canvas?.requestRenderAll();
+                  }}
+                >
+                  Delete
+                </button>
+              </li>
+            ))}
+          </ul>
+          <Button
+            onClick={() => setTool('bathroomPod')}
+            style={{ width: '100%' }}
+            variant={'secondary'}
+            icon={<LuBath size={20}/>}
+          >
+            Add Bathroom Pod
+          </Button>
+        </MenuItem>
+
+        <Divider orientation={'horizontal'} />
+
+        <MenuItem>
+          <Text weight={700} size={20}>
+            Balconies
+          </Text>
+          <ul>
+            {balconies.map(b => (
+              <li key={b.id} style={{ marginBottom: 8 }}>
+                {b.name}: {b.width}×{b.length} mm @ {b.distanceAlongWall} mm on side {b.wallSide}
+                <button style={{ marginLeft: 12 }} onClick={() => setEditingBalconyId(b.id)}>
+                  Edit
+                </button>
+                <button
+                  style={{
+                    marginLeft: 6,
+                    color: 'white',
+                    background: '#ef4444',
+                    border: 'none',
+                    padding: '4px 8px',
+                    borderRadius: 4,
+                  }}
+                  onClick={() => {
+                    deleteBalcony(b.id);
+                    canvas?.requestRenderAll();
+                  }}
+                >
+                  Delete
+                </button>
+              </li>
+            ))}
+          </ul>
+          <Button
+            onClick={() => setAddingBalcony(true)}
+            style={{ width: '100%' }}
+            variant={'secondary'}
+            icon={<MdBalcony size={20} />}
+          >
+            Add Balcony
+          </Button>
+        </MenuItem>
+      </ScrollContent>
+
+      {/* Fixed Footer */}
+      <Footer>
+        <MenuItem>
+          <Button style={{ width: '100%' }} variant={'danger'} onClick={onDeleteModule}>
+            Delete Module
+          </Button>
+        </MenuItem>
+      </Footer>
+
+      {/* Modals/Overlays */}
+      {addingBalcony && (
+        <BalconyEditor
+          module={module}
+          onSave={() => {
+            setAddingBalcony(false);
+            canvas?.requestRenderAll();
           }}
-          onClick={onDeleteModule}
-        >
-          Delete Module
-        </button>
-      </div>
+          onCancel={() => setAddingBalcony(false)}
+        />
+      )}
+      {selectedBalconyId && canvas && <BalconyProperties canvas={canvas} />}
       {adding && <OpeningEditor moduleId={module.id} onClose={() => setAdding(false)} />}
     </Panel>
   );
