@@ -1,3 +1,4 @@
+// src/components/Properties/PropertyPanel.tsx
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -90,17 +91,20 @@ const ItemRow = styled.li`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  padding: 6px 16px;
   border-radius: 8px;
   position: relative;
+  transition: all .2s;
+  
+  :hover {
+    background: #f8fafc;
+  }
 `;
 
 const ItemContent = styled.div`
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   flex: 1;
 `;
 
@@ -254,15 +258,28 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
     canvas?.requestRenderAll();
   };
 
+  // Check for group selection first
   const selectedGroup = canvas?.getActiveObject?.();
   if (selectedGroup && (selectedGroup as any).type === 'group' && canvas) {
     return <GroupProperties canvas={canvas} />;
   }
 
+  // Check for balcony selection - this should come before checking other selections
+  if (selectedBalconyId && canvas) {
+    return <BalconyProperties canvas={canvas} />;
+  }
+
+  // Check for corridor selection
   if (selectedCorridorId && canvas) {
     return <CorridorProperties canvas={canvas} />;
   }
 
+  // Check for bathroom pod selection
+  if (selectedBathroomPodId && canvas) {
+    return <BathroomPodProperties canvas={canvas} />;
+  }
+
+  // Check for opening editor
   if (editingOpeningId && selectedModuleId) {
     return (
       <OpeningEditor
@@ -273,6 +290,7 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
     );
   }
 
+  // Check for balcony editor
   if (editingBalconyId && module) {
     return (
       <BalconyEditor
@@ -287,10 +305,7 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
     );
   }
 
-  if (selectedBathroomPodId && canvas) {
-    return <BathroomPodProperties canvas={canvas} />;
-  }
-
+  // If no module is selected, don't show the panel
   if (!module) return null;
 
   return (
@@ -361,7 +376,7 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
                 <ItemRow key={o.id}>
                   <ItemContent>
                     <ItemIcon>
-                      <LuDoorClosed size={16} />
+                      <LuDoorClosed color={'#64748b'} size={16} />
                     </ItemIcon>
                     <ItemText>
                       <ItemDescription>
@@ -376,11 +391,11 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
                         icon: <LuPencil size={14} />,
                         onClick: () => setEditingOpeningId(o.id),
                       },
-                      {
-                        label: 'Copy',
-                        icon: <LuCopy size={14} />,
-                        onClick: () => handleCopyOpening(o),
-                      },
+                      // {
+                      //   label: 'Copy',
+                      //   icon: <LuCopy size={14} />,
+                      //   onClick: () => handleCopyOpening(o),
+                      // },
                       {
                         label: 'Delete',
                         icon: <LuTrash2 size={14} />,
@@ -418,7 +433,7 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
                 <ItemRow key={bp.id}>
                   <ItemContent>
                     <ItemIcon>
-                      <LuBath size={16} />
+                      <LuBath color={'#64748b'} size={16} />
                     </ItemIcon>
                     <ItemText>
                       <ItemDescription>
@@ -433,11 +448,11 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
                         icon: <LuPencil size={14} />,
                         onClick: () => useSelectionStore.getState().setSelectedBathroomPodId(bp.id),
                       },
-                      {
-                        label: 'Copy',
-                        icon: <LuCopy size={14} />,
-                        onClick: () => handleCopyBathroomPod(bp),
-                      },
+                      // {
+                      //   label: 'Copy',
+                      //   icon: <LuCopy size={14} />,
+                      //   onClick: () => handleCopyBathroomPod(bp),
+                      // },
                       {
                         label: 'Delete',
                         icon: <LuTrash2 size={14} />,
@@ -475,7 +490,7 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
                 <ItemRow key={b.id}>
                   <ItemContent>
                     <ItemIcon>
-                      <MdBalcony size={16} />
+                      <MdBalcony color={'#64748b'} size={16} />
                     </ItemIcon>
                     <ItemText>
                       <ItemDescription>
@@ -490,11 +505,11 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
                         icon: <LuPencil size={14} />,
                         onClick: () => setEditingBalconyId(b.id),
                       },
-                      {
-                        label: 'Copy',
-                        icon: <LuCopy size={14} />,
-                        onClick: () => handleCopyBalcony(b),
-                      },
+                      // {
+                      //   label: 'Copy',
+                      //   icon: <LuCopy size={14} />,
+                      //   onClick: () => handleCopyBalcony(b),
+                      // },
                       {
                         label: 'Delete',
                         icon: <LuTrash2 size={14} />,
@@ -541,7 +556,6 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
           onCancel={() => setAddingBalcony(false)}
         />
       )}
-      {selectedBalconyId && canvas && <BalconyProperties canvas={canvas} />}
       {adding && <OpeningEditor moduleId={module.id} onClose={() => setAdding(false)} />}
     </Panel>
   );

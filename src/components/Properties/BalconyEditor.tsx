@@ -5,11 +5,17 @@ import React, { useEffect, useMemo, useState } from 'react';
 import styled from '@emotion/styled';
 import type { Balcony, Module } from '@/types/geometry';
 import { useObjectStore } from '@/state/objectStore';
+import { Text } from '@/components/ui/Text';
+import { HiMiniXMark } from 'react-icons/hi2';
+import { Divider } from '@/components/ui/Divider';
+import { Input } from '@/components/ui/InputWithAffix';
+import { Button } from '@/components/ui/Button';
+import { Dropdown, DropdownOption } from '@/components/ui/Dropdown';
+import { LuPlus, LuSave } from 'react-icons/lu';
 
 interface Props {
   module: Module;
-  balconyId?: string; // ← нова пропса
-
+  balconyId?: string;
   onSave: (newBalcony: Balcony) => void;
   onCancel: () => void;
 }
@@ -18,186 +24,360 @@ const Overlay = styled.div`
   position: fixed;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.4);
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2000;
+  z-index: 1000;
 `;
-const ModalBox = styled.div`
+
+const Box = styled.div`
   background: white;
-  padding: 24px;
   border-radius: 8px;
-  width: 320px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-`;
-const Field = styled.div`
-  margin-bottom: 12px;
-`;
-const Label = styled.label`
-  display: block;
-  font-size: 14px;
-  margin-bottom: 4px;
-`;
-const Input = styled.input`
-  width: 100%;
-  padding: 6px;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-`;
-const Select = styled.select`
-  width: 100%;
-  padding: 6px;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-`;
-const BtnRow = styled.div`
+  width: 520px;
+  max-width: 90%;
+  max-height: 80vh;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-family: sans-serif;
   display: flex;
-  justify-content: flex-end;
-  margin-top: 16px;
+  flex-direction: column;
+  overflow: hidden;
 `;
-const Btn = styled.button<{ variant?: 'primary' | 'danger' }>`
-  margin-left: 8px;
-  padding: 6px 12px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  background: ${({ variant }) => (variant === 'danger' ? '#ef4444' : '#3b82f6')};
-  color: white;
-  opacity: ${({ disabled }) => (disabled ? 0.5 : 1)};
+
+const MenuHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px;
+  flex-shrink: 0;
+`;
+
+const MenuWrap = styled.div`
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+`;
+
+const MenuItem = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  gap: 16px;
+`;
+
+const Row = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  width: 100%;
+`;
+
+const ContentWrapper = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+`;
+
+const ScrollContent = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 24px;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 0 24px;
+`;
+
+const Footer = styled.div`
+  padding: 24px;
+  flex-shrink: 0;
+`;
+
+const ButtonRow = styled.div`
+  display: flex;
+  width: 100%;
+  gap: 12px;
+`;
+
+const HalfWidthButton = styled(Button)`
+  flex: 1;
+`;
+
+const ValidationMessage = styled.div`
+  color: #dc2626;
+  font-size: 14px;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+`;
+
+const SuccessMessage = styled.div`
+  color: #059669;
+  font-size: 14px;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 `;
 
 export default function BalconyEditor({ module, balconyId, onSave, onCancel }: Props) {
   const addBalcony = useObjectStore(s => s.addBalcony);
   const updateBalcony = useObjectStore(s => s.updateBalcony);
-
   const balconies = useObjectStore(s => s.balconies);
-  // const existing = balconyId ? balconies.find(b => b.id === balconyId)! : null;
 
   const existing = useMemo(() => {
-    return balconyId ? balconies.find(b => b.id === balconyId)! : null;
+    return balconyId ? balconies.find(b => b.id === balconyId) : null;
   }, [balconies, balconyId]);
 
-  const [side, setSide] = useState<1 | 2 | 3 | 4>(existing?.wallSide ?? 1);
-  const [width, setWidth] = useState<number>(existing?.width ?? 0);
-  const [length, setLength] = useState<number>(existing?.length ?? 0);
-  const [distance, setDistance] = useState<number>(existing?.distanceAlongWall ?? 0);
-  const [errors, setErrors] = useState<string[]>([]);
+  const [form, setForm] = useState({
+    wallSide: existing?.wallSide ?? (1 as 1 | 2 | 3 | 4),
+    width: existing?.width?.toString() ?? '1000',
+    length: existing?.length?.toString() ?? '1500',
+    distanceAlongWall: existing?.distanceAlongWall?.toString() ?? '0',
+  });
 
-  const maxAlong = side === 1 || side === 3 ? module.width : module.length;
-  const maxDepth = side === 1 || side === 3 ? module.length : module.width;
+  // Validation state
+  const [validationErrors, setValidationErrors] = useState<{
+    width?: string;
+    length?: string;
+    distanceAlongWall?: string;
+  }>({});
 
-  // скидаємо форму, коли змінюється модуль або сторона
+  // Reset form when existing balcony changes
   useEffect(() => {
     if (existing) {
-      setSide(existing.wallSide);
-      setWidth(existing.width);
-      setLength(existing.length);
-      setDistance(existing.distanceAlongWall);
-      setErrors([]);
+      setForm({
+        wallSide: existing.wallSide,
+        width: existing.width.toString(),
+        length: existing.length.toString(),
+        distanceAlongWall: existing.distanceAlongWall.toString(),
+      });
     }
   }, [existing]);
-  // валідація тільки при зміні input-ів
-  useEffect(() => {
-    const errs: string[] = [];
-    if (width <= 0 || width > maxAlong) {
-      errs.push(`Width must be >0 and ≤${maxAlong} mm`);
-    }
-    if (length <= 0 || length > maxDepth) {
-      errs.push(`Length must be >0 and ≤${maxDepth} mm`);
-    }
-    if (distance < 0 || distance + width > maxAlong) {
-      errs.push(`Distance must be ≥0 and distance+width ≤${maxAlong} mm`);
-    }
-    setErrors(errs);
-  }, [width, length, distance, maxAlong, maxDepth]);
 
-  const handleAddOrUpdate = () => {
-    // ... валідація ...
-    const obj: Balcony = {
+  // Calculate constraints based on wall side and module dimensions
+  const constraints = useMemo(() => {
+    const isHorizontalWall = form.wallSide === 1 || form.wallSide === 3;
+    const maxWidthAlongWall = isHorizontalWall ? module.width : module.length;
+    const maxLengthDepth = 3000; // Maximum reasonable balcony depth
+
+    return {
+      maxWidth: maxWidthAlongWall,
+      maxLength: maxLengthDepth,
+      maxDistance: maxWidthAlongWall,
+    };
+  }, [module, form.wallSide]);
+
+  // Real-time validation
+  useEffect(() => {
+    const errors: typeof validationErrors = {};
+
+    const widthValue = parseFloat(form.width);
+    const lengthValue = parseFloat(form.length);
+    const distanceValue = parseFloat(form.distanceAlongWall);
+
+    // Validate width
+    if (isNaN(widthValue) || widthValue <= 0) {
+      errors.width = 'Width must be greater than 0';
+    } else if (widthValue < 500) {
+      errors.width = 'Width must be at least 500 mm';
+    } else if (widthValue > constraints.maxWidth) {
+      errors.width = `Width must be ≤${constraints.maxWidth} mm`;
+    }
+
+    // Validate length (depth)
+    if (isNaN(lengthValue) || lengthValue <= 0) {
+      errors.length = 'Length must be greater than 0';
+    } else if (lengthValue < 800) {
+      errors.length = 'Length must be at least 800 mm';
+    } else if (lengthValue > constraints.maxLength) {
+      errors.length = `Length must be ≤${constraints.maxLength} mm`;
+    }
+
+    // Validate distance
+    if (isNaN(distanceValue) || distanceValue < 0) {
+      errors.distanceAlongWall = 'Distance cannot be negative';
+    } else if (distanceValue > constraints.maxDistance) {
+      errors.distanceAlongWall = `Distance must be ≤${constraints.maxDistance} mm`;
+    } else if (!isNaN(widthValue) && distanceValue + widthValue > constraints.maxWidth) {
+      errors.distanceAlongWall = `Distance + width must be ≤${constraints.maxWidth} mm`;
+    }
+
+    setValidationErrors(errors);
+  }, [form.width, form.length, form.distanceAlongWall, constraints]);
+
+  const onChange = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const onWallSideChange = (value: string | number) => {
+    setForm(prev => ({ ...prev, wallSide: Number(value) as 1 | 2 | 3 | 4 }));
+  };
+
+  const hasValidationErrors = Object.keys(validationErrors).length > 0;
+
+  const handleSubmit = () => {
+    if (hasValidationErrors) return;
+
+    const balconyData: Balcony = {
       id: existing?.id ?? `BC${Date.now()}`,
       moduleId: module.id,
       name: existing?.name ?? `BC${Date.now()}`,
-      wallSide: side,
-      distanceAlongWall: distance,
-      width,
-      length,
+      wallSide: form.wallSide,
+      distanceAlongWall: parseFloat(form.distanceAlongWall),
+      width: parseFloat(form.width),
+      length: parseFloat(form.length),
     };
+
     if (existing) {
-      updateBalcony(obj.id, {
-        wallSide: obj.wallSide,
-        distanceAlongWall: obj.distanceAlongWall,
-        width: obj.width,
-        length: obj.length,
-        name: obj.name,
+      updateBalcony(balconyData.id, {
+        wallSide: balconyData.wallSide,
+        distanceAlongWall: balconyData.distanceAlongWall,
+        width: balconyData.width,
+        length: balconyData.length,
+        name: balconyData.name,
       });
     } else {
-      addBalcony(obj);
+      addBalcony(balconyData);
     }
-    onSave(obj);
+
+    onSave(balconyData);
   };
+
+  // Wall side dropdown options
+  const wallSideOptions: DropdownOption[] = [
+    { value: 1, label: 'Top' },
+    { value: 2, label: 'Right' },
+    { value: 3, label: 'Bottom' },
+    { value: 4, label: 'Left' },
+  ];
 
   return (
     <Overlay>
-      <ModalBox>
-        <h3>Add Balcony</h3>
+      <Box>
+        <MenuWrap>
+          <MenuHeader>
+            <Text weight={700} size={32}>
+              {existing ? 'Edit balcony' : 'Add balcony'}
+            </Text>
+            <HiMiniXMark style={{ cursor: 'pointer' }} onClick={onCancel} size={24} />
+          </MenuHeader>
+          <Divider orientation={'horizontal'} />
+        </MenuWrap>
 
-        <Field>
-          <Label>Side</Label>
-          <Select value={side} onChange={e => setSide(+e.target.value as any)}>
-            <option value={1}>Top</option>
-            <option value={2}>Right</option>
-            <option value={3}>Bottom</option>
-            <option value={4}>Left</option>
-          </Select>
-        </Field>
+        <ContentWrapper>
+          <ScrollContent>
+            {/* Wall side */}
+            <MenuItem>
+              <Text weight={700} size={20}>
+                Wall side
+              </Text>
+              <Text size={16} color="#64748b">
+                Select wall side
+              </Text>
+              <Dropdown
+                options={wallSideOptions}
+                value={form.wallSide}
+                onChange={onWallSideChange}
+                placeholder="Select wall side"
+              />
+              <Text size={14} color="#64748b">
+                Module dimensions: {module.width} × {module.length} mm
+              </Text>
+            </MenuItem>
 
-        <Field>
-          <Label>Width along wall (мм)</Label>
-          <Input type="number" value={width} min={0} max={maxAlong} onChange={e => setWidth(Number(e.target.value))} />
-        </Field>
+            {/* Divider */}
+            <Divider orientation={'horizontal'} />
 
-        <Field>
-          <Label>Length (depth) (мм)</Label>
-          <Input
-            type="number"
-            value={length}
-            min={0}
-            max={maxDepth}
-            onChange={e => setLength(Number(e.target.value))}
-          />
-        </Field>
+            {/* Dimensions */}
+            <MenuItem>
+              <Text weight={700} size={20}>
+                Dimensions
+              </Text>
+              <Row>
+                <div style={{ flex: 1 }}>
+                  <Input
+                    label="Width along wall"
+                    suffix="mm"
+                    type="number"
+                    value={form.width}
+                    onChange={onChange('width')}
+                    error={validationErrors.width}
+                  />
+                  {validationErrors.width ? (
+                    <ValidationMessage>{validationErrors.width}</ValidationMessage>
+                  ) : (
+                    <SuccessMessage>Maximum: {constraints.maxWidth} mm</SuccessMessage>
+                  )}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <Input
+                    label="Length (depth)"
+                    suffix="mm"
+                    type="number"
+                    value={form.length}
+                    onChange={onChange('length')}
+                    error={validationErrors.length}
+                  />
+                  {validationErrors.length ? (
+                    <ValidationMessage>{validationErrors.length}</ValidationMessage>
+                  ) : (
+                    <SuccessMessage>Maximum: {constraints.maxLength} mm</SuccessMessage>
+                  )}
+                </div>
+              </Row>
+            </MenuItem>
 
-        <Field>
-          <Label>Distance along wall (мм)</Label>
-          <Input
-            type="number"
-            value={distance}
-            min={0}
-            max={maxAlong - width}
-            onChange={e => setDistance(Number(e.target.value))}
-          />
-        </Field>
+            {/* Divider */}
+            <Divider orientation={'horizontal'} />
 
-        {errors.length > 0 && (
-          <ul style={{ color: 'red', marginTop: 8 }}>
-            {errors.map((err, i) => (
-              <li key={i}>{err}</li>
-            ))}
-          </ul>
-        )}
+            {/* Distance along wall */}
+            <MenuItem>
+              <Text weight={700} size={20}>
+                Distance along wall
+              </Text>
+              <Input
+                suffix="mm"
+                type="number"
+                value={form.distanceAlongWall}
+                onChange={onChange('distanceAlongWall')}
+                error={validationErrors.distanceAlongWall}
+              />
+              {validationErrors.distanceAlongWall ? (
+                <ValidationMessage>{validationErrors.distanceAlongWall}</ValidationMessage>
+              ) : (
+                <SuccessMessage>
+                  Available space: {Math.max(0, constraints.maxDistance - parseFloat(form.width || '0'))} mm
+                </SuccessMessage>
+              )}
+            </MenuItem>
+          </ScrollContent>
 
-        <BtnRow>
-          <Btn variant="danger" onClick={onCancel}>
-            Cancel
-          </Btn>
-          <Btn variant="primary" onClick={handleAddOrUpdate} disabled={errors.length > 0}>
-            {existing ? 'Save' : 'Add'}
-          </Btn>
-        </BtnRow>
-      </ModalBox>
+          <Footer>
+            <ButtonRow>
+              <HalfWidthButton variant="danger" onClick={onCancel}>
+                Cancel
+              </HalfWidthButton>
+              <HalfWidthButton
+                variant="primary"
+                icon={existing ? <LuSave size={20} /> : <LuPlus size={20} />}
+                onClick={handleSubmit}
+                disabled={hasValidationErrors}
+              >
+                {existing ? 'Save' : 'Add'}
+              </HalfWidthButton>
+            </ButtonRow>
+          </Footer>
+        </ContentWrapper>
+      </Box>
     </Overlay>
   );
 }
