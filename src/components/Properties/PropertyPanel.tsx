@@ -18,9 +18,10 @@ import { Text } from '@/components/ui/Text';
 import { HiMiniXMark } from 'react-icons/hi2';
 import { Divider } from '@/components/ui/Divider';
 import { Button } from '../ui/Button';
-import { LuBath, LuDoorClosed } from 'react-icons/lu';
+import { LuBath, LuCopy, LuDoorClosed, LuPencil, LuTrash2 } from 'react-icons/lu';
 import { MdBalcony } from 'react-icons/md';
 import { InputWithAffix } from '@/components/ui/InputWithAffix';
+import { ContextMenu } from '@/components/ui/ContextMenu';
 
 const Field = styled.div`
   display: flex;
@@ -41,7 +42,6 @@ const MenuHeader = styled.div`
   align-items: center;
   padding: 24px;
   flex-shrink: 0;
-
 `;
 
 const MenuItem = styled.div`
@@ -70,9 +70,57 @@ const ScrollContent = styled.div`
 `;
 
 const Footer = styled.div`
-  flex-shrink: 0; /* Prevent footer from shrinking */
+  flex-shrink: 0;
   background: white;
   border-top: 1px solid #f1f5f9;
+`;
+
+// New styled components for item lists
+const ItemList = styled.ul`
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+`;
+
+const ItemRow = styled.li`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  position: relative;
+`;
+
+const ItemContent = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+`;
+
+const ItemIcon = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: #636df8;
+`;
+
+const ItemText = styled.div`
+  flex: 1;
+`;
+
+const ItemDescription = styled.span`
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.4;
 `;
 
 export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
@@ -87,12 +135,15 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
   const deleteModule = useObjectStore(s => s.deleteModule);
   const openingsAll = useObjectStore(s => s.openings);
   const deleteOpening = useObjectStore(s => s.deleteOpening);
+  const addOpening = useObjectStore(s => s.addOpening);
   const updateModule = useObjectStore(s => s.updateModule);
   const scaleFactor = useCanvasStore(s => s.scaleFactor);
   const bathroomPodsAll = useObjectStore(s => s.bathroomPods);
   const deleteBathroomPod = useObjectStore(s => s.deleteBathroomPod);
+  const addBathroomPod = useObjectStore(s => s.addBathroomPod);
   const balconiesAll = useObjectStore(s => s.balconies);
   const deleteBalcony = useObjectStore(s => s.deleteBalcony);
+  const addBalcony = useObjectStore(s => s.addBalcony);
   const { setTool } = useToolStore();
 
   const [addingBalcony, setAddingBalcony] = useState(false);
@@ -108,10 +159,6 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
   const balconies = balconiesAll.filter(b => b.moduleId === selectedModuleId);
 
   const [form, setForm] = useState({ name: '', width: '', length: '' });
-
-  useEffect(() => {
-    console.log('addingBalcony is changed: ', addingBalcony);
-  }, [addingBalcony]);
 
   useEffect(() => {
     if (module) {
@@ -169,10 +216,42 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
       });
 
       canvas?.requestRenderAll();
-
       deleteModule(module.id);
       useSelectionStore.getState().setSelectedModuleId(null);
     }
+  };
+
+  // Handle copy actions
+  const handleCopyOpening = (opening: any) => {
+    const newOpening = {
+      ...opening,
+      id: `opening_${Date.now()}`,
+      distanceAlongWall: opening.distanceAlongWall + 100, // Offset slightly
+    };
+    addOpening(newOpening);
+    canvas?.requestRenderAll();
+  };
+
+  const handleCopyBathroomPod = (pod: any) => {
+    const newPod = {
+      ...pod,
+      id: `BP${Date.now()}`,
+      name: `${pod.name}_copy`,
+      x_offset: pod.x_offset + 100, // Offset slightly
+    };
+    addBathroomPod(newPod);
+    canvas?.requestRenderAll();
+  };
+
+  const handleCopyBalcony = (balcony: any) => {
+    const newBalcony = {
+      ...balcony,
+      id: `BC${Date.now()}`,
+      name: `${balcony.name}_copy`,
+      distanceAlongWall: balcony.distanceAlongWall + 100, // Offset slightly
+    };
+    addBalcony(newBalcony);
+    canvas?.requestRenderAll();
   };
 
   const selectedGroup = canvas?.getActiveObject?.();
@@ -276,39 +355,47 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
           <Text weight={700} size={20}>
             Openings
           </Text>
-          <ul style={{ marginLeft: 28 }}>
-            {openings.map(o => (
-              <li key={o.id} style={{ marginBottom: 8 }}>
-                <span>
-                  Side {o.wallSide}, dist {o.distanceAlongWall} mm, y {o.yOffset} mm
-                </span>
-                <button
-                  style={{ marginLeft: 12 }}
-                  onClick={() => {
-                    setEditingOpeningId(o.id);
-                  }}
-                >
-                  Edit
-                </button>
-                <button
-                  style={{
-                    marginLeft: 6,
-                    color: 'white',
-                    background: '#ef4444',
-                    border: 'none',
-                    padding: '4px 8px',
-                    borderRadius: 4,
-                  }}
-                  onClick={() => {
-                    deleteOpening(o.id);
-                    canvas?.requestRenderAll();
-                  }}
-                >
-                  Delete
-                </button>
-              </li>
-            ))}
-          </ul>
+          {openings.length > 0 && (
+            <ItemList>
+              {openings.map(o => (
+                <ItemRow key={o.id}>
+                  <ItemContent>
+                    <ItemIcon>
+                      <LuDoorClosed size={16} />
+                    </ItemIcon>
+                    <ItemText>
+                      <ItemDescription>
+                        Side {o.wallSide}, dist {o.distanceAlongWall} mm, y {o.yOffset} mm
+                      </ItemDescription>
+                    </ItemText>
+                  </ItemContent>
+                  <ContextMenu
+                    items={[
+                      {
+                        label: 'Edit',
+                        icon: <LuPencil size={14} />,
+                        onClick: () => setEditingOpeningId(o.id),
+                      },
+                      {
+                        label: 'Copy',
+                        icon: <LuCopy size={14} />,
+                        onClick: () => handleCopyOpening(o),
+                      },
+                      {
+                        label: 'Delete',
+                        icon: <LuTrash2 size={14} />,
+                        onClick: () => {
+                          deleteOpening(o.id);
+                          canvas?.requestRenderAll();
+                        },
+                        danger: true,
+                      },
+                    ]}
+                  />
+                </ItemRow>
+              ))}
+            </ItemList>
+          )}
           <Button
             onClick={() => setAdding(true)}
             style={{ width: '100%' }}
@@ -325,40 +412,52 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
           <Text weight={700} size={20}>
             Bathroom Pods
           </Text>
-          <ul>
-            {bathroomPods.map(bp => (
-              <li key={bp.id} style={{ marginBottom: 8 }}>
-                {bp.name}: {bp.width}×{bp.length} mm @ ({bp.x_offset},{bp.y_offset})
-                <button
-                  style={{ marginLeft: 12 }}
-                  onClick={() => useSelectionStore.getState().setSelectedBathroomPodId(bp.id)}
-                >
-                  Edit
-                </button>
-                <button
-                  style={{
-                    marginLeft: 6,
-                    color: 'white',
-                    background: '#ef4444',
-                    border: 'none',
-                    padding: '4px 8px',
-                    borderRadius: 4,
-                  }}
-                  onClick={() => {
-                    deleteBathroomPod(bp.id);
-                    canvas?.requestRenderAll();
-                  }}
-                >
-                  Delete
-                </button>
-              </li>
-            ))}
-          </ul>
+          {bathroomPods.length > 0 && (
+            <ItemList>
+              {bathroomPods.map(bp => (
+                <ItemRow key={bp.id}>
+                  <ItemContent>
+                    <ItemIcon>
+                      <LuBath size={16} />
+                    </ItemIcon>
+                    <ItemText>
+                      <ItemDescription>
+                        {bp.name}: {bp.width}×{bp.length} mm @ ({bp.x_offset},{bp.y_offset})
+                      </ItemDescription>
+                    </ItemText>
+                  </ItemContent>
+                  <ContextMenu
+                    items={[
+                      {
+                        label: 'Edit',
+                        icon: <LuPencil size={14} />,
+                        onClick: () => useSelectionStore.getState().setSelectedBathroomPodId(bp.id),
+                      },
+                      {
+                        label: 'Copy',
+                        icon: <LuCopy size={14} />,
+                        onClick: () => handleCopyBathroomPod(bp),
+                      },
+                      {
+                        label: 'Delete',
+                        icon: <LuTrash2 size={14} />,
+                        onClick: () => {
+                          deleteBathroomPod(bp.id);
+                          canvas?.requestRenderAll();
+                        },
+                        danger: true,
+                      },
+                    ]}
+                  />
+                </ItemRow>
+              ))}
+            </ItemList>
+          )}
           <Button
             onClick={() => setTool('bathroomPod')}
             style={{ width: '100%' }}
             variant={'secondary'}
-            icon={<LuBath size={20}/>}
+            icon={<LuBath size={20} />}
           >
             Add Bathroom Pod
           </Button>
@@ -370,32 +469,47 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
           <Text weight={700} size={20}>
             Balconies
           </Text>
-          <ul>
-            {balconies.map(b => (
-              <li key={b.id} style={{ marginBottom: 8 }}>
-                {b.name}: {b.width}×{b.length} mm @ {b.distanceAlongWall} mm on side {b.wallSide}
-                <button style={{ marginLeft: 12 }} onClick={() => setEditingBalconyId(b.id)}>
-                  Edit
-                </button>
-                <button
-                  style={{
-                    marginLeft: 6,
-                    color: 'white',
-                    background: '#ef4444',
-                    border: 'none',
-                    padding: '4px 8px',
-                    borderRadius: 4,
-                  }}
-                  onClick={() => {
-                    deleteBalcony(b.id);
-                    canvas?.requestRenderAll();
-                  }}
-                >
-                  Delete
-                </button>
-              </li>
-            ))}
-          </ul>
+          {balconies.length > 0 && (
+            <ItemList>
+              {balconies.map(b => (
+                <ItemRow key={b.id}>
+                  <ItemContent>
+                    <ItemIcon>
+                      <MdBalcony size={16} />
+                    </ItemIcon>
+                    <ItemText>
+                      <ItemDescription>
+                        {b.name}: {b.width}×{b.length} mm @ {b.distanceAlongWall} mm on side {b.wallSide}
+                      </ItemDescription>
+                    </ItemText>
+                  </ItemContent>
+                  <ContextMenu
+                    items={[
+                      {
+                        label: 'Edit',
+                        icon: <LuPencil size={14} />,
+                        onClick: () => setEditingBalconyId(b.id),
+                      },
+                      {
+                        label: 'Copy',
+                        icon: <LuCopy size={14} />,
+                        onClick: () => handleCopyBalcony(b),
+                      },
+                      {
+                        label: 'Delete',
+                        icon: <LuTrash2 size={14} />,
+                        onClick: () => {
+                          deleteBalcony(b.id);
+                          canvas?.requestRenderAll();
+                        },
+                        danger: true,
+                      },
+                    ]}
+                  />
+                </ItemRow>
+              ))}
+            </ItemList>
+          )}
           <Button
             onClick={() => setAddingBalcony(true)}
             style={{ width: '100%' }}
