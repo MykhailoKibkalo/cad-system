@@ -450,7 +450,7 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
                       {
                         label: 'Edit',
                         icon: <LuPencil size={14} />,
-                        onClick: () => useSelectionStore.getState().setSelectedBathroomPodId(bp.id),
+                        onClick: () => setEditingBathroomPodId(bp.id),
                       },
                       // {
                       //   label: 'Copy',

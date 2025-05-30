@@ -47,7 +47,7 @@ const InputLabel = styled(Text)`
 const Preview = styled.div`
   position: relative;
   width: 100%;
-  height: 428px;
+  height: 406px;
   background: #f8f9fa;
   border: 1px solid #d1d5db;
   border-radius: 8px;
@@ -186,12 +186,57 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
   const isUpdatingFromCanvas = useRef(false);
   const currentScaleRef = useRef<number>(1);
 
+  // Predefined bathroom pod dimensions based on type
+  const getPodDefaults = useCallback(
+    (type: string) => {
+      const maxWidth = Math.min(module.width - 200, 3000); // Leave 200mm margin
+      const maxLength = Math.min(module.length - 200, 3000);
+
+      switch (type) {
+        case 'F': // Full Bathroom
+          return {
+            width: Math.min(2400, maxWidth),
+            length: Math.min(2200, maxLength),
+          };
+        case 'H': // Half Bathroom
+          return {
+            width: Math.min(1500, maxWidth),
+            length: Math.min(1800, maxLength),
+          };
+        case 'S': // Shower Only
+          return {
+            width: Math.min(1200, maxWidth),
+            length: Math.min(1200, maxLength),
+          };
+        case 'T': // Toilet Only
+          return {
+            width: Math.min(900, maxWidth),
+            length: Math.min(1400, maxLength),
+          };
+        default:
+          return {
+            width: Math.min(1500, maxWidth),
+            length: Math.min(1800, maxLength),
+          };
+      }
+    },
+    [module.width, module.length]
+  );
+
   // Form state - using bathroom pod field names
   const [podType, setPodType] = useState(existing?.type ?? 'F');
   const [xOffset, setXOffset] = useState(existing?.x_offset ?? 100);
   const [yOffset, setYOffset] = useState(existing?.y_offset ?? 100);
-  const [width, setWidth] = useState(existing?.width ?? Math.min(module.width / 3, 1500));
-  const [length, setLength] = useState(existing?.length ?? Math.min(module.length / 3, 2000));
+  const [width, setWidth] = useState(() => {
+    if (existing) return existing.width;
+    const defaults = getPodDefaults('F');
+    return defaults.width;
+  });
+  const [length, setLength] = useState(() => {
+    if (existing) return existing.length;
+    const defaults = getPodDefaults('F');
+    return defaults.length;
+  });
 
   // Validation state
   const [validationErrors, setValidationErrors] = useState<{
@@ -210,39 +255,30 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
     [module.width, module.length]
   );
 
-  // Validation logic with 50mm grid snapping requirement
+  // Validation logic with 1mm precision (no grid requirement)
   useEffect(() => {
     const errors: typeof validationErrors = {};
-    const gridSize = 50; // 50mm grid requirement
 
     if (width <= 0) {
       errors.width = 'Width must be greater than 0';
-    } else if (width % gridSize !== 0) {
-      errors.width = `Width must be a multiple of ${gridSize} mm`;
     } else if (width > moduleDimensions.width) {
       errors.width = `Width must be ≤${moduleDimensions.width} mm`;
     }
 
     if (length <= 0) {
       errors.length = 'Length must be greater than 0';
-    } else if (length % gridSize !== 0) {
-      errors.length = `Length must be a multiple of ${gridSize} mm`;
     } else if (length > moduleDimensions.height) {
       errors.length = `Length must be ≤${moduleDimensions.height} mm`;
     }
 
     if (xOffset < 0) {
       errors.xOffset = 'X-position cannot be negative';
-    } else if (xOffset % gridSize !== 0) {
-      errors.xOffset = `X-position must be a multiple of ${gridSize} mm`;
     } else if (xOffset + width > moduleDimensions.width) {
       errors.xOffset = `X-position + width must be ≤${moduleDimensions.width} mm`;
     }
 
     if (yOffset < 0) {
       errors.yOffset = 'Y-position cannot be negative';
-    } else if (yOffset % gridSize !== 0) {
-      errors.yOffset = `Y-position must be a multiple of ${gridSize} mm`;
     } else if (yOffset + length > moduleDimensions.height) {
       errors.yOffset = `Y-position + length must be ≤${moduleDimensions.height} mm`;
     }
@@ -337,17 +373,15 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
     podObjectRef.current = podRect;
     canvas.add(podRect);
 
-    // Canvas event handlers with 50mm grid snapping
-    const gridSize = 50; // 50mm grid
-
+    // Canvas event handlers with 1mm precision
     const onObjectMoving = (e: any) => {
       const obj = e.target;
       if (obj !== podObjectRef.current) return;
 
       const moduleFloor = moduleFloorRef.current!;
 
-      // Apply 50mm grid snapping
-      const gridPx = gridSize * currentScaleRef.current;
+      // Apply 1mm grid snapping (convert 1mm to canvas pixels)
+      const gridPx = currentScaleRef.current; // 1mm in canvas pixels
       let left = Math.round(obj.left / gridPx) * gridPx;
       let top = Math.round(obj.top / gridPx) * gridPx;
 
@@ -382,8 +416,8 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
       const scaledWidth = obj.width * obj.scaleX;
       const scaledHeight = obj.height * obj.scaleY;
 
-      // Apply 50mm grid snapping to dimensions
-      const gridPx = gridSize * currentScaleRef.current;
+      // Apply 1mm grid snapping to dimensions
+      const gridPx = currentScaleRef.current; // 1mm in canvas pixels
       const snappedWidth = Math.max(gridPx, Math.round(scaledWidth / gridPx) * gridPx);
       const snappedHeight = Math.max(gridPx, Math.round(scaledHeight / gridPx) * gridPx);
 
@@ -422,18 +456,11 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
       const newWidth = Math.round(finalWidth * scaleX);
       const newLength = Math.round(finalHeight * scaleY);
 
-      // Snap to 50mm grid
-      const gridSize = 50;
-      const snappedXOffset = Math.round(newXOffset / gridSize) * gridSize;
-      const snappedYOffset = Math.round(newYOffset / gridSize) * gridSize;
-      const snappedWidth = Math.round(newWidth / gridSize) * gridSize;
-      const snappedLength = Math.round(newLength / gridSize) * gridSize;
-
       // Update form state
-      setXOffset(Math.max(0, snappedXOffset));
-      setYOffset(Math.max(0, snappedYOffset));
-      setWidth(Math.max(gridSize, snappedWidth));
-      setLength(Math.max(gridSize, snappedLength));
+      setXOffset(Math.max(0, newXOffset));
+      setYOffset(Math.max(0, newYOffset));
+      setWidth(Math.max(1, newWidth));
+      setLength(Math.max(1, newLength));
 
       // Normalize the object to have scale 1:1 with new dimensions
       obj.set({
@@ -562,6 +589,16 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
     updateCanvasObjects();
   }, [updateCanvasObjects]);
 
+  // Apply predefined dimensions when pod type changes (only for new pods)
+  useEffect(() => {
+    if (!existing) {
+      // Only apply defaults for new pods, not when editing
+      const defaults = getPodDefaults(podType);
+      setWidth(defaults.width);
+      setLength(defaults.length);
+    }
+  }, [podType, existing, getPodDefaults]);
+
   const onSubmit = () => {
     if (Object.keys(validationErrors).length > 0) return;
 
@@ -659,14 +696,9 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
                       label="Width"
                       suffix="mm"
                       type="number"
-                      min={50}
-                      step={50}
+                      min={1}
                       value={width}
-                      onChange={e => {
-                        const val = Math.max(50, +e.target.value);
-                        const snapped = Math.round(val / 50) * 50;
-                        setWidth(snapped);
-                      }}
+                      onChange={e => setWidth(Math.max(1, +e.target.value))}
                       error={validationErrors.width}
                     />
                     {!validationErrors.width && <SuccessMessage>Maximum: {moduleDimensions.width} mm</SuccessMessage>}
@@ -676,14 +708,9 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
                       label="Length"
                       suffix="mm"
                       type="number"
-                      min={50}
-                      step={50}
+                      min={1}
                       value={length}
-                      onChange={e => {
-                        const val = Math.max(50, +e.target.value);
-                        const snapped = Math.round(val / 50) * 50;
-                        setLength(snapped);
-                      }}
+                      onChange={e => setLength(Math.max(1, +e.target.value))}
                       error={validationErrors.length}
                     />
                     {!validationErrors.length && <SuccessMessage>Maximum: {moduleDimensions.height} mm</SuccessMessage>}
@@ -703,13 +730,8 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
                       suffix="mm"
                       type="number"
                       min={0}
-                      step={50}
                       value={xOffset}
-                      onChange={e => {
-                        const val = Math.max(0, +e.target.value);
-                        const snapped = Math.round(val / 50) * 50;
-                        setXOffset(snapped);
-                      }}
+                      onChange={e => setXOffset(Math.max(0, +e.target.value))}
                       error={validationErrors.xOffset}
                     />
                     {!validationErrors.xOffset && (
@@ -722,13 +744,8 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
                       suffix="mm"
                       type="number"
                       min={0}
-                      step={50}
                       value={yOffset}
-                      onChange={e => {
-                        const val = Math.max(0, +e.target.value);
-                        const snapped = Math.round(val / 50) * 50;
-                        setYOffset(snapped);
-                      }}
+                      onChange={e => setYOffset(Math.max(0, +e.target.value))}
                       error={validationErrors.yOffset}
                     />
                     {!validationErrors.yOffset && (
