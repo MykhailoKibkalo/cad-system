@@ -15,20 +15,117 @@ import { useToolStore } from '@/state/toolStore';
 import GroupProperties from '@/components/Properties/GroupProperties';
 import BalconyProperties from '@/components/Properties/BalconyProperties';
 import BalconyEditor from '@/components/Properties/BalconyEditor';
+import { Text } from '@/components/ui/Text';
+import { HiMiniXMark } from 'react-icons/hi2';
+import { Divider } from '@/components/ui/Divider';
+import { Button } from '../ui/Button';
+import { LuBath, LuDoorClosed, LuPencil, LuTrash2 } from 'react-icons/lu';
+import { MdBalcony } from 'react-icons/md';
+import { InputWithAffix } from '@/components/ui/InputWithAffix';
+import { ContextMenu } from '@/components/ui/ContextMenu';
+import BathroomPodEditor from '@/components/Properties/BathroomPodEditor';
 
 const Field = styled.div`
-  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
 `;
+
 const Label = styled.label`
   display: block;
-  font-size: 14px;
+  font-size: 16px;
   margin-bottom: 4px;
 `;
-const Input = styled.input`
+
+const MenuHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px;
+  flex-shrink: 0;
+`;
+
+const MenuItem = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 24px;
   width: 100%;
-  padding: 6px;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
+  gap: 16px;
+  border-top: 1px solid #f1f5f9;
+`;
+
+const Row = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+`;
+
+const ScrollContent = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  overflow-y: auto;
+  min-height: 0;
+`;
+
+const Footer = styled.div`
+  flex-shrink: 0;
+  background: white;
+  border-top: 1px solid #f1f5f9;
+`;
+
+// New styled components for item lists
+const ItemList = styled.ul`
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+`;
+
+const ItemRow = styled.li`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 16px;
+  border-radius: 8px;
+  position: relative;
+  transition: all 0.2s;
+
+  :hover {
+    background: #f8fafc;
+  }
+`;
+
+const ItemContent = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+`;
+
+const ItemIcon = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: #636df8;
+`;
+
+const ItemText = styled.div`
+  flex: 1;
+`;
+
+const ItemDescription = styled.span`
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.4;
 `;
 
 export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
@@ -39,25 +136,28 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
   const [adding, setAdding] = useState(false);
   const [editingOpeningId, setEditingOpeningId] = useState<string | null>(null);
 
-  // Беремо тільки сирі масиви з боку
   const modules = useObjectStore(s => s.modules);
   const deleteModule = useObjectStore(s => s.deleteModule);
   const openingsAll = useObjectStore(s => s.openings);
   const deleteOpening = useObjectStore(s => s.deleteOpening);
+  const addOpening = useObjectStore(s => s.addOpening);
   const updateModule = useObjectStore(s => s.updateModule);
   const scaleFactor = useCanvasStore(s => s.scaleFactor);
   const bathroomPodsAll = useObjectStore(s => s.bathroomPods);
   const deleteBathroomPod = useObjectStore(s => s.deleteBathroomPod);
+  const addBathroomPod = useObjectStore(s => s.addBathroomPod);
   const balconiesAll = useObjectStore(s => s.balconies);
   const deleteBalcony = useObjectStore(s => s.deleteBalcony);
+  const addBalcony = useObjectStore(s => s.addBalcony);
   const { setTool } = useToolStore();
 
   const [addingBalcony, setAddingBalcony] = useState(false);
   const [editingBalconyId, setEditingBalconyId] = useState<string | null>(null);
 
-  // Мемоізовано вибраний модуль
+  const [addingBathroomPod, setAddingBathroomPod] = useState(false);
+  const [editingBathroomPodId, setEditingBathroomPodId] = useState<string | null>(null);
+
   const module = useMemo(() => modules.find(m => m.id === selectedModuleId) ?? null, [modules, selectedModuleId]);
-  // відкриття, що належать модулю
   const openings = useMemo(
     () => openingsAll.filter(o => o.moduleId === selectedModuleId),
     [openingsAll, selectedModuleId]
@@ -68,11 +168,6 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
 
   const [form, setForm] = useState({ name: '', width: '', length: '' });
 
-  useEffect(() => {
-    console.log('addingBalcony is changed: ', addingBalcony);
-  }, [addingBalcony]);
-
-  // Синхронізуємо форму при зміні module
   useEffect(() => {
     if (module) {
       setForm({
@@ -94,7 +189,6 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
     if (field === 'showBorder') {
       const show = e.target.checked;
       updateModule(module.id, { showBorder: show });
-      // знайти rect і оновити
       const obj = canvas?.getObjects().find(o => (o as any).isModule === module.id);
       obj?.set({ strokeWidth: show ? 2 : 0 });
       canvas?.requestRenderAll();
@@ -106,7 +200,6 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
       const num = parseFloat(v);
       if (isNaN(num)) return;
       updates[field] = num;
-      // Знайти об’єкт на канвасі
       const obj = canvas?.getObjects().find(o => (o as any).isModule === module.id);
       if (obj) {
         if (field === 'width') obj.set({ width: num * scaleFactor });
@@ -120,7 +213,6 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
 
   const onDeleteModule = () => {
     if (module && module.id) {
-      // 1) Видаляємо з canvas всі об’єкти, що належать модулю:
       canvas?.getObjects().forEach(o => {
         const anyO = o as any;
         if (anyO.isModule === module.id) {
@@ -132,23 +224,66 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
       });
 
       canvas?.requestRenderAll();
-
-      // 2) Видаляємо зі стору модуль + каскадно — всі його openings
       deleteModule(module.id);
-      // 3) Скидаємо selection
       useSelectionStore.getState().setSelectedModuleId(null);
     }
   };
 
+  // Handle copy actions
+  const handleCopyOpening = (opening: any) => {
+    const newOpening = {
+      ...opening,
+      id: `opening_${Date.now()}`,
+      distanceAlongWall: opening.distanceAlongWall + 100, // Offset slightly
+    };
+    addOpening(newOpening);
+    canvas?.requestRenderAll();
+  };
+
+  const handleCopyBathroomPod = (pod: any) => {
+    const newPod = {
+      ...pod,
+      id: `BP${Date.now()}`,
+      name: `${pod.name}_copy`,
+      x_offset: pod.x_offset + 100, // Offset slightly
+    };
+    addBathroomPod(newPod);
+    canvas?.requestRenderAll();
+  };
+
+  const handleCopyBalcony = (balcony: any) => {
+    const newBalcony = {
+      ...balcony,
+      id: `BC${Date.now()}`,
+      name: `${balcony.name}_copy`,
+      distanceAlongWall: balcony.distanceAlongWall + 100, // Offset slightly
+    };
+    addBalcony(newBalcony);
+    canvas?.requestRenderAll();
+  };
+
+  // Check for group selection first
   const selectedGroup = canvas?.getActiveObject?.();
   if (selectedGroup && (selectedGroup as any).type === 'group' && canvas) {
     return <GroupProperties canvas={canvas} />;
   }
 
+  // Check for balcony selection - this should come before checking other selections
+  if (selectedBalconyId && canvas) {
+    return <BalconyProperties canvas={canvas} />;
+  }
+
+  // Check for corridor selection
   if (selectedCorridorId && canvas) {
     return <CorridorProperties canvas={canvas} />;
   }
 
+  // Check for bathroom pod selection
+  if (selectedBathroomPodId && canvas) {
+    return <BathroomPodProperties canvas={canvas} />;
+  }
+
+  // Check for opening editor
   if (editingOpeningId && selectedModuleId) {
     return (
       <OpeningEditor
@@ -159,11 +294,12 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
     );
   }
 
+  // Check for balcony editor
   if (editingBalconyId && module) {
     return (
       <BalconyEditor
         module={module}
-        balconyId={editingBalconyId} // нова пропса
+        balconyId={editingBalconyId}
         onSave={updated => {
           setEditingBalconyId(null);
           canvas?.requestRenderAll();
@@ -173,162 +309,269 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
     );
   }
 
-  // Якщо обрано BathroomPod — показуємо власну панель
-  if (selectedBathroomPodId && canvas) {
-    return <BathroomPodProperties canvas={canvas} />;
-  }
-
+  // If no module is selected, don't show the panel
   if (!module) return null;
 
   return (
     <Panel>
-      <h3>Module Properties</h3>
-      <Field>
-        <Label htmlFor="prop-name">Name</Label>
-        <Input id="prop-name" value={form.name} onChange={onChange('name')} />
-      </Field>
+      {/* Fixed Header */}
+      <MenuHeader>
+        <Text weight={700} size={24}>
+          Module Properties
+        </Text>
+        <HiMiniXMark
+          style={{ cursor: 'pointer' }}
+          onClick={() => useSelectionStore.getState().setSelectedModuleId(null)}
+          size={24}
+        />
+      </MenuHeader>
 
-      <Field>
-        <Label htmlFor="prop-showBorder">
-          <input id="prop-showBorder" type="checkbox" checked={!!module.showBorder} onChange={onChange('showBorder')} />
-          Show Border
-        </Label>
-      </Field>
+      {/* Scrollable Content */}
+      <ScrollContent>
+        <MenuItem>
+          <Text weight={700} size={20}>
+            Information
+          </Text>
+          <Field>
+            <Text size={16}>Name</Text>
+            <InputWithAffix value={form.name} onChange={onChange('name')} />
+          </Field>
+        </MenuItem>
 
-      <Field>
-        <Label htmlFor="prop-width">Width (mm)</Label>
-        <Input id="prop-width" type="number" value={form.width} onChange={onChange('width')} />
-      </Field>
-      <Field>
-        <Label htmlFor="prop-length">Length (mm)</Label>
-        <Input id="prop-length" type="number" value={form.length} onChange={onChange('length')} />
-      </Field>
+        <Divider orientation={'horizontal'} />
 
-      <h4>Openings</h4>
-      <ul>
-        {openings.map(o => (
-          <li key={o.id} style={{ marginBottom: 8 }}>
-            <span>
-              Side {o.wallSide}, dist {o.distanceAlongWall} mm, y {o.yOffset} mm
-            </span>
-            <button
-              style={{ marginLeft: 12 }}
-              onClick={() => {
-                setEditingOpeningId(o.id);
-              }}
-            >
-              Edit
-            </button>
-            <button
-              style={{
-                marginLeft: 6,
-                color: 'white',
-                background: '#ef4444',
-                border: 'none',
-                padding: '4px 8px',
-                borderRadius: 4,
-              }}
-              onClick={() => {
-                deleteOpening(o.id);
-                // після видалення перемалювати полотно:
-                canvas?.requestRenderAll();
-              }}
-            >
-              Delete
-            </button>
-          </li>
-        ))}
-      </ul>
-      <button onClick={() => setAdding(true)}>Add Opening</button>
+        <MenuItem>
+          <Text weight={700} size={20}>
+            Dimensions
+          </Text>
+          <Row>
+            <Field>
+              <Label htmlFor="prop-width">Width</Label>
+              <InputWithAffix
+                suffix={'mm'}
+                id="prop-width"
+                type="number"
+                value={form.width}
+                onChange={onChange('width')}
+              />
+            </Field>
+            <Field>
+              <Label htmlFor="prop-length">Length</Label>
+              <InputWithAffix
+                suffix={'mm'}
+                id="prop-length"
+                type="number"
+                value={form.length}
+                onChange={onChange('length')}
+              />
+            </Field>
+          </Row>
+        </MenuItem>
 
-      <h4>Bathroom Pods</h4>
-      <ul>
-        {bathroomPods.map(bp => (
-          <li key={bp.id} style={{ marginBottom: 8 }}>
-            {bp.name}: {bp.width}×{bp.length} mm @ ({bp.x_offset},{bp.y_offset})
-            <button
-              style={{ marginLeft: 12 }}
-              onClick={() => useSelectionStore.getState().setSelectedBathroomPodId(bp.id)}
-            >
-              Edit
-            </button>
-            <button
-              style={{
-                marginLeft: 6,
-                color: 'white',
-                background: '#ef4444',
-                border: 'none',
-                padding: '4px 8px',
-                borderRadius: 4,
-              }}
-              onClick={() => {
-                deleteBathroomPod(bp.id);
-                canvas?.requestRenderAll();
-              }}
-            >
-              Delete
-            </button>
-          </li>
-        ))}
-      </ul>
-      <button onClick={() => setTool('bathroomPod')}>Add Bathroom Pod</button>
+        <Divider orientation={'horizontal'} />
 
-      <h4>Balconies</h4>
-      <ul>
-        {balconies.map(b => (
-          <li key={b.id} style={{ marginBottom: 8 }}>
-            {b.name}: {b.width}×{b.length} mm @ {b.distanceAlongWall} mm on side {b.wallSide}
-            <button style={{ marginLeft: 12 }} onClick={() => setEditingBalconyId(b.id)}>
-              Edit
-            </button>
-            <button
-              style={{
-                marginLeft: 6,
-                color: 'white',
-                background: '#ef4444',
-                border: 'none',
-                padding: '4px 8px',
-                borderRadius: 4,
-              }}
-              onClick={() => {
-                deleteBalcony(b.id);
-                canvas?.requestRenderAll();
-              }}
-            >
-              Delete
-            </button>
-          </li>
-        ))}
-      </ul>
-      <button onClick={() => setAddingBalcony(true)}>Add Balcony</button>
+        <MenuItem>
+          <Text weight={700} size={20}>
+            Openings
+          </Text>
+          {openings.length > 0 && (
+            <ItemList>
+              {openings.map(o => (
+                <ItemRow key={o.id}>
+                  <ItemContent>
+                    <ItemIcon>
+                      <LuDoorClosed color={'#64748b'} size={16} />
+                    </ItemIcon>
+                    <ItemText>
+                      <ItemDescription>
+                        Side {o.wallSide}, dist {o.distanceAlongWall} mm, y {o.yOffset} mm
+                      </ItemDescription>
+                    </ItemText>
+                  </ItemContent>
+                  <ContextMenu
+                    items={[
+                      {
+                        label: 'Edit',
+                        icon: <LuPencil size={14} />,
+                        onClick: () => setEditingOpeningId(o.id),
+                      },
+                      // {
+                      //   label: 'Copy',
+                      //   icon: <LuCopy size={14} />,
+                      //   onClick: () => handleCopyOpening(o),
+                      // },
+                      {
+                        label: 'Delete',
+                        icon: <LuTrash2 size={14} />,
+                        onClick: () => {
+                          deleteOpening(o.id);
+                          canvas?.requestRenderAll();
+                        },
+                        danger: true,
+                      },
+                    ]}
+                  />
+                </ItemRow>
+              ))}
+            </ItemList>
+          )}
+          <Button
+            onClick={() => setAdding(true)}
+            style={{ width: '100%' }}
+            variant={'secondary'}
+            icon={<LuDoorClosed size={20} />}
+          >
+            Add Opening
+          </Button>
+        </MenuItem>
 
-        {addingBalcony && (
-            <BalconyEditor
-                module={module}
-                onSave={() => {
-                    setAddingBalcony(false);
-                    canvas?.requestRenderAll();
-                }}
-                onCancel={() => setAddingBalcony(false)}
-            />
-        )}
+        <Divider orientation={'horizontal'} />
 
-      {selectedBalconyId && canvas && <BalconyProperties canvas={canvas} />}
+        <MenuItem>
+          <Text weight={700} size={20}>
+            Bathroom Pods
+          </Text>
+          {bathroomPods.length > 0 && (
+            <ItemList>
+              {bathroomPods.map(bp => (
+                <ItemRow key={bp.id}>
+                  <ItemContent>
+                    <ItemIcon>
+                      <LuBath color={'#64748b'} size={16} />
+                    </ItemIcon>
+                    <ItemText>
+                      <ItemDescription>
+                        {bp.name}: {bp.width}×{bp.length} mm @ ({bp.x_offset},{bp.y_offset})
+                      </ItemDescription>
+                    </ItemText>
+                  </ItemContent>
+                  <ContextMenu
+                    items={[
+                      {
+                        label: 'Edit',
+                        icon: <LuPencil size={14} />,
+                        onClick: () => setEditingBathroomPodId(bp.id),
+                      },
+                      // {
+                      //   label: 'Copy',
+                      //   icon: <LuCopy size={14} />,
+                      //   onClick: () => handleCopyBathroomPod(bp),
+                      // },
+                      {
+                        label: 'Delete',
+                        icon: <LuTrash2 size={14} />,
+                        onClick: () => {
+                          deleteBathroomPod(bp.id);
+                          canvas?.requestRenderAll();
+                        },
+                        danger: true,
+                      },
+                    ]}
+                  />
+                </ItemRow>
+              ))}
+            </ItemList>
+          )}
+          <Button
+            onClick={() => setAddingBathroomPod(true)}
+            style={{ width: '100%' }}
+            variant={'secondary'}
+            icon={<LuBath size={20} />}
+          >
+            Add Bathroom Pod
+          </Button>
+        </MenuItem>
 
-      <div style={{ marginTop: 16, borderTop: '1px solid #ddd', paddingTop: 12 }}>
-        <button
-          style={{
-            background: '#ef4444',
-            color: 'white',
-            padding: '6px 12px',
-            border: 'none',
-            borderRadius: 4,
+        <Divider orientation={'horizontal'} />
+
+        <MenuItem>
+          <Text weight={700} size={20}>
+            Balconies
+          </Text>
+          {balconies.length > 0 && (
+            <ItemList>
+              {balconies.map(b => (
+                <ItemRow key={b.id}>
+                  <ItemContent>
+                    <ItemIcon>
+                      <MdBalcony color={'#64748b'} size={16} />
+                    </ItemIcon>
+                    <ItemText>
+                      <ItemDescription>
+                        {b.name}: {b.width}×{b.length} mm @ {b.distanceAlongWall} mm on side {b.wallSide}
+                      </ItemDescription>
+                    </ItemText>
+                  </ItemContent>
+                  <ContextMenu
+                    items={[
+                      {
+                        label: 'Edit',
+                        icon: <LuPencil size={14} />,
+                        onClick: () => setEditingBalconyId(b.id),
+                      },
+                      // {
+                      //   label: 'Copy',
+                      //   icon: <LuCopy size={14} />,
+                      //   onClick: () => handleCopyBalcony(b),
+                      // },
+                      {
+                        label: 'Delete',
+                        icon: <LuTrash2 size={14} />,
+                        onClick: () => {
+                          deleteBalcony(b.id);
+                          canvas?.requestRenderAll();
+                        },
+                        danger: true,
+                      },
+                    ]}
+                  />
+                </ItemRow>
+              ))}
+            </ItemList>
+          )}
+          <Button
+            onClick={() => setAddingBalcony(true)}
+            style={{ width: '100%' }}
+            variant={'secondary'}
+            icon={<MdBalcony size={20} />}
+          >
+            Add Balcony
+          </Button>
+        </MenuItem>
+      </ScrollContent>
+
+      {/* Fixed Footer */}
+      <Footer>
+        <MenuItem>
+          <Button style={{ width: '100%' }} variant={'danger'} onClick={onDeleteModule}>
+            Delete Module
+          </Button>
+        </MenuItem>
+      </Footer>
+
+      {/* Modals/Overlays */}
+      {addingBalcony && (
+        <BalconyEditor
+          module={module}
+          onSave={() => {
+            setAddingBalcony(false);
+            canvas?.requestRenderAll();
           }}
-          onClick={onDeleteModule}
-        >
-          Delete Module
-        </button>
-      </div>
+          onCancel={() => setAddingBalcony(false)}
+        />
+      )}
+
+      {addingBathroomPod && module && (
+        <BathroomPodEditor moduleId={module.id} onClose={() => setAddingBathroomPod(false)} />
+      )}
+      {editingBathroomPodId && module && (
+        <BathroomPodEditor
+          moduleId={module.id}
+          podId={editingBathroomPodId}
+          onClose={() => setEditingBathroomPodId(null)}
+        />
+      )}
+
       {adding && <OpeningEditor moduleId={module.id} onClose={() => setAdding(false)} />}
     </Panel>
   );

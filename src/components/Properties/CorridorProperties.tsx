@@ -8,21 +8,63 @@ import { useObjectStore } from '@/state/objectStore';
 import { useCanvasStore } from '@/state/canvasStore';
 import type { Canvas } from 'fabric';
 import { Corridor } from '@/types/geometry';
-import {Panel} from "@/components/ui/Panel";
+import { Panel } from '@/components/ui/Panel';
+import { Text } from '@/components/ui/Text';
+import { Button } from '@/components/ui/Button';
+import { Divider } from '@/components/ui/Divider';
+import { HiMiniXMark } from 'react-icons/hi2';
+import { LuSave, LuTrash2 } from 'react-icons/lu';
+import {Input} from "@/components/ui/InputWithAffix";
 
-const Field = styled.div`
-  margin-bottom: 12px;
+const MenuHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px;
+  flex-shrink: 0;
+  background: white;
+  border-bottom: 1px solid #f1f5f9;
 `;
-const Label = styled.label`
-  display: block;
-  font-size: 14px;
-  margin-bottom: 4px;
-`;
-const Input = styled.input`
+
+const MenuItem = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 24px;
   width: 100%;
-  padding: 6px;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
+  gap: 16px;
+`;
+
+const Row = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  width: 100%;
+`;
+
+const ScrollContent = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  overflow-y: auto;
+  min-height: 0;
+`;
+
+const Footer = styled.div`
+  flex-shrink: 0;
+  background: white;
+  border-top: 1px solid #f1f5f9;
+`;
+
+const ButtonRow = styled.div`
+  display: flex;
+  width: 100%;
+  gap: 12px;
+`;
+
+const HalfButton = styled(Button)`
+  flex: 1;
 `;
 
 export default function CorridorProperties({ canvas }: { canvas: Canvas }) {
@@ -35,22 +77,33 @@ export default function CorridorProperties({ canvas }: { canvas: Canvas }) {
 
   const corridor: Corridor = useMemo(() => corridors.find(c => c.id === corridorId)!, [corridors, corridorId]);
 
-  const [x1, setX1] = useState(corridor.x1);
-  const [y1, setY1] = useState(corridor.y1);
-  const [x2, setX2] = useState(corridor.x2);
-  const [y2, setY2] = useState(corridor.y2);
-  const [floor, setFloor] = useState(corridor.floor);
+  const [form, setForm] = useState({
+    x1: corridor.x1,
+    y1: corridor.y1,
+    x2: corridor.x2,
+    y2: corridor.y2,
+    floor: corridor.floor,
+  });
 
   useEffect(() => {
-    setX1(corridor.x1);
-    setY1(corridor.y1);
-    setX2(corridor.x2);
-    setY2(corridor.y2);
-    setFloor(corridor.floor);
+    setForm({
+      x1: corridor.x1,
+      y1: corridor.y1,
+      x2: corridor.x2,
+      y2: corridor.y2,
+      floor: corridor.floor,
+    });
   }, [corridor]);
 
+  const onChange = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseFloat(e.target.value);
+    if (!isNaN(value)) {
+      setForm(prev => ({ ...prev, [field]: value }));
+    }
+  };
+
   const onSave = () => {
-    updateCorridor(corridor.id, { x1, y1, x2, y2, floor });
+    updateCorridor(corridor.id, form);
     canvas.requestRenderAll();
   };
 
@@ -65,45 +118,74 @@ export default function CorridorProperties({ canvas }: { canvas: Canvas }) {
     setSelCorridor(null);
   };
 
+  const onClose = () => {
+    setSelCorridor(null);
+  };
+
   return (
     <Panel>
-      <h3>Corridor Properties</h3>
+      {/* Fixed Header */}
+      <MenuHeader>
+        <Text weight={700} size={24}>
+          Corridor Properties
+        </Text>
+        <HiMiniXMark style={{ cursor: 'pointer' }} onClick={onClose} size={24} />
+      </MenuHeader>
 
-      <Field>
-        <Label>X1 (mm)</Label>
-        <Input type="number" value={x1} onChange={e => setX1(+e.target.value)} />
-      </Field>
-      <Field>
-        <Label>Y1 (mm)</Label>
-        <Input type="number" value={y1} onChange={e => setY1(+e.target.value)} />
-      </Field>
-      <Field>
-        <Label>X2 (mm)</Label>
-        <Input type="number" value={x2} onChange={e => setX2(+e.target.value)} />
-      </Field>
-      <Field>
-        <Label>Y2 (mm)</Label>
-        <Input type="number" value={y2} onChange={e => setY2(+e.target.value)} />
-      </Field>
-      <Field>
-        <Label>Floor</Label>
-        <Input type="number" min={1} value={floor} onChange={e => setFloor(+e.target.value)} />
-      </Field>
+      {/* Scrollable Content */}
+      <ScrollContent>
+        <MenuItem>
+          <Text weight={700} size={20}>
+            Start Point
+          </Text>
+          <Row>
+            <Input label="X1" suffix="mm" type="number" value={form.x1.toString()} onChange={onChange('x1')} />
+            <Input label="Y1" suffix="mm" type="number" value={form.y1.toString()} onChange={onChange('y1')} />
+          </Row>
+        </MenuItem>
 
-      <button onClick={onSave}>Save</button>
-      <button
-        style={{
-          marginLeft: 8,
-          background: '#ef4444',
-          color: 'white',
-          border: 'none',
-          padding: '6px 12px',
-          borderRadius: 4,
-        }}
-        onClick={onDelete}
-      >
-        Delete
-      </button>
+        <Divider orientation="horizontal" />
+
+        <MenuItem>
+          <Text weight={700} size={20}>
+            End Point
+          </Text>
+          <Row>
+            <Input label="X2" suffix="mm" type="number" value={form.x2.toString()} onChange={onChange('x2')} />
+            <Input label="Y2" suffix="mm" type="number" value={form.y2.toString()} onChange={onChange('y2')} />
+          </Row>
+        </MenuItem>
+
+        <Divider orientation="horizontal" />
+
+        <MenuItem>
+          <Text weight={700} size={20}>
+            Details
+          </Text>
+          <Input
+            label="Floor"
+            type="number"
+            min={1}
+            value={form.floor.toString()}
+            onChange={onChange('floor')}
+            inputWidth="120px"
+          />
+        </MenuItem>
+      </ScrollContent>
+
+      {/* Fixed Footer */}
+      <Footer>
+        <MenuItem>
+          <ButtonRow>
+            <HalfButton variant="danger" icon={<LuTrash2 size={18} />} onClick={onDelete}>
+              Delete
+            </HalfButton>
+            <HalfButton variant="primary" icon={<LuSave size={18} />} onClick={onSave}>
+              Save
+            </HalfButton>
+          </ButtonRow>
+        </MenuItem>
+      </Footer>
     </Panel>
   );
 }

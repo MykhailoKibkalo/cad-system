@@ -10,6 +10,7 @@ const Btn = styled.button`
   color: white;
   border-radius: 4px;
   opacity: ${({ active }: { active: boolean }) => (active ? 1 : 0.7)};
+
 `;
 
 export default function AddModuleButton() {
