@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import styled from '@emotion/styled';
 import type { Balcony, Module } from '@/types/geometry';
 import { useObjectStore } from '@/state/objectStore';
+import { useCanvasStore } from '@/state/canvasStore';
 import { Text } from '@/components/ui/Text';
 import { HiMiniXMark } from 'react-icons/hi2';
 import { Divider } from '@/components/ui/Divider';
@@ -122,6 +123,7 @@ export default function BalconyEditor({ module, balconyId, onSave, onCancel }: P
   const addBalcony = useObjectStore(s => s.addBalcony);
   const updateBalcony = useObjectStore(s => s.updateBalcony);
   const balconies = useObjectStore(s => s.balconies);
+  const { snapMode, gridSizeMm } = useCanvasStore();
 
   const existing = useMemo(() => {
     return balconyId ? balconies.find(b => b.id === balconyId) : null;
@@ -129,8 +131,8 @@ export default function BalconyEditor({ module, balconyId, onSave, onCancel }: P
 
   const [form, setForm] = useState({
     wallSide: existing?.wallSide ?? (1 as 1 | 2 | 3 | 4),
-    width: existing?.width?.toString() ?? '1000',
-    length: existing?.length?.toString() ?? '1500',
+    width: existing?.width?.toString() ?? '500',
+    length: existing?.length?.toString() ?? '500',
     distanceAlongWall: existing?.distanceAlongWall?.toString() ?? '0',
   });
 
@@ -166,6 +168,16 @@ export default function BalconyEditor({ module, balconyId, onSave, onCancel }: P
     };
   }, [module, form.wallSide]);
 
+  // Helper function to validate grid snapping
+  const validateGridSnap = (value: number, fieldName: string): string | null => {
+    if (snapMode === 'grid' && gridSizeMm > 0) {
+      if (value % gridSizeMm !== 0) {
+        return `${fieldName} must be a multiple of ${gridSizeMm} mm (grid size)`;
+      }
+    }
+    return null;
+  };
+
   // Real-time validation
   useEffect(() => {
     const errors: typeof validationErrors = {};
@@ -175,34 +187,51 @@ export default function BalconyEditor({ module, balconyId, onSave, onCancel }: P
     const distanceValue = parseFloat(form.distanceAlongWall);
 
     // Validate width
-    if (isNaN(widthValue) || widthValue <= 0) {
+    if (!form.width.trim() || isNaN(widthValue)) {
+      errors.width = 'Width is required';
+    } else if (widthValue <= 0) {
       errors.width = 'Width must be greater than 0';
-    } else if (widthValue < 500) {
-      errors.width = 'Width must be at least 500 mm';
     } else if (widthValue > constraints.maxWidth) {
-      errors.width = `Width must be ≤${constraints.maxWidth} mm`;
+      errors.width = `Width must be ≤${constraints.maxWidth} mm (module limit)`;
+    } else {
+      const gridError = validateGridSnap(widthValue, 'Width');
+      if (gridError) {
+        errors.width = gridError;
+      }
     }
 
     // Validate length (depth)
-    if (isNaN(lengthValue) || lengthValue <= 0) {
+    if (!form.length.trim() || isNaN(lengthValue)) {
+      errors.length = 'Length is required';
+    } else if (lengthValue <= 0) {
       errors.length = 'Length must be greater than 0';
-    } else if (lengthValue < 800) {
-      errors.length = 'Length must be at least 800 mm';
     } else if (lengthValue > constraints.maxLength) {
       errors.length = `Length must be ≤${constraints.maxLength} mm`;
+    } else {
+      const gridError = validateGridSnap(lengthValue, 'Length');
+      if (gridError) {
+        errors.length = gridError;
+      }
     }
 
     // Validate distance
-    if (isNaN(distanceValue) || distanceValue < 0) {
+    if (!form.distanceAlongWall.trim() || isNaN(distanceValue)) {
+      errors.distanceAlongWall = 'Distance is required';
+    } else if (distanceValue < 0) {
       errors.distanceAlongWall = 'Distance cannot be negative';
     } else if (distanceValue > constraints.maxDistance) {
-      errors.distanceAlongWall = `Distance must be ≤${constraints.maxDistance} mm`;
+      errors.distanceAlongWall = `Distance must be ≤${constraints.maxDistance} mm (module limit)`;
     } else if (!isNaN(widthValue) && distanceValue + widthValue > constraints.maxWidth) {
-      errors.distanceAlongWall = `Distance + width must be ≤${constraints.maxWidth} mm`;
+      errors.distanceAlongWall = `Distance + width (${distanceValue + widthValue} mm) exceeds module width (${constraints.maxWidth} mm)`;
+    } else {
+      const gridError = validateGridSnap(distanceValue, 'Distance');
+      if (gridError) {
+        errors.distanceAlongWall = gridError;
+      }
     }
 
     setValidationErrors(errors);
-  }, [form.width, form.length, form.distanceAlongWall, constraints]);
+  }, [form.width, form.length, form.distanceAlongWall, constraints, snapMode, gridSizeMm]);
 
   const onChange = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -252,111 +281,122 @@ export default function BalconyEditor({ module, balconyId, onSave, onCancel }: P
   ];
 
   return (
-    <Overlay>
-      <Box>
-        <MenuWrap>
-          <MenuHeader>
-            <Text weight={700} size={32}>
-              {existing ? 'Edit balcony' : 'Add balcony'}
-            </Text>
-            <HiMiniXMark style={{ cursor: 'pointer' }} onClick={onCancel} size={24} />
-          </MenuHeader>
-          <Divider orientation={'horizontal'} />
-        </MenuWrap>
-
-        <ContentWrapper>
-          <ScrollContent>
-            {/* Wall side */}
-            <MenuItem>
-              <Text weight={700} size={20}>
-                Wall side
+      <Overlay>
+        <Box>
+          <MenuWrap>
+            <MenuHeader>
+              <Text weight={700} size={32}>
+                {existing ? 'Edit balcony' : 'Add balcony'}
               </Text>
-              <Text size={16} color="#64748b">
-                Select wall side
-              </Text>
-              <Dropdown
-                options={wallSideOptions}
-                value={form.wallSide}
-                onChange={onWallSideChange}
-                placeholder="Select wall side"
-              />
-              <Text size={14} color="#64748b">
-                Module dimensions: {module.width} × {module.length} mm
-              </Text>
-            </MenuItem>
-
-            {/* Divider */}
+              <HiMiniXMark style={{ cursor: 'pointer' }} onClick={onCancel} size={24} />
+            </MenuHeader>
             <Divider orientation={'horizontal'} />
+          </MenuWrap>
 
-            {/* Dimensions */}
-            <MenuItem>
-              <Text weight={700} size={20}>
-                Dimensions
-              </Text>
-              <Row>
-                <div style={{ flex: 1 }}>
-                  <Input
-                    label="Width along wall"
-                    suffix="mm"
-                    type="number"
-                    value={form.width}
-                    onChange={onChange('width')}
-                    error={validationErrors.width}
-                  />
-                  {!validationErrors.width && <SuccessMessage>Maximum: {constraints.maxWidth} mm</SuccessMessage>}
-                </div>
-              </Row>
-              <Row>
-                <div style={{ flex: 1 }}>
-                  <Input
-                    label="Length (depth)"
-                    suffix="mm"
-                    type="number"
-                    value={form.length}
-                    onChange={onChange('length')}
-                    error={validationErrors.length}
-                  />
-                  {!validationErrors.length && <SuccessMessage>Maximum: {constraints.maxLength} mm</SuccessMessage>}
-                </div>
-              </Row>
+          <ContentWrapper>
+            <ScrollContent>
+              {/* Wall side */}
+              <MenuItem>
+                <Text weight={700} size={20}>
+                  Wall side
+                </Text>
+                <Text size={16} color="#64748b">
+                  Select wall side for balcony attachment
+                </Text>
+                <Dropdown
+                    options={wallSideOptions}
+                    value={form.wallSide}
+                    onChange={onWallSideChange}
+                    placeholder="Select wall side"
+                />
+                <Text size={14} color="#64748b">
+                  Module dimensions: {module.width} × {module.length} mm
+                </Text>
+              </MenuItem>
 
-              <Row>
-                <div style={{ flex: 1 }}>
-                  <Input
-                    label="Distance Along Wall"
-                    suffix="mm"
-                    type="number"
-                    value={form.distanceAlongWall}
-                    onChange={onChange('distanceAlongWall')}
-                    error={validationErrors.distanceAlongWall}
-                  />
-                  {!validationErrors.distanceAlongWall && (
-                    <SuccessMessage>
-                      Available space: {Math.max(0, constraints.maxDistance - parseFloat(form.width || '0'))} mm
-                    </SuccessMessage>
-                  )}
-                </div>
-              </Row>
-            </MenuItem>
-          </ScrollContent>
+              {/* Divider */}
+              <Divider orientation={'horizontal'} />
 
-          <Footer>
-            <ButtonRow>
-              <HalfWidthButton variant="danger" onClick={onCancel}>
-                Cancel
-              </HalfWidthButton>
-              <HalfWidthButton
-                variant="primary"
-                icon={existing ? <LuSave size={20} /> : <LuPlus size={20} />}
-                onClick={handleSubmit}
-                disabled={hasValidationErrors}
-              >
-                {existing ? 'Save' : 'Add'}
-              </HalfWidthButton>
-            </ButtonRow>
-          </Footer>
-        </ContentWrapper>
-      </Box>
-    </Overlay>
+              {/* Dimensions */}
+              <MenuItem>
+                <Text weight={700} size={20}>
+                  Dimensions
+                </Text>
+                <Row>
+                  <div style={{ flex: 1 }}>
+                    <Input
+                        label="Width along wall"
+                        suffix="mm"
+                        type="number"
+                        value={form.width}
+                        onChange={onChange('width')}
+                        error={validationErrors.width}
+                    />
+                    {!validationErrors.width && (
+                        <SuccessMessage>Maximum: {constraints.maxWidth} mm</SuccessMessage>
+                    )}
+                  </div>
+                </Row>
+                <Row>
+                  <div style={{ flex: 1 }}>
+                    <Input
+                        label="Length (depth)"
+                        suffix="mm"
+                        type="number"
+                        value={form.length}
+                        onChange={onChange('length')}
+                        error={validationErrors.length}
+                    />
+                    {!validationErrors.length && (
+                        <SuccessMessage>Maximum: {constraints.maxLength} mm</SuccessMessage>
+                    )}
+                  </div>
+                </Row>
+
+                <Row>
+                  <div style={{ flex: 1 }}>
+                    <Input
+                        label="Distance Along Wall"
+                        suffix="mm"
+                        type="number"
+                        value={form.distanceAlongWall}
+                        onChange={onChange('distanceAlongWall')}
+                        error={validationErrors.distanceAlongWall}
+                    />
+                    {!validationErrors.distanceAlongWall && (
+                        <SuccessMessage>
+                          Available space: {Math.max(0, constraints.maxDistance - parseFloat(form.width || '0'))} mm
+                        </SuccessMessage>
+                    )}
+                  </div>
+                </Row>
+
+                {/* Grid snapping notice */}
+                {snapMode === 'grid' && (
+                    <Text size={14} color="#64748b">
+                      Grid snapping is enabled. All dimensions must be multiples of {gridSizeMm} mm.
+                    </Text>
+                )}
+              </MenuItem>
+            </ScrollContent>
+
+            <Footer>
+              <ButtonRow>
+                <HalfWidthButton variant="danger" onClick={onCancel}>
+                  Cancel
+                </HalfWidthButton>
+                <HalfWidthButton
+                    variant="primary"
+                    icon={existing ? <LuSave size={20} /> : <LuPlus size={20} />}
+                    onClick={handleSubmit}
+                    disabled={hasValidationErrors}
+                >
+                  {existing ? 'Save' : 'Add'}
+                </HalfWidthButton>
+              </ButtonRow>
+            </Footer>
+          </ContentWrapper>
+        </Box>
+      </Overlay>
   );
 }

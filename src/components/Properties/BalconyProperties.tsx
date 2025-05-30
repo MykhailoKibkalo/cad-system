@@ -5,6 +5,7 @@ import styled from '@emotion/styled';
 import type { Canvas } from 'fabric';
 import { useSelectionStore } from '@/state/selectionStore';
 import { useObjectStore } from '@/state/objectStore';
+import { useCanvasStore } from '@/state/canvasStore';
 import { Panel } from '@/components/ui/Panel';
 import { Text } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
@@ -65,15 +66,6 @@ const HalfButton = styled(Button)`
   flex: 1;
 `;
 
-const ValidationMessage = styled.div`
-  color: #dc2626;
-  font-size: 14px;
-  margin-top: 4px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-`;
-
 const SuccessMessage = styled.div`
   color: #059669;
   font-size: 14px;
@@ -90,6 +82,7 @@ export default function BalconyProperties({ canvas }: { canvas: Canvas }) {
   const updateBalcony = useObjectStore(s => s.updateBalcony);
   const deleteBalcony = useObjectStore(s => s.deleteBalcony);
   const setSelectedBalconyId = useSelectionStore(s => s.setSelectedBalconyId);
+  const { snapMode, gridSizeMm } = useCanvasStore();
 
   const balcony = useMemo(() => balconies.find(b => b.id === balconyId)!, [balconies, balconyId]);
   const module = useMemo(() => modules.find(m => m.id === balcony?.moduleId), [modules, balcony]);
@@ -125,7 +118,7 @@ export default function BalconyProperties({ canvas }: { canvas: Canvas }) {
 
     const isHorizontalWall = form.wallSide === 1 || form.wallSide === 3;
     const maxWidthAlongWall = isHorizontalWall ? module.width : module.length;
-    const maxLengthDepth = isHorizontalWall ? module.length : module.width;
+    const maxLengthDepth = 3000; // Maximum reasonable balcony depth
 
     return {
       maxWidth: maxWidthAlongWall,
@@ -133,6 +126,16 @@ export default function BalconyProperties({ canvas }: { canvas: Canvas }) {
       maxDistance: maxWidthAlongWall,
     };
   }, [module, form.wallSide]);
+
+  // Helper function to validate grid snapping
+  const validateGridSnap = (value: number, fieldName: string): string | null => {
+    if (snapMode === 'grid' && gridSizeMm > 0) {
+      if (value % gridSizeMm !== 0) {
+        return `${fieldName} must be a multiple of ${gridSizeMm} mm (grid size)`;
+      }
+    }
+    return null;
+  };
 
   // Real-time validation
   useEffect(() => {
@@ -143,30 +146,51 @@ export default function BalconyProperties({ canvas }: { canvas: Canvas }) {
     const distanceValue = parseFloat(form.distanceAlongWall);
 
     // Validate width
-    if (isNaN(widthValue) || widthValue <= 0) {
+    if (!form.width.trim() || isNaN(widthValue)) {
+      errors.width = 'Width is required';
+    } else if (widthValue <= 0) {
       errors.width = 'Width must be greater than 0';
     } else if (widthValue > constraints.maxWidth) {
-      errors.width = `Width must be ≤${constraints.maxWidth} mm`;
+      errors.width = `Width must be ≤${constraints.maxWidth} mm (module limit)`;
+    } else {
+      const gridError = validateGridSnap(widthValue, 'Width');
+      if (gridError) {
+        errors.width = gridError;
+      }
     }
 
     // Validate length
-    if (isNaN(lengthValue) || lengthValue <= 0) {
+    if (!form.length.trim() || isNaN(lengthValue)) {
+      errors.length = 'Length is required';
+    } else if (lengthValue <= 0) {
       errors.length = 'Length must be greater than 0';
     } else if (lengthValue > constraints.maxLength) {
       errors.length = `Length must be ≤${constraints.maxLength} mm`;
+    } else {
+      const gridError = validateGridSnap(lengthValue, 'Length');
+      if (gridError) {
+        errors.length = gridError;
+      }
     }
 
     // Validate distance
-    if (isNaN(distanceValue) || distanceValue < 0) {
+    if (!form.distanceAlongWall.trim() || isNaN(distanceValue)) {
+      errors.distanceAlongWall = 'Distance is required';
+    } else if (distanceValue < 0) {
       errors.distanceAlongWall = 'Distance cannot be negative';
     } else if (distanceValue > constraints.maxDistance) {
-      errors.distanceAlongWall = `Distance must be ≤${constraints.maxDistance} mm`;
+      errors.distanceAlongWall = `Distance must be ≤${constraints.maxDistance} mm (module limit)`;
     } else if (!isNaN(widthValue) && distanceValue + widthValue > constraints.maxWidth) {
-      errors.distanceAlongWall = `Distance + width must be ≤${constraints.maxWidth} mm`;
+      errors.distanceAlongWall = `Distance + width (${distanceValue + widthValue} mm) exceeds module width (${constraints.maxWidth} mm)`;
+    } else {
+      const gridError = validateGridSnap(distanceValue, 'Distance');
+      if (gridError) {
+        errors.distanceAlongWall = gridError;
+      }
     }
 
     setValidationErrors(errors);
-  }, [form.width, form.length, form.distanceAlongWall, constraints]);
+  }, [form.width, form.length, form.distanceAlongWall, constraints, snapMode, gridSizeMm]);
 
   const onChange = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = field === 'name' ? e.target.value : e.target.value;
@@ -264,7 +288,7 @@ export default function BalconyProperties({ canvas }: { canvas: Canvas }) {
                 onChange={onChange('width')}
                 error={validationErrors.width}
               />
-              {!validationErrors.width && (<SuccessMessage>Maximum: {constraints.maxWidth} mm</SuccessMessage>)}
+              {!validationErrors.width && <SuccessMessage>Maximum: {constraints.maxWidth} mm</SuccessMessage>}
             </div>
             <div style={{ flex: 1 }}>
               <Input
@@ -275,9 +299,16 @@ export default function BalconyProperties({ canvas }: { canvas: Canvas }) {
                 onChange={onChange('length')}
                 error={validationErrors.length}
               />
-              {!validationErrors.length && (<SuccessMessage>Maximum: {constraints.maxLength} mm</SuccessMessage>)}
+              {!validationErrors.length && <SuccessMessage>Maximum: {constraints.maxLength} mm</SuccessMessage>}
             </div>
           </Row>
+
+          {/* Grid snapping notice */}
+          {snapMode === 'grid' && (
+            <Text size={14} color="#64748b">
+              Grid snapping is enabled. All dimensions must be multiples of {gridSizeMm} mm.
+            </Text>
+          )}
         </MenuItem>
 
         <Divider orientation="horizontal" />
@@ -294,9 +325,11 @@ export default function BalconyProperties({ canvas }: { canvas: Canvas }) {
             onChange={onChange('distanceAlongWall')}
             error={validationErrors.distanceAlongWall}
           />
-          {!validationErrors.distanceAlongWall && (<SuccessMessage>
-            Available space: {constraints.maxDistance - parseFloat(form.width || '0')} mm
-          </SuccessMessage>)}
+          {!validationErrors.distanceAlongWall && (
+            <SuccessMessage>
+              Available space: {Math.max(0, constraints.maxDistance - parseFloat(form.width || '0'))} mm
+            </SuccessMessage>
+          )}
         </MenuItem>
       </ScrollContent>
 
