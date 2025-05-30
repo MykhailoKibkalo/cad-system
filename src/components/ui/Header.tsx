@@ -16,7 +16,7 @@ import React from 'react';
 import { BsGrid3X3 } from 'react-icons/bs';
 import { TbBoxAlignLeft, TbBoxAlignTopLeft } from 'react-icons/tb';
 import { CgArrowAlignH } from 'react-icons/cg';
-import {InputWithAffix} from "@/components/ui/InputWithAffix";
+import { InputWithAffix } from '@/components/ui/InputWithAffix';
 
 const Container = styled.div`
   display: flex;
@@ -111,6 +111,10 @@ const SettingsItem = styled.div`
   padding: 8px 16px;
 `;
 
+const InputWrap = styled.div`
+  max-width: 132px;
+`;
+
 const AnimatedSettingsItem = styled(SettingsItem)<{ visible: boolean }>`
   overflow: hidden;
   transition:
@@ -180,7 +184,9 @@ export default function Header() {
                   <BsGrid3X3 size={24} />
                   <Text size={16}>Grid (mm)</Text>
                 </MenuItem>
-                <InputWithAffix min={1} value={gridSizeMm} onChange={onChangeGrid} type="number" suffix={'mm'} />
+                <InputWrap>
+                  <InputWithAffix min={1} value={gridSizeMm} onChange={onChangeGrid} type="number" suffix={'mm'} />
+                </InputWrap>
               </SettingsItem>
 
               <SettingsItem>
@@ -204,7 +210,9 @@ export default function Header() {
                   <CgArrowAlignH size={24} />
                   <Text size={16}>Gap between elements</Text>
                 </MenuItem>
-                <InputWithAffix min={0} value={elementGapMm} onChange={onChangeGap} type="number" suffix={'mm'} />
+                <InputWrap>
+                  <InputWithAffix min={0} value={elementGapMm} onChange={onChangeGap} type="number" suffix={'mm'} />
+                </InputWrap>
               </AnimatedSettingsItem>
             </SettingsPopup>
           </SettingsContainer>

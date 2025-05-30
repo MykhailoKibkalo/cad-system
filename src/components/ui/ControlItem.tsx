@@ -28,10 +28,10 @@ const Wrapper = styled.div<{ isActive?: boolean }>`
 `;
 
 const Button = styled.button<{ isActive?: boolean }>`
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   border: none; 
-  border-radius: 12px;
+  border-radius: 8px;
   background: ${p => (p.isActive ? colors.primary : 'transparent')};
   display: flex;
   align-items: center;

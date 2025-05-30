@@ -312,12 +312,10 @@ export default function BalconyEditor({ module, balconyId, onSave, onCancel }: P
                     onChange={onChange('width')}
                     error={validationErrors.width}
                   />
-                  {validationErrors.width ? (
-                    <ValidationMessage>{validationErrors.width}</ValidationMessage>
-                  ) : (
-                    <SuccessMessage>Maximum: {constraints.maxWidth} mm</SuccessMessage>
-                  )}
+                  {!validationErrors.width && <SuccessMessage>Maximum: {constraints.maxWidth} mm</SuccessMessage>}
                 </div>
+              </Row>
+              <Row>
                 <div style={{ flex: 1 }}>
                   <Input
                     label="Length (depth)"
@@ -327,37 +325,27 @@ export default function BalconyEditor({ module, balconyId, onSave, onCancel }: P
                     onChange={onChange('length')}
                     error={validationErrors.length}
                   />
-                  {validationErrors.length ? (
-                    <ValidationMessage>{validationErrors.length}</ValidationMessage>
-                  ) : (
-                    <SuccessMessage>Maximum: {constraints.maxLength} mm</SuccessMessage>
+                  {!validationErrors.length && <SuccessMessage>Maximum: {constraints.maxLength} mm</SuccessMessage>}
+                </div>
+              </Row>
+
+              <Row>
+                <div style={{ flex: 1 }}>
+                  <Input
+                    label="Distance Along Wall"
+                    suffix="mm"
+                    type="number"
+                    value={form.distanceAlongWall}
+                    onChange={onChange('distanceAlongWall')}
+                    error={validationErrors.distanceAlongWall}
+                  />
+                  {!validationErrors.distanceAlongWall && (
+                    <SuccessMessage>
+                      Available space: {Math.max(0, constraints.maxDistance - parseFloat(form.width || '0'))} mm
+                    </SuccessMessage>
                   )}
                 </div>
               </Row>
-            </MenuItem>
-
-            {/* Divider */}
-            <Divider orientation={'horizontal'} />
-
-            {/* Distance along wall */}
-            <MenuItem>
-              <Text weight={700} size={20}>
-                Distance along wall
-              </Text>
-              <Input
-                suffix="mm"
-                type="number"
-                value={form.distanceAlongWall}
-                onChange={onChange('distanceAlongWall')}
-                error={validationErrors.distanceAlongWall}
-              />
-              {validationErrors.distanceAlongWall ? (
-                <ValidationMessage>{validationErrors.distanceAlongWall}</ValidationMessage>
-              ) : (
-                <SuccessMessage>
-                  Available space: {Math.max(0, constraints.maxDistance - parseFloat(form.width || '0'))} mm
-                </SuccessMessage>
-              )}
             </MenuItem>
           </ScrollContent>
 

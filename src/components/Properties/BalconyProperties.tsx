@@ -264,11 +264,7 @@ export default function BalconyProperties({ canvas }: { canvas: Canvas }) {
                 onChange={onChange('width')}
                 error={validationErrors.width}
               />
-              {validationErrors.width ? (
-                <ValidationMessage>{validationErrors.width}</ValidationMessage>
-              ) : (
-                <SuccessMessage>Maximum: {constraints.maxWidth} mm</SuccessMessage>
-              )}
+              {!validationErrors.width && (<SuccessMessage>Maximum: {constraints.maxWidth} mm</SuccessMessage>)}
             </div>
             <div style={{ flex: 1 }}>
               <Input
@@ -279,11 +275,7 @@ export default function BalconyProperties({ canvas }: { canvas: Canvas }) {
                 onChange={onChange('length')}
                 error={validationErrors.length}
               />
-              {validationErrors.length ? (
-                <ValidationMessage>{validationErrors.length}</ValidationMessage>
-              ) : (
-                <SuccessMessage>Maximum: {constraints.maxLength} mm</SuccessMessage>
-              )}
+              {!validationErrors.length && (<SuccessMessage>Maximum: {constraints.maxLength} mm</SuccessMessage>)}
             </div>
           </Row>
         </MenuItem>
@@ -302,13 +294,9 @@ export default function BalconyProperties({ canvas }: { canvas: Canvas }) {
             onChange={onChange('distanceAlongWall')}
             error={validationErrors.distanceAlongWall}
           />
-          {validationErrors.distanceAlongWall ? (
-            <ValidationMessage>{validationErrors.distanceAlongWall}</ValidationMessage>
-          ) : (
-            <SuccessMessage>
-              Available space: {constraints.maxDistance - parseFloat(form.width || '0')} mm
-            </SuccessMessage>
-          )}
+          {!validationErrors.distanceAlongWall && (<SuccessMessage>
+            Available space: {constraints.maxDistance - parseFloat(form.width || '0')} mm
+          </SuccessMessage>)}
         </MenuItem>
       </ScrollContent>
 
