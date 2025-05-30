@@ -109,15 +109,6 @@ const HalfWidthButton = styled(Button)`
   flex: 1;
 `;
 
-const ValidationMessage = styled.div`
-  color: #dc2626;
-  font-size: 14px;
-  margin-top: 4px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-`;
-
 const SuccessMessage = styled.div`
   color: #059669;
   font-size: 14px;
