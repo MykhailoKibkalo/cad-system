@@ -19,10 +19,11 @@ import { Text } from '@/components/ui/Text';
 import { HiMiniXMark } from 'react-icons/hi2';
 import { Divider } from '@/components/ui/Divider';
 import { Button } from '../ui/Button';
-import { LuBath, LuCopy, LuDoorClosed, LuPencil, LuTrash2 } from 'react-icons/lu';
+import { LuBath, LuDoorClosed, LuPencil, LuTrash2 } from 'react-icons/lu';
 import { MdBalcony } from 'react-icons/md';
 import { InputWithAffix } from '@/components/ui/InputWithAffix';
 import { ContextMenu } from '@/components/ui/ContextMenu';
+import BathroomPodEditor from '@/components/Properties/BathroomPodEditor';
 
 const Field = styled.div`
   display: flex;
@@ -94,8 +95,8 @@ const ItemRow = styled.li`
   padding: 6px 16px;
   border-radius: 8px;
   position: relative;
-  transition: all .2s;
-  
+  transition: all 0.2s;
+
   :hover {
     background: #f8fafc;
   }
@@ -152,6 +153,9 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
 
   const [addingBalcony, setAddingBalcony] = useState(false);
   const [editingBalconyId, setEditingBalconyId] = useState<string | null>(null);
+
+  const [addingBathroomPod, setAddingBathroomPod] = useState(false);
+  const [editingBathroomPodId, setEditingBathroomPodId] = useState<string | null>(null);
 
   const module = useMemo(() => modules.find(m => m.id === selectedModuleId) ?? null, [modules, selectedModuleId]);
   const openings = useMemo(
@@ -469,7 +473,7 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
             </ItemList>
           )}
           <Button
-            onClick={() => setTool('bathroomPod')}
+            onClick={() => setAddingBathroomPod(true)}
             style={{ width: '100%' }}
             variant={'secondary'}
             icon={<LuBath size={20} />}
@@ -556,6 +560,18 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
           onCancel={() => setAddingBalcony(false)}
         />
       )}
+
+      {addingBathroomPod && module && (
+        <BathroomPodEditor moduleId={module.id} onClose={() => setAddingBathroomPod(false)} />
+      )}
+      {editingBathroomPodId && module && (
+        <BathroomPodEditor
+          moduleId={module.id}
+          podId={editingBathroomPodId}
+          onClose={() => setEditingBathroomPodId(null)}
+        />
+      )}
+
       {adding && <OpeningEditor moduleId={module.id} onClose={() => setAdding(false)} />}
     </Panel>
   );

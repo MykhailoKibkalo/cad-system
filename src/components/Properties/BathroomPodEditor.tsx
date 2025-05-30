@@ -4,8 +4,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styled from '@emotion/styled';
 import { Canvas, Rect, Text as FabricText } from 'fabric';
 import { useObjectStore } from '@/state/objectStore';
-import { useCanvasStore } from '@/state/canvasStore';
-import { useTemplateStore } from '@/state/templateStore';
 import { Module } from '@/types/geometry';
 import { Text } from '@/components/ui/Text';
 import { HiMiniXMark } from 'react-icons/hi2';
@@ -13,7 +11,7 @@ import { Divider } from '@/components/ui/Divider';
 import { Input } from '@/components/ui/InputWithAffix';
 import { Button } from '@/components/ui/Button';
 import { Dropdown, DropdownOption } from '@/components/ui/Dropdown';
-import { LuPlus, LuSave, LuTrash2 } from 'react-icons/lu';
+import { LuPlus, LuTrash2 } from 'react-icons/lu';
 
 const Overlay = styled.div`
   position: fixed;
@@ -49,10 +47,9 @@ const InputLabel = styled(Text)`
 const Preview = styled.div`
   position: relative;
   width: 100%;
-  height: 406px;
+  height: 428px;
   background: #f8f9fa;
   border: 1px solid #d1d5db;
-  //margin: 16px 0;
   border-radius: 8px;
   overflow: hidden;
 `;
@@ -139,14 +136,6 @@ const HalfWidthButton = styled(Button)`
   flex: 1;
 `;
 
-const SaveTemplateRow = styled.div`
-  width: 100%;
-`;
-
-const FullWidthButton = styled(Button)`
-  width: 100%;
-`;
-
 const SuccessMessage = styled.div`
   color: #059669;
   font-size: 14px;
@@ -156,27 +145,26 @@ const SuccessMessage = styled.div`
   gap: 4px;
 `;
 
-const DrowdownWrap = styled.div`
+const DropdownWrap = styled.div`
   display: flex;
   flex-direction: column;
   width: 100%;
   gap: 8px;
   margin-top: 8px;
 `;
-interface OpeningEditorProps {
+
+interface BathroomPodEditorProps {
   moduleId: string;
   onClose: () => void;
-  openingId?: string;
+  podId?: string;
 }
 
-export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningEditorProps) {
+export default function BathroomPodEditor({ moduleId, onClose, podId }: BathroomPodEditorProps) {
   const modules = useObjectStore(s => s.modules);
-  const addOpening = useObjectStore(s => s.addOpening);
-  const updateOpening = useObjectStore(s => s.updateOpening);
-  const deleteOpening = useObjectStore(s => s.deleteOpening);
-  const openings = useObjectStore(s => s.openings);
-  const { floorHeightMm } = useCanvasStore();
-  const { openingTemplates, addOpeningTemplate } = useTemplateStore();
+  const addBathroomPod = useObjectStore(s => s.addBathroomPod);
+  const updateBathroomPod = useObjectStore(s => s.updateBathroomPod);
+  const deleteBathroomPod = useObjectStore(s => s.deleteBathroomPod);
+  const bathroomPods = useObjectStore(s => s.bathroomPods);
 
   const module = useMemo<Module>(() => {
     const m = modules.find(m => m.id === moduleId);
@@ -185,86 +173,93 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
   }, [modules, moduleId]);
 
   const existing = useMemo(() => {
-    return openingId ? openings.find(o => o.id === openingId) : null;
-  }, [openings, openingId]);
+    return podId ? bathroomPods.find(p => p.id === podId) : null;
+  }, [bathroomPods, podId]);
 
   // Canvas refs
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const fabricCanvasRef = useRef<Canvas | null>(null);
-  const wallObjectRef = useRef<Rect | null>(null);
-  const openingObjectRef = useRef<Rect | null>(null);
+  const moduleFloorRef = useRef<Rect | null>(null);
+  const podObjectRef = useRef<Rect | null>(null);
   const widthLabelRef = useRef<FabricText | null>(null);
   const heightLabelRef = useRef<FabricText | null>(null);
   const isUpdatingFromCanvas = useRef(false);
   const currentScaleRef = useRef<number>(1);
 
-  // Form state
-  const [tplIndex, setTplIndex] = useState<number | ''>('');
-  const [wallSide, setWallSide] = useState<1 | 2 | 3 | 4>(existing?.wallSide ?? 1);
-  const [distance, setDistance] = useState(existing?.distanceAlongWall ?? 0);
-  const [yOffset, setYOffset] = useState(existing?.yOffset ?? 0);
-  const [width, setWidth] = useState(existing?.width ?? Math.min(module.width / 2, 1000));
-  const [height, setHeight] = useState(existing?.height ?? Math.min(floorHeightMm / 2, 2000));
+  // Form state - using bathroom pod field names
+  const [podType, setPodType] = useState(existing?.type ?? 'F');
+  const [xOffset, setXOffset] = useState(existing?.x_offset ?? 100);
+  const [yOffset, setYOffset] = useState(existing?.y_offset ?? 100);
+  const [width, setWidth] = useState(existing?.width ?? Math.min(module.width / 3, 1500));
+  const [length, setLength] = useState(existing?.length ?? Math.min(module.length / 3, 2000));
 
   // Validation state
   const [validationErrors, setValidationErrors] = useState<{
     width?: string;
-    height?: string;
-    distance?: string;
+    length?: string;
+    xOffset?: string;
     yOffset?: string;
   }>({});
 
-  // Calculate wall dimensions based on wall side
-  const wallDimensions = useMemo(() => {
-    const isHorizontal = wallSide === 1 || wallSide === 3;
-    return {
-      width: isHorizontal ? module.width : module.length,
-      height: floorHeightMm,
-      isHorizontal,
-    };
-  }, [wallSide, module.width, module.length, floorHeightMm]);
+  // Module dimensions for floor area
+  const moduleDimensions = useMemo(
+    () => ({
+      width: module.width,
+      height: module.length, // Using length as height for top-down floor view
+    }),
+    [module.width, module.length]
+  );
 
-  // Validation logic
+  // Validation logic with 50mm grid snapping requirement
   useEffect(() => {
     const errors: typeof validationErrors = {};
+    const gridSize = 50; // 50mm grid requirement
 
     if (width <= 0) {
       errors.width = 'Width must be greater than 0';
-    } else if (width > wallDimensions.width) {
-      errors.width = `Width must be ≤${wallDimensions.width} mm`;
+    } else if (width % gridSize !== 0) {
+      errors.width = `Width must be a multiple of ${gridSize} mm`;
+    } else if (width > moduleDimensions.width) {
+      errors.width = `Width must be ≤${moduleDimensions.width} mm`;
     }
 
-    if (height <= 0) {
-      errors.height = 'Height must be greater than 0';
-    } else if (height > wallDimensions.height) {
-      errors.height = `Height must be ≤${wallDimensions.height} mm`;
+    if (length <= 0) {
+      errors.length = 'Length must be greater than 0';
+    } else if (length % gridSize !== 0) {
+      errors.length = `Length must be a multiple of ${gridSize} mm`;
+    } else if (length > moduleDimensions.height) {
+      errors.length = `Length must be ≤${moduleDimensions.height} mm`;
     }
 
-    if (distance < 0) {
-      errors.distance = 'Distance cannot be negative';
-    } else if (distance + width > wallDimensions.width) {
-      errors.distance = `Distance + width must be ≤${wallDimensions.width} mm`;
+    if (xOffset < 0) {
+      errors.xOffset = 'X-position cannot be negative';
+    } else if (xOffset % gridSize !== 0) {
+      errors.xOffset = `X-position must be a multiple of ${gridSize} mm`;
+    } else if (xOffset + width > moduleDimensions.width) {
+      errors.xOffset = `X-position + width must be ≤${moduleDimensions.width} mm`;
     }
 
     if (yOffset < 0) {
-      errors.yOffset = 'Y-offset cannot be negative';
-    } else if (yOffset + height > wallDimensions.height) {
-      errors.yOffset = `Y-offset + height must be ≤${wallDimensions.height} mm`;
+      errors.yOffset = 'Y-position cannot be negative';
+    } else if (yOffset % gridSize !== 0) {
+      errors.yOffset = `Y-position must be a multiple of ${gridSize} mm`;
+    } else if (yOffset + length > moduleDimensions.height) {
+      errors.yOffset = `Y-position + length must be ≤${moduleDimensions.height} mm`;
     }
 
     setValidationErrors(errors);
 
-    // Update opening object color based on validation
-    const opening = openingObjectRef.current;
-    if (opening) {
+    // Update pod object color based on validation
+    const pod = podObjectRef.current;
+    if (pod) {
       const hasErrors = Object.keys(errors).length > 0;
-      opening.set({
-        fill: hasErrors ? 'rgba(239, 68, 68, 0.6)' : 'rgba(245, 158, 11, 0.6)',
-        stroke: hasErrors ? '#dc2626' : '#d97706',
+      pod.set({
+        fill: hasErrors ? 'rgba(239, 68, 68, 0.6)' : 'rgba(0, 150, 200, 0.6)',
+        stroke: hasErrors ? '#dc2626' : '#0096c8',
       });
       fabricCanvasRef.current?.renderAll();
     }
-  }, [width, height, distance, yOffset, wallDimensions]);
+  }, [width, length, xOffset, yOffset, moduleDimensions]);
 
   // Initialize Fabric.js canvas
   useEffect(() => {
@@ -280,21 +275,21 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
 
     fabricCanvasRef.current = canvas;
 
-    // Create wall rectangle
-    const wallRect = new Rect({
+    // Create module floor rectangle
+    const moduleRect = new Rect({
       left: 0,
       top: 0,
       width: 100,
       height: 100,
-      fill: '#C0D8FC',
+      fill: '#E8F4FD', // Light blue background for floor
       stroke: '#374151',
       strokeWidth: 2,
       selectable: false,
       evented: false,
       strokeUniform: true,
     });
-    wallObjectRef.current = wallRect;
-    canvas.add(wallRect);
+    moduleFloorRef.current = moduleRect;
+    canvas.add(moduleRect);
 
     // Create dimension labels
     const widthLabel = new FabricText('', {
@@ -320,14 +315,14 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
     heightLabelRef.current = heightLabel;
     canvas.add(heightLabel);
 
-    // Create opening rectangle
-    const openingRect = new Rect({
+    // Create bathroom pod rectangle
+    const podRect = new Rect({
       left: 10,
       top: 10,
       width: 40,
       height: 30,
-      fill: 'rgba(245, 158, 11, 0.6)',
-      stroke: '#d97706',
+      fill: 'rgba(0, 150, 200, 0.6)',
+      stroke: '#0096c8',
       strokeWidth: 2,
       selectable: true,
       evented: true,
@@ -339,36 +334,38 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
       transparentCorners: false,
       lockRotation: true,
     });
-    openingObjectRef.current = openingRect;
-    canvas.add(openingRect);
+    podObjectRef.current = podRect;
+    canvas.add(podRect);
 
-    // Canvas event handlers
+    // Canvas event handlers with 50mm grid snapping
+    const gridSize = 50; // 50mm grid
+
     const onObjectMoving = (e: any) => {
       const obj = e.target;
-      if (obj !== openingObjectRef.current) return;
+      if (obj !== podObjectRef.current) return;
 
-      const wall = wallObjectRef.current!;
+      const moduleFloor = moduleFloorRef.current!;
 
-      // Apply 1mm grid snapping (convert 1mm to canvas pixels)
-      const gridPx = currentScaleRef.current; // 1mm in canvas pixels
+      // Apply 50mm grid snapping
+      const gridPx = gridSize * currentScaleRef.current;
       let left = Math.round(obj.left / gridPx) * gridPx;
       let top = Math.round(obj.top / gridPx) * gridPx;
 
-      // Constrain to wall bounds
+      // Constrain to module bounds
       const objWidth = obj.getScaledWidth();
       const objHeight = obj.getScaledHeight();
 
-      if (left < wall.left) {
-        left = wall.left;
+      if (left < moduleFloor.left) {
+        left = moduleFloor.left;
       }
-      if (top < wall.top) {
-        top = wall.top;
+      if (top < moduleFloor.top) {
+        top = moduleFloor.top;
       }
-      if (left + objWidth > wall.left + wall.width) {
-        left = wall.left + wall.width - objWidth;
+      if (left + objWidth > moduleFloor.left + moduleFloor.width) {
+        left = moduleFloor.left + moduleFloor.width - objWidth;
       }
-      if (top + objHeight > wall.top + wall.height) {
-        top = wall.top + wall.height - objHeight;
+      if (top + objHeight > moduleFloor.top + moduleFloor.height) {
+        top = moduleFloor.top + moduleFloor.height - objHeight;
       }
 
       obj.set({ left, top });
@@ -377,22 +374,22 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
 
     const onObjectScaling = (e: any) => {
       const obj = e.target;
-      if (obj !== openingObjectRef.current) return;
+      if (obj !== podObjectRef.current) return;
 
-      const wall = wallObjectRef.current!;
+      const moduleFloor = moduleFloorRef.current!;
 
       // Calculate current scaled dimensions
       const scaledWidth = obj.width * obj.scaleX;
       const scaledHeight = obj.height * obj.scaleY;
 
-      // Apply 1mm grid snapping to dimensions
-      const gridPx = currentScaleRef.current; // 1mm in canvas pixels
+      // Apply 50mm grid snapping to dimensions
+      const gridPx = gridSize * currentScaleRef.current;
       const snappedWidth = Math.max(gridPx, Math.round(scaledWidth / gridPx) * gridPx);
       const snappedHeight = Math.max(gridPx, Math.round(scaledHeight / gridPx) * gridPx);
 
-      // Constrain to wall bounds
-      const maxWidth = wall.left + wall.width - obj.left;
-      const maxHeight = wall.top + wall.height - obj.top;
+      // Constrain to module bounds
+      const maxWidth = moduleFloor.left + moduleFloor.width - obj.left;
+      const maxHeight = moduleFloor.top + moduleFloor.height - obj.top;
 
       const finalWidth = Math.min(snappedWidth, maxWidth);
       const finalHeight = Math.min(snappedHeight, maxHeight);
@@ -405,31 +402,38 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
 
     const onObjectModified = (e: any) => {
       const obj = e.target;
-      if (obj !== openingObjectRef.current || isUpdatingFromCanvas.current) return;
+      if (obj !== podObjectRef.current || isUpdatingFromCanvas.current) return;
 
       isUpdatingFromCanvas.current = true;
 
-      const wall = wallObjectRef.current!;
+      const moduleFloor = moduleFloorRef.current!;
 
       // Calculate the scale factors to convert canvas coordinates to real dimensions
-      const scaleX = wallDimensions.width / wall.width;
-      const scaleY = wallDimensions.height / wall.height;
+      const scaleX = moduleDimensions.width / moduleFloor.width;
+      const scaleY = moduleDimensions.height / moduleFloor.height;
 
       // Get final dimensions
       const finalWidth = obj.getScaledWidth();
       const finalHeight = obj.getScaledHeight();
 
       // Convert to real coordinates
-      const newDistance = Math.round((obj.left - wall.left) * scaleX);
-      const newYOffset = Math.round((obj.top - wall.top) * scaleY);
+      const newXOffset = Math.round((obj.left - moduleFloor.left) * scaleX);
+      const newYOffset = Math.round((obj.top - moduleFloor.top) * scaleY);
       const newWidth = Math.round(finalWidth * scaleX);
-      const newHeight = Math.round(finalHeight * scaleY);
+      const newLength = Math.round(finalHeight * scaleY);
+
+      // Snap to 50mm grid
+      const gridSize = 50;
+      const snappedXOffset = Math.round(newXOffset / gridSize) * gridSize;
+      const snappedYOffset = Math.round(newYOffset / gridSize) * gridSize;
+      const snappedWidth = Math.round(newWidth / gridSize) * gridSize;
+      const snappedLength = Math.round(newLength / gridSize) * gridSize;
 
       // Update form state
-      setDistance(Math.max(0, newDistance));
-      setYOffset(Math.max(0, newYOffset));
-      setWidth(Math.max(1, newWidth));
-      setHeight(Math.max(1, newHeight));
+      setXOffset(Math.max(0, snappedXOffset));
+      setYOffset(Math.max(0, snappedYOffset));
+      setWidth(Math.max(gridSize, snappedWidth));
+      setLength(Math.max(gridSize, snappedLength));
 
       // Normalize the object to have scale 1:1 with new dimensions
       obj.set({
@@ -459,8 +463,8 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
       resizeObserver.disconnect();
       canvas.dispose();
       fabricCanvasRef.current = null;
-      wallObjectRef.current = null;
-      openingObjectRef.current = null;
+      moduleFloorRef.current = null;
+      podObjectRef.current = null;
       widthLabelRef.current = null;
       heightLabelRef.current = null;
     };
@@ -481,148 +485,118 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
     });
 
     updateCanvasObjects();
-  }, [wallDimensions, distance, yOffset, width, height]);
+  }, [moduleDimensions, xOffset, yOffset, width, length]);
 
   // Update canvas objects based on current state
   const updateCanvasObjects = useCallback(() => {
     const canvas = fabricCanvasRef.current;
-    const wall = wallObjectRef.current;
-    const opening = openingObjectRef.current;
+    const moduleFloor = moduleFloorRef.current;
+    const pod = podObjectRef.current;
     const widthLabel = widthLabelRef.current;
     const heightLabel = heightLabelRef.current;
-    if (!canvas || !wall || !opening || !widthLabel || !heightLabel || isUpdatingFromCanvas.current) return;
+    if (!canvas || !moduleFloor || !pod || !widthLabel || !heightLabel || isUpdatingFromCanvas.current) return;
 
     const containerWidth = canvas.width!;
     const containerHeight = canvas.height!;
 
-    // Calculate scale to fit wall in container with padding
-    const padding = 60; // Increased padding for dimension labels
+    // Calculate scale to fit module in container with padding
+    const padding = 60;
     const availableWidth = containerWidth - 2 * padding;
     const availableHeight = containerHeight - 2 * padding;
 
-    const scaleX = availableWidth / wallDimensions.width;
-    const scaleY = availableHeight / wallDimensions.height;
+    const scaleX = availableWidth / moduleDimensions.width;
+    const scaleY = availableHeight / moduleDimensions.height;
     const scale = Math.min(scaleX, scaleY, 0.5); // Max scale of 0.5 for better visibility
 
-    // Store current scale for grid snapping (1mm in canvas pixels)
+    // Store current scale for grid snapping
     currentScaleRef.current = scale;
 
-    // Update wall size and position
-    const wallWidth = wallDimensions.width * scale;
-    const wallHeight = wallDimensions.height * scale;
-    const wallLeft = (containerWidth - wallWidth) / 2;
-    const wallTop = (containerHeight - wallHeight) / 2;
+    // Update module floor size and position
+    const moduleWidth = moduleDimensions.width * scale;
+    const moduleHeight = moduleDimensions.height * scale;
+    const moduleLeft = (containerWidth - moduleWidth) / 2;
+    const moduleTop = (containerHeight - moduleHeight) / 2;
 
-    wall.set({
-      left: wallLeft,
-      top: wallTop,
-      width: wallWidth,
-      height: wallHeight,
+    moduleFloor.set({
+      left: moduleLeft,
+      top: moduleTop,
+      width: moduleWidth,
+      height: moduleHeight,
     });
 
-    // Update opening size and position
-    const openingWidth = width * scale;
-    const openingHeight = height * scale;
-    const openingLeft = wallLeft + distance * scale;
-    const openingTop = wallTop + yOffset * scale;
+    // Update pod size and position
+    const podWidth = width * scale;
+    const podHeight = length * scale;
+    const podLeft = moduleLeft + xOffset * scale;
+    const podTop = moduleTop + yOffset * scale;
 
-    opening.set({
-      left: openingLeft,
-      top: openingTop,
-      width: openingWidth,
-      height: openingHeight,
+    pod.set({
+      left: podLeft,
+      top: podTop,
+      width: podWidth,
+      height: podHeight,
       scaleX: 1,
       scaleY: 1,
     });
 
     // Update dimension labels
     widthLabel.set({
-      text: `${wallDimensions.width} mm`,
-      left: wallLeft + wallWidth / 2,
-      top: wallTop + wallHeight + 15,
+      text: `${moduleDimensions.width} mm`,
+      left: moduleLeft + moduleWidth / 2,
+      top: moduleTop + moduleHeight + 15,
     });
 
     heightLabel.set({
-      text: `${wallDimensions.height} mm`,
-      left: wallLeft - 25,
-      top: wallTop + wallHeight / 2,
+      text: `${moduleDimensions.height} mm`,
+      left: moduleLeft - 25,
+      top: moduleTop + moduleHeight / 2,
     });
 
-    wall.setCoords();
-    opening.setCoords();
+    moduleFloor.setCoords();
+    pod.setCoords();
     canvas.renderAll();
-  }, [wallDimensions, distance, yOffset, width, height]);
+  }, [moduleDimensions, xOffset, yOffset, width, length]);
 
   // Update canvas when dimensions change
   useEffect(() => {
     updateCanvasObjects();
   }, [updateCanvasObjects]);
 
-  // Apply template
-  useEffect(() => {
-    if (tplIndex === '') return;
-    const tpl = openingTemplates[tplIndex];
-    if (!tpl) return;
-    setWallSide(tpl.wallSide);
-    setDistance(tpl.distanceAlongWall);
-    setYOffset(tpl.yOffset);
-    setWidth(tpl.width);
-    setHeight(tpl.height);
-  }, [tplIndex, openingTemplates]);
-
   const onSubmit = () => {
     if (Object.keys(validationErrors).length > 0) return;
 
     if (existing) {
-      updateOpening(existing.id, {
-        wallSide,
-        distanceAlongWall: distance,
-        yOffset,
+      updateBathroomPod(existing.id, {
+        type: podType,
+        x_offset: xOffset,
+        y_offset: yOffset,
         width,
-        height,
+        length,
       });
     } else {
-      const id = Date.now().toString();
-      addOpening({
+      const id = `BP${Date.now()}`;
+      addBathroomPod({
         id,
         moduleId,
-        wallSide,
-        distanceAlongWall: distance,
-        yOffset,
+        name: id,
+        type: podType,
+        x_offset: xOffset,
+        y_offset: yOffset,
         width,
-        height,
+        length,
       });
     }
     onClose();
   };
 
-  const onSaveTpl = () => {
-    addOpeningTemplate({
-      wallSide,
-      distanceAlongWall: distance,
-      yOffset,
-      width,
-      height,
-    });
-  };
-
   const hasValidationErrors = Object.keys(validationErrors).length > 0;
 
-  // Template selector dropdown
-  const templateOptions: DropdownOption[] = [
-    { value: '', label: 'Select template' },
-    ...openingTemplates.map((t, i) => ({
-      value: i,
-      label: `tpl ${i + 1}: w${t.width}×h${t.height}`,
-    })),
-  ];
-
-  // Wall side dropdown
-  const wallSideOptions: DropdownOption[] = [
-    { value: 1, label: 'Bottom' },
-    { value: 2, label: 'Left' },
-    { value: 3, label: 'Top' },
-    { value: 4, label: 'Right' },
+  // Pod type dropdown options
+  const podTypeOptions: DropdownOption[] = [
+    { value: 'F', label: 'Full Bathroom' },
+    { value: 'H', label: 'Half Bathroom' },
+    { value: 'S', label: 'Shower Only' },
+    { value: 'T', label: 'Toilet Only' },
   ];
 
   return (
@@ -631,7 +605,7 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
         <MenuWrap>
           <MenuHeader>
             <Text weight={700} size={32}>
-              {existing ? 'Edit opening' : 'Add opening'}
+              {existing ? 'Edit bathroom pod' : 'Add bathroom pod'}
             </Text>
             <HiMiniXMark style={{ cursor: 'pointer' }} onClick={onClose} size={24} />
           </MenuHeader>
@@ -645,7 +619,7 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
                 Interactive Preview
               </Text>
               <Text size={14} color="#64748b">
-                Drag and resize the opening. Changes sync with form fields.
+                Drag and resize the bathroom pod. Changes sync with form fields.
               </Text>
               <Preview ref={canvasContainerRef}>
                 <canvas id="preview-canvas" />
@@ -655,38 +629,22 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
 
           <RightPanel>
             <ScrollContent>
-              {/* Template selector */}
+              {/* Pod Type */}
               <MenuItem>
                 <Text weight={700} size={20}>
-                  Template
+                  Pod Type
                 </Text>
-                <DrowdownWrap>
-                <InputLabel>Select template</InputLabel>
-                <Dropdown
-                  options={templateOptions}
-                  value={tplIndex}
-                  onChange={value => setTplIndex(value === '' ? '' : Number(value))}
-                  placeholder="Select template"
-                />
-                </DrowdownWrap>
-              </MenuItem>
-
-              {/* Wall side */}
-              <MenuItem>
-                <Text weight={700} size={20}>
-                  Wall side
-                </Text>
-                <DrowdownWrap>
-                <InputLabel>Select wall</InputLabel>
-                <Dropdown
-                  options={wallSideOptions}
-                  value={wallSide}
-                  onChange={value => setWallSide(Number(value) as 1 | 2 | 3 | 4)}
-                  placeholder="Select wall side"
-                />
-                </DrowdownWrap>
+                <DropdownWrap>
+                  <InputLabel>Select bathroom type</InputLabel>
+                  <Dropdown
+                    options={podTypeOptions}
+                    value={podType}
+                    onChange={value => setPodType(String(value))}
+                    placeholder="Select type"
+                  />
+                </DropdownWrap>
                 <Text size={14} color="#64748b">
-                  Wall dimensions: {wallDimensions.width} × {wallDimensions.height} mm
+                  Module dimensions: {moduleDimensions.width} × {moduleDimensions.height} mm
                 </Text>
               </MenuItem>
 
@@ -701,24 +659,34 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
                       label="Width"
                       suffix="mm"
                       type="number"
-                      min={1}
+                      min={50}
+                      step={50}
                       value={width}
-                      onChange={e => setWidth(Math.max(1, +e.target.value))}
+                      onChange={e => {
+                        const val = Math.max(50, +e.target.value);
+                        const snapped = Math.round(val / 50) * 50;
+                        setWidth(snapped);
+                      }}
                       error={validationErrors.width}
                     />
-                    {!validationErrors.width && <SuccessMessage>Maximum: {wallDimensions.width} mm</SuccessMessage>}
+                    {!validationErrors.width && <SuccessMessage>Maximum: {moduleDimensions.width} mm</SuccessMessage>}
                   </div>
                   <div style={{ width: '50%' }}>
                     <Input
-                      label="Height"
+                      label="Length"
                       suffix="mm"
                       type="number"
-                      min={1}
-                      value={height}
-                      onChange={e => setHeight(Math.max(1, +e.target.value))}
-                      error={validationErrors.height}
+                      min={50}
+                      step={50}
+                      value={length}
+                      onChange={e => {
+                        const val = Math.max(50, +e.target.value);
+                        const snapped = Math.round(val / 50) * 50;
+                        setLength(snapped);
+                      }}
+                      error={validationErrors.length}
                     />
-                    {!validationErrors.height && <SuccessMessage>Maximum: {wallDimensions.height} mm</SuccessMessage>}
+                    {!validationErrors.length && <SuccessMessage>Maximum: {moduleDimensions.height} mm</SuccessMessage>}
                   </div>
                 </Row>
               </MenuItem>
@@ -735,12 +703,17 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
                       suffix="mm"
                       type="number"
                       min={0}
-                      value={distance}
-                      onChange={e => setDistance(Math.max(0, +e.target.value))}
-                      error={validationErrors.distance}
+                      step={50}
+                      value={xOffset}
+                      onChange={e => {
+                        const val = Math.max(0, +e.target.value);
+                        const snapped = Math.round(val / 50) * 50;
+                        setXOffset(snapped);
+                      }}
+                      error={validationErrors.xOffset}
                     />
-                    {!validationErrors.distance && (
-                      <SuccessMessage>Available: {Math.max(0, wallDimensions.width - width)} mm</SuccessMessage>
+                    {!validationErrors.xOffset && (
+                      <SuccessMessage>Available: {Math.max(0, moduleDimensions.width - width)} mm</SuccessMessage>
                     )}
                   </div>
                   <div style={{ width: '50%' }}>
@@ -749,12 +722,17 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
                       suffix="mm"
                       type="number"
                       min={0}
+                      step={50}
                       value={yOffset}
-                      onChange={e => setYOffset(Math.max(0, +e.target.value))}
+                      onChange={e => {
+                        const val = Math.max(0, +e.target.value);
+                        const snapped = Math.round(val / 50) * 50;
+                        setYOffset(snapped);
+                      }}
                       error={validationErrors.yOffset}
                     />
                     {!validationErrors.yOffset && (
-                      <SuccessMessage>Available: {Math.max(0, wallDimensions.height - height)} mm</SuccessMessage>
+                      <SuccessMessage>Available: {Math.max(0, moduleDimensions.height - length)} mm</SuccessMessage>
                     )}
                   </div>
                 </Row>
@@ -768,7 +746,7 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
                   icon={<LuTrash2 size={20} />}
                   onClick={() => {
                     if (existing) {
-                      deleteOpening(existing.id);
+                      deleteBathroomPod(existing.id);
                     }
                     onClose();
                   }}
@@ -782,15 +760,9 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
                   onClick={onSubmit}
                   disabled={hasValidationErrors}
                 >
-                  {existing ? 'Save' : 'Add'}
+                  {existing ? 'Save' : 'Add Pod'}
                 </HalfWidthButton>
               </ButtonRow>
-
-              <SaveTemplateRow>
-                <FullWidthButton variant="ghost" icon={<LuSave size={20} />} onClick={onSaveTpl}>
-                  Save as template
-                </FullWidthButton>
-              </SaveTemplateRow>
             </Footer>
           </RightPanel>
         </ContentWrapper>

@@ -19,7 +19,7 @@ export default function Page() {
   return (
     <PageContainer>
       <Header />
-      {/*<Ribbon />*/}
+      <Ribbon />
       <CanvasArea />
       <FloorInfoPanel />
     </PageContainer>
