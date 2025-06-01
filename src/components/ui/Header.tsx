@@ -4,6 +4,7 @@
 import styled from '@emotion/styled';
 import { colors } from '@/styles/theme';
 import { useCanvasStore } from '@/state/canvasStore';
+import { useToolStore } from '@/state/toolStore';
 import Image from 'next/image';
 import logo from '../../assets/images/logo.png';
 import { Button } from '@/components/ui/Button';
@@ -12,6 +13,7 @@ import { Divider } from '@/components/ui/Divider';
 import { RiHomeLine } from 'react-icons/ri';
 import { Text } from '@/components/ui/Text';
 import { Toggle } from '@/components/ui/Toggle';
+import { PdfSettingsMenu } from '@/components/ui/PdfSettingsMenu';
 import React from 'react';
 import { BsGrid3X3 } from 'react-icons/bs';
 import { TbBoxAlignLeft, TbBoxAlignTopLeft } from 'react-icons/tb';
@@ -120,7 +122,10 @@ const AnimatedSettingsItem = styled(SettingsItem)<{ visible: boolean }>`
 `;
 
 export default function Header() {
-  const { floorName, floorHeightMm, snapMode, setSnapMode, elementGapMm, setElementGapMm } = useCanvasStore();
+  const { floorName, floorHeightMm, snapMode, setSnapMode, elementGapMm, setElementGapMm, pdfImported, resetPdfState } =
+    useCanvasStore();
+
+  const { setTool } = useToolStore();
 
   const gridSizeMm = useCanvasStore(s => s.gridSizeMm);
   const setGridSize = useCanvasStore(s => s.setGridSize);
@@ -155,6 +160,16 @@ export default function Header() {
     setElementGapMm(v);
   };
 
+  const handleDeletePdf = () => {
+    // This will be handled by the canvas component through global state
+    resetPdfState();
+  };
+
+  const handleRecalibrate = () => {
+    // Switch to calibrate tool
+    setTool('calibrate');
+  };
+
   return (
     <Container>
       <MainWrap>
@@ -180,7 +195,15 @@ export default function Header() {
         </MenuWrap>
 
         <MenuWrap>
-          <Divider orientation="vertical" length={'40px'} />
+          {/* PDF Settings Menu - Only show when PDF is imported */}
+          {pdfImported && (
+            <>
+              <PdfSettingsMenu onDeletePdf={handleDeletePdf} onRecalibrate={handleRecalibrate} />
+              <Divider orientation="vertical" length={'40px'} />
+            </>
+          )}
+
+          {/* Grid Settings */}
           <SettingsContainer>
             <MenuItem>
               <LuSettings2 size={24} />
