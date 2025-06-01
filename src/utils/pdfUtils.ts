@@ -34,8 +34,8 @@ export async function printPDF(pdfData: Blob | string): Promise<HTMLCanvasElemen
     const page = await pdf.getPage(i);
     const viewport = page.getViewport({ scale: window.devicePixelRatio });
     const c = document.createElement('canvas');
-    c.width = viewport.width;
-    c.height = viewport.height;
+    c.width = Math.round(viewport.width);
+    c.height = Math.round(viewport.height);
     await page.render({ canvasContext: c.getContext('2d')!, viewport }).promise;
     canvases.push(c);
   }

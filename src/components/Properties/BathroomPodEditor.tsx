@@ -380,10 +380,10 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
 
       const moduleFloor = moduleFloorRef.current!;
 
-      // Apply 1mm grid snapping (convert 1mm to canvas pixels) - ensure integers
-      const gridPx = Math.round(currentScaleRef.current); // 1mm in canvas pixels
-      let left = Math.round(Math.round(obj.left / gridPx) * gridPx);
-      let top = Math.round(Math.round(obj.top / gridPx) * gridPx);
+      // FIX: Apply 1 pixel grid snapping instead of trying to convert mm to pixels
+      // This ensures smooth movement without precision loss
+      let left = Math.round(obj.left);
+      let top = Math.round(obj.top);
 
       // Constrain to module bounds
       const objWidth = Math.round(obj.getScaledWidth());
@@ -416,10 +416,9 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
       const scaledWidth = Math.round(obj.width * obj.scaleX);
       const scaledHeight = Math.round(obj.height * obj.scaleY);
 
-      // Apply 1mm grid snapping to dimensions - ensure integers
-      const gridPx = Math.round(currentScaleRef.current); // 1mm in canvas pixels
-      const snappedWidth = Math.max(gridPx, Math.round(Math.round(scaledWidth / gridPx) * gridPx));
-      const snappedHeight = Math.max(gridPx, Math.round(Math.round(scaledHeight / gridPx) * gridPx));
+      // FIX: Apply pixel-level snapping instead of trying to convert mm to pixels
+      const snappedWidth = Math.max(1, Math.round(scaledWidth));
+      const snappedHeight = Math.max(1, Math.round(scaledHeight));
 
       // Constrain to module bounds
       const maxWidth = Math.round(moduleFloor.left) + Math.round(moduleFloor.width) - Math.round(obj.left);
