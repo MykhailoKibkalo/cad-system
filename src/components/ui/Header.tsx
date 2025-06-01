@@ -8,17 +8,19 @@ import { useToolStore } from '@/state/toolStore';
 import Image from 'next/image';
 import logo from '../../assets/images/logo.png';
 import { Button } from '@/components/ui/Button';
-import { LuDownload, LuLayers, LuSettings2 } from 'react-icons/lu';
+import { LuDownload, LuLayers, LuSettings2, LuTable } from 'react-icons/lu';
 import { Divider } from '@/components/ui/Divider';
 import { RiHomeLine } from 'react-icons/ri';
 import { Text } from '@/components/ui/Text';
 import { Toggle } from '@/components/ui/Toggle';
 import { PdfSettingsMenu } from '@/components/ui/PdfSettingsMenu';
-import React from 'react';
+import React, { useState } from 'react';
 import { BsGrid3X3 } from 'react-icons/bs';
 import { TbBoxAlignLeft, TbBoxAlignTopLeft } from 'react-icons/tb';
 import { CgArrowAlignH } from 'react-icons/cg';
 import { InputWithAffix } from '@/components/ui/InputWithAffix';
+import {useHasFloorElements} from "@/components/Canvas/hooks/useFloorElements";
+import FloorElementsTable from "@/components/ui/FloorElementsTable";
 
 const Container = styled.div`
   display: flex;
@@ -121,11 +123,41 @@ const AnimatedSettingsItem = styled(SettingsItem)<{ visible: boolean }>`
   margin-top: ${p => (p.visible ? '0' : '-20px')};
 `;
 
+const FloorElementsButton = styled.div<{ disabled: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: ${props => (props.disabled ? 'not-allowed' : 'pointer')};
+  border-radius: 6px;
+  transition: all 0.2s;
+  opacity: ${props => (props.disabled ? 0.5 : 1)};
+
+  &:hover {
+    background: ${props => (props.disabled ? 'transparent' : '#f8fafc')};
+  }
+
+  svg {
+    color: ${props => (props.disabled ? '#9ca3af' : '#374151')};
+  }
+`;
+
 export default function Header() {
-  const { floorName, floorHeightMm, snapMode, setSnapMode, elementGapMm, setElementGapMm, pdfImported, resetPdfState } =
-    useCanvasStore();
+  const {
+    floorName,
+    floorHeightMm,
+    snapMode,
+    setSnapMode,
+    elementGapMm,
+    setElementGapMm,
+    pdfImported,
+    resetPdfState,
+    currentFloor,
+  } = useCanvasStore();
 
   const { setTool } = useToolStore();
+  const [showFloorElementsTable, setShowFloorElementsTable] = useState(false);
+  const hasElements = useHasFloorElements();
 
   const gridSizeMm = useCanvasStore(s => s.gridSizeMm);
   const setGridSize = useCanvasStore(s => s.setGridSize);
@@ -170,100 +202,123 @@ export default function Header() {
     setTool('calibrate');
   };
 
+  const openFloorElementsPanel = () => {
+    if (hasElements) {
+      setShowFloorElementsTable(true);
+    }
+  };
+
   return (
-    <Container>
-      <MainWrap>
-        <Image width={153} height={40} src={logo} alt={'verida'} />
-        <Button icon={<LuDownload size={20} />}>
-          <Label htmlFor="pdfInput">Import PDF</Label>
-          <Input id="pdfInput" type="file" accept="application/pdf" />
-        </Button>
-      </MainWrap>
-      <SecondaryWrap>
-        <MenuWrap>
-          <MenuItem>
-            <RiHomeLine size={24} />
-            <Text size={16}>Home</Text>
-          </MenuItem>
-          <Divider orientation="vertical" length={'40px'} />
-          <MenuItem>
-            <LuLayers size={24} />
-            <Text size={16}>
-              Floor: {floorName} ({Math.round(floorHeightMm)} mm)
-            </Text>
-          </MenuItem>
-        </MenuWrap>
-
-        <MenuWrap>
-          {/* PDF Settings Menu - Only show when PDF is imported */}
-          {pdfImported && (
-            <>
-              <PdfSettingsMenu onDeletePdf={handleDeletePdf} onRecalibrate={handleRecalibrate} />
-              <Divider orientation="vertical" length={'40px'} />
-            </>
-          )}
-
-          {/* Grid Settings */}
-          <SettingsContainer>
+    <>
+      <Container>
+        <MainWrap>
+          <Image width={153} height={40} src={logo} alt={'verida'} />
+          <Button icon={<LuDownload size={20} />}>
+            <Label htmlFor="pdfInput">Import PDF</Label>
+            <Input id="pdfInput" type="file" accept="application/pdf" />
+          </Button>
+        </MainWrap>
+        <SecondaryWrap>
+          <MenuWrap>
             <MenuItem>
-              <LuSettings2 size={24} />
+              <RiHomeLine size={24} />
+              <Text size={16}>Home</Text>
             </MenuItem>
-            <SettingsPopup>
-              <SettingsItem>
-                <MenuItem>
-                  <BsGrid3X3 size={24} />
-                  <Text size={16}>Grid (mm)</Text>
-                </MenuItem>
-                <InputWrap>
-                  <InputWithAffix
-                    min="1"
-                    step="1"
-                    value={Math.round(gridSizeMm)}
-                    onChange={onChangeGrid}
-                    onBlur={onGridBlur}
-                    type="number"
-                    suffix={'mm'}
-                  />
-                </InputWrap>
-              </SettingsItem>
+            <Divider orientation="vertical" length={'40px'} />
+            <MenuItem>
+              <LuLayers size={24} />
+              <Text size={16}>
+                Floor: {floorName} ({Math.round(floorHeightMm)} mm)
+              </Text>
+            </MenuItem>
+          </MenuWrap>
 
-              <SettingsItem>
-                <MenuItem>
-                  <TbBoxAlignTopLeft size={24} />
-                  <Text size={16}>Snap to grid</Text>
-                </MenuItem>
-                <Toggle checked={snapMode === 'grid'} onChange={value => setSnapMode(value ? 'grid' : 'off')} />
-              </SettingsItem>
+          <MenuWrap>
+            {/* PDF Settings Menu - Only show when PDF is imported */}
+            {pdfImported && (
+              <>
+                <PdfSettingsMenu onDeletePdf={handleDeletePdf} onRecalibrate={handleRecalibrate} />
+                <Divider orientation="vertical" length={'40px'} />
+              </>
+            )}
 
-              <SettingsItem>
-                <MenuItem>
-                  <TbBoxAlignLeft size={24} />
-                  <Text size={16}>Snap to element</Text>
-                </MenuItem>
-                <Toggle checked={snapMode === 'element'} onChange={value => setSnapMode(value ? 'element' : 'off')} />
-              </SettingsItem>
+            {/* Floor Elements Button - New addition */}
+            <FloorElementsButton
+              disabled={!hasElements}
+              onClick={openFloorElementsPanel}
+              title={hasElements ? `View all elements on ${floorName}` : 'No elements on current floor'}
+            >
+              <LuTable size={24} />
+              <Text size={16}>View Floor Elements</Text>
+            </FloorElementsButton>
 
-              <AnimatedSettingsItem visible={snapMode === 'element'}>
-                <MenuItem>
-                  <CgArrowAlignH size={24} />
-                  <Text size={16}>Gap between elements</Text>
-                </MenuItem>
-                <InputWrap>
-                  <InputWithAffix
-                    min="0"
-                    step="1"
-                    value={Math.round(elementGapMm)}
-                    onChange={onChangeGap}
-                    onBlur={onGapBlur}
-                    type="number"
-                    suffix={'mm'}
-                  />
-                </InputWrap>
-              </AnimatedSettingsItem>
-            </SettingsPopup>
-          </SettingsContainer>
-        </MenuWrap>
-      </SecondaryWrap>
-    </Container>
+            <Divider orientation="vertical" length={'40px'} />
+
+            {/* Grid Settings */}
+            <SettingsContainer>
+              <MenuItem>
+                <LuSettings2 size={24} />
+              </MenuItem>
+              <SettingsPopup>
+                <SettingsItem>
+                  <MenuItem>
+                    <BsGrid3X3 size={24} />
+                    <Text size={16}>Grid (mm)</Text>
+                  </MenuItem>
+                  <InputWrap>
+                    <InputWithAffix
+                      min="1"
+                      step="1"
+                      value={Math.round(gridSizeMm)}
+                      onChange={onChangeGrid}
+                      onBlur={onGridBlur}
+                      type="number"
+                      suffix={'mm'}
+                    />
+                  </InputWrap>
+                </SettingsItem>
+
+                <SettingsItem>
+                  <MenuItem>
+                    <TbBoxAlignTopLeft size={24} />
+                    <Text size={16}>Snap to grid</Text>
+                  </MenuItem>
+                  <Toggle checked={snapMode === 'grid'} onChange={value => setSnapMode(value ? 'grid' : 'off')} />
+                </SettingsItem>
+
+                <SettingsItem>
+                  <MenuItem>
+                    <TbBoxAlignLeft size={24} />
+                    <Text size={16}>Snap to element</Text>
+                  </MenuItem>
+                  <Toggle checked={snapMode === 'element'} onChange={value => setSnapMode(value ? 'element' : 'off')} />
+                </SettingsItem>
+
+                <AnimatedSettingsItem visible={snapMode === 'element'}>
+                  <MenuItem>
+                    <CgArrowAlignH size={24} />
+                    <Text size={16}>Gap between elements</Text>
+                  </MenuItem>
+                  <InputWrap>
+                    <InputWithAffix
+                      min="0"
+                      step="1"
+                      value={Math.round(elementGapMm)}
+                      onChange={onChangeGap}
+                      onBlur={onGapBlur}
+                      type="number"
+                      suffix={'mm'}
+                    />
+                  </InputWrap>
+                </AnimatedSettingsItem>
+              </SettingsPopup>
+            </SettingsContainer>
+          </MenuWrap>
+        </SecondaryWrap>
+      </Container>
+
+      {/* Floor Elements Table Modal */}
+      {showFloorElementsTable && <FloorElementsTable onClose={() => setShowFloorElementsTable(false)} />}
+    </>
   );
 }
