@@ -7,7 +7,7 @@ import { useObjectStore } from '@/state/objectStore';
 import { useCanvasStore } from '@/state/canvasStore';
 import type { Canvas } from 'fabric';
 import { Module } from '@/types/geometry';
-import {Panel} from "@/components/ui/Panel";
+import { Panel } from '@/components/ui/Panel';
 
 const Field = styled.div`
   margin-bottom: 12px;
@@ -40,43 +40,52 @@ export default function ModuleProperties({ canvas }: { canvas: Canvas }) {
 
   const [form, setForm] = useState({
     name: module.name,
-    width: module.width.toString(),
-    length: module.length.toString(),
+    width: Math.round(module.width).toString(),
+    length: Math.round(module.length).toString(),
     showBorder: !!module.showBorder,
   });
 
   useEffect(() => {
     setForm({
       name: module.name,
-      width: module.width.toString(),
-      length: module.length.toString(),
+      width: Math.round(module.width).toString(),
+      length: Math.round(module.length).toString(),
       showBorder: !!module.showBorder,
     });
   }, [module]);
 
   const onChange = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = field === 'showBorder' ? e.target.checked : e.target.value;
-    setForm(prev => ({ ...prev, [field]: val }));
+    let val: any = e.target.value;
+
     if (field === 'showBorder') {
+      val = e.target.checked;
+      setForm(prev => ({ ...prev, [field]: val }));
       updateModule(module.id, { showBorder: val as boolean });
       const obj = canvas.getObjects().find(o => (o as any).isModule === module.id);
       obj?.set({ strokeWidth: val ? 2 : 0 });
       canvas.requestRenderAll();
       return;
     }
+
     if (field === 'name') {
+      setForm(prev => ({ ...prev, [field]: val }));
       updateModule(module.id, { name: val as string });
-    } else {
-      const num = parseFloat(val as string);
-      if (!isNaN(num)) {
-        updateModule(module.id, { [field]: num } as any);
-        const obj = canvas.getObjects().find(o => (o as any).isModule === module.id);
-        if (obj) {
-          if (field === 'width') obj.set({ width: num * scale });
-          if (field === 'length') obj.set({ height: num * scale });
-          obj.setCoords();
-          canvas.requestRenderAll();
-        }
+      return;
+    }
+
+    // For numeric fields, ensure integer-only values
+    val = val.replace(/[^\d]/g, ''); // Remove any decimal points and non-numeric characters
+    setForm(prev => ({ ...prev, [field]: val }));
+
+    const num = Math.round(parseInt(val) || 0);
+    if (num > 0) {
+      updateModule(module.id, { [field]: num } as any);
+      const obj = canvas.getObjects().find(o => (o as any).isModule === module.id);
+      if (obj) {
+        if (field === 'width') obj.set({ width: Math.round(num * scale) });
+        if (field === 'length') obj.set({ height: Math.round(num * scale) });
+        obj.setCoords();
+        canvas.requestRenderAll();
       }
     }
   };
@@ -92,7 +101,6 @@ export default function ModuleProperties({ canvas }: { canvas: Canvas }) {
     deleteModule(module.id);
     setSelModule(null);
   };
-
 
   return (
     <Panel>
@@ -111,18 +119,40 @@ export default function ModuleProperties({ canvas }: { canvas: Canvas }) {
 
       <Field>
         <Label>Width (mm)</Label>
-        <Input type="number" value={form.width} onChange={onChange('width')} />
+        <Input
+          type="number"
+          step="1"
+          min="1"
+          value={form.width}
+          onChange={onChange('width')}
+          onBlur={e => {
+            const val = Math.max(1, Math.round(parseInt(e.target.value) || 1));
+            setForm(prev => ({ ...prev, width: val.toString() }));
+            onChange('width')({ target: { value: val.toString() } } as any);
+          }}
+        />
       </Field>
 
       <Field>
         <Label>Length (mm)</Label>
-        <Input type="number" value={form.length} onChange={onChange('length')} />
+        <Input
+          type="number"
+          step="1"
+          min="1"
+          value={form.length}
+          onChange={onChange('length')}
+          onBlur={e => {
+            const val = Math.max(1, Math.round(parseInt(e.target.value) || 1));
+            setForm(prev => ({ ...prev, length: val.toString() }));
+            onChange('length')({ target: { value: val.toString() } } as any);
+          }}
+        />
       </Field>
 
       <h4>Openings</h4>
       {openings.map(o => (
         <div key={o.id} style={{ marginBottom: 8 }}>
-          Side {o.wallSide}, dist {o.distanceAlongWall} mm, y {o.yOffset} mm
+          Side {o.wallSide}, dist {Math.round(o.distanceAlongWall)} mm, y {Math.round(o.yOffset)} mm
           <button style={{ marginLeft: 12 }} onClick={() => setSelOpening(o.id)}>
             Edit
           </button>

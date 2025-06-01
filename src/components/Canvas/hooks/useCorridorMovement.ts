@@ -16,15 +16,20 @@ export default function useCorridorMovement(canvas: Canvas | null) {
       const corridorId = (obj as any).isCorridor as string | undefined;
       if (!corridorId) return;
 
-      // bounding box після трансформацій
+      // bounding box після трансформацій - ensure integers
       const b = obj.getBoundingRect(true);
-      // конвертуємо пікселі → мм
-      const x1 = b.left / scaleFactor;
-      const y1 = b.top / scaleFactor;
-      const x2 = (b.left + b.width) / scaleFactor;
-      const y2 = (b.top + b.height) / scaleFactor;
+      // конвертуємо пікселі → мм - ensure integers
+      const x1 = Math.round(Math.round(b.left) / scaleFactor);
+      const y1 = Math.round(Math.round(b.top) / scaleFactor);
+      const x2 = Math.round((Math.round(b.left) + Math.round(b.width)) / scaleFactor);
+      const y2 = Math.round((Math.round(b.top) + Math.round(b.height)) / scaleFactor);
 
-      updateCorridor(corridorId, { x1, y1, x2, y2 });
+      updateCorridor(corridorId, {
+        x1: Math.round(x1),
+        y1: Math.round(y1),
+        x2: Math.round(x2),
+        y2: Math.round(y2),
+      });
     };
 
     canvas.on('object:modified', onModified);

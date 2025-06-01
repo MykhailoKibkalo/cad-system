@@ -52,7 +52,6 @@ const Preview = styled.div`
   height: 406px;
   background: #f8f9fa;
   border: 1px solid #d1d5db;
-  //margin: 16px 0;
   border-radius: 8px;
   overflow: hidden;
 `;
@@ -163,6 +162,7 @@ const DrowdownWrap = styled.div`
   gap: 8px;
   margin-top: 8px;
 `;
+
 interface OpeningEditorProps {
   moduleId: string;
   onClose: () => void;
@@ -198,13 +198,13 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
   const isUpdatingFromCanvas = useRef(false);
   const currentScaleRef = useRef<number>(1);
 
-  // Form state
+  // Form state - ensure integers
   const [tplIndex, setTplIndex] = useState<number | ''>('');
   const [wallSide, setWallSide] = useState<1 | 2 | 3 | 4>(existing?.wallSide ?? 1);
-  const [distance, setDistance] = useState(existing?.distanceAlongWall ?? 0);
-  const [yOffset, setYOffset] = useState(existing?.yOffset ?? 0);
-  const [width, setWidth] = useState(existing?.width ?? Math.min(module.width / 2, 1000));
-  const [height, setHeight] = useState(existing?.height ?? Math.min(floorHeightMm / 2, 2000));
+  const [distance, setDistance] = useState(Math.round(existing?.distanceAlongWall ?? 0));
+  const [yOffset, setYOffset] = useState(Math.round(existing?.yOffset ?? 0));
+  const [width, setWidth] = useState(Math.round(existing?.width ?? Math.min(Math.round(module.width) / 2, 1000)));
+  const [height, setHeight] = useState(Math.round(existing?.height ?? Math.min(Math.round(floorHeightMm) / 2, 2000)));
 
   // Validation state
   const [validationErrors, setValidationErrors] = useState<{
@@ -214,12 +214,12 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
     yOffset?: string;
   }>({});
 
-  // Calculate wall dimensions based on wall side
+  // Calculate wall dimensions based on wall side - ensure integers
   const wallDimensions = useMemo(() => {
     const isHorizontal = wallSide === 1 || wallSide === 3;
     return {
-      width: isHorizontal ? module.width : module.length,
-      height: floorHeightMm,
+      width: Math.round(isHorizontal ? module.width : module.length),
+      height: Math.round(floorHeightMm),
       isHorizontal,
     };
   }, [wallSide, module.width, module.length, floorHeightMm]);
@@ -342,36 +342,36 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
     openingObjectRef.current = openingRect;
     canvas.add(openingRect);
 
-    // Canvas event handlers
+    // Canvas event handlers - ensure integers
     const onObjectMoving = (e: any) => {
       const obj = e.target;
       if (obj !== openingObjectRef.current) return;
 
       const wall = wallObjectRef.current!;
 
-      // Apply 1mm grid snapping (convert 1mm to canvas pixels)
-      const gridPx = currentScaleRef.current; // 1mm in canvas pixels
-      let left = Math.round(obj.left / gridPx) * gridPx;
-      let top = Math.round(obj.top / gridPx) * gridPx;
+      // Apply 1mm grid snapping (convert 1mm to canvas pixels) - ensure integers
+      const gridPx = Math.round(currentScaleRef.current); // 1mm in canvas pixels
+      let left = Math.round(Math.round(obj.left / gridPx) * gridPx);
+      let top = Math.round(Math.round(obj.top / gridPx) * gridPx);
 
       // Constrain to wall bounds
-      const objWidth = obj.getScaledWidth();
-      const objHeight = obj.getScaledHeight();
+      const objWidth = Math.round(obj.getScaledWidth());
+      const objHeight = Math.round(obj.getScaledHeight());
 
-      if (left < wall.left) {
-        left = wall.left;
+      if (left < Math.round(wall.left)) {
+        left = Math.round(wall.left);
       }
-      if (top < wall.top) {
-        top = wall.top;
+      if (top < Math.round(wall.top)) {
+        top = Math.round(wall.top);
       }
-      if (left + objWidth > wall.left + wall.width) {
-        left = wall.left + wall.width - objWidth;
+      if (left + objWidth > Math.round(wall.left) + Math.round(wall.width)) {
+        left = Math.round(wall.left) + Math.round(wall.width) - objWidth;
       }
-      if (top + objHeight > wall.top + wall.height) {
-        top = wall.top + wall.height - objHeight;
+      if (top + objHeight > Math.round(wall.top) + Math.round(wall.height)) {
+        top = Math.round(wall.top) + Math.round(wall.height) - objHeight;
       }
 
-      obj.set({ left, top });
+      obj.set({ left: Math.round(left), top: Math.round(top) });
       obj.setCoords();
     };
 
@@ -381,18 +381,18 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
 
       const wall = wallObjectRef.current!;
 
-      // Calculate current scaled dimensions
-      const scaledWidth = obj.width * obj.scaleX;
-      const scaledHeight = obj.height * obj.scaleY;
+      // Calculate current scaled dimensions - ensure integers
+      const scaledWidth = Math.round(obj.width * obj.scaleX);
+      const scaledHeight = Math.round(obj.height * obj.scaleY);
 
-      // Apply 1mm grid snapping to dimensions
-      const gridPx = currentScaleRef.current; // 1mm in canvas pixels
-      const snappedWidth = Math.max(gridPx, Math.round(scaledWidth / gridPx) * gridPx);
-      const snappedHeight = Math.max(gridPx, Math.round(scaledHeight / gridPx) * gridPx);
+      // Apply 1mm grid snapping to dimensions - ensure integers
+      const gridPx = Math.round(currentScaleRef.current); // 1mm in canvas pixels
+      const snappedWidth = Math.max(gridPx, Math.round(Math.round(scaledWidth / gridPx) * gridPx));
+      const snappedHeight = Math.max(gridPx, Math.round(Math.round(scaledHeight / gridPx) * gridPx));
 
       // Constrain to wall bounds
-      const maxWidth = wall.left + wall.width - obj.left;
-      const maxHeight = wall.top + wall.height - obj.top;
+      const maxWidth = Math.round(wall.left) + Math.round(wall.width) - Math.round(obj.left);
+      const maxHeight = Math.round(wall.top) + Math.round(wall.height) - Math.round(obj.top);
 
       const finalWidth = Math.min(snappedWidth, maxWidth);
       const finalHeight = Math.min(snappedHeight, maxHeight);
@@ -412,29 +412,29 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
       const wall = wallObjectRef.current!;
 
       // Calculate the scale factors to convert canvas coordinates to real dimensions
-      const scaleX = wallDimensions.width / wall.width;
-      const scaleY = wallDimensions.height / wall.height;
+      const scaleX = wallDimensions.width / Math.round(wall.width);
+      const scaleY = wallDimensions.height / Math.round(wall.height);
 
-      // Get final dimensions
-      const finalWidth = obj.getScaledWidth();
-      const finalHeight = obj.getScaledHeight();
+      // Get final dimensions - ensure integers
+      const finalWidth = Math.round(obj.getScaledWidth());
+      const finalHeight = Math.round(obj.getScaledHeight());
 
-      // Convert to real coordinates
-      const newDistance = Math.round((obj.left - wall.left) * scaleX);
-      const newYOffset = Math.round((obj.top - wall.top) * scaleY);
+      // Convert to real coordinates - ensure integers
+      const newDistance = Math.round((Math.round(obj.left) - Math.round(wall.left)) * scaleX);
+      const newYOffset = Math.round((Math.round(obj.top) - Math.round(wall.top)) * scaleY);
       const newWidth = Math.round(finalWidth * scaleX);
       const newHeight = Math.round(finalHeight * scaleY);
 
-      // Update form state
-      setDistance(Math.max(0, newDistance));
-      setYOffset(Math.max(0, newYOffset));
-      setWidth(Math.max(1, newWidth));
-      setHeight(Math.max(1, newHeight));
+      // Update form state - ensure integers
+      setDistance(Math.max(0, Math.round(newDistance)));
+      setYOffset(Math.max(0, Math.round(newYOffset)));
+      setWidth(Math.max(1, Math.round(newWidth)));
+      setHeight(Math.max(1, Math.round(newHeight)));
 
       // Normalize the object to have scale 1:1 with new dimensions
       obj.set({
-        width: finalWidth,
-        height: finalHeight,
+        width: Math.round(finalWidth),
+        height: Math.round(finalHeight),
         scaleX: 1,
         scaleY: 1,
       });
@@ -472,8 +472,8 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
     const container = canvasContainerRef.current;
     if (!canvas || !container) return;
 
-    const containerWidth = container.clientWidth;
-    const containerHeight = container.clientHeight;
+    const containerWidth = Math.round(container.clientWidth);
+    const containerHeight = Math.round(container.clientHeight);
 
     canvas.setDimensions({
       width: containerWidth,
@@ -492,8 +492,8 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
     const heightLabel = heightLabelRef.current;
     if (!canvas || !wall || !opening || !widthLabel || !heightLabel || isUpdatingFromCanvas.current) return;
 
-    const containerWidth = canvas.width!;
-    const containerHeight = canvas.height!;
+    const containerWidth = Math.round(canvas.width!);
+    const containerHeight = Math.round(canvas.height!);
 
     // Calculate scale to fit wall in container with padding
     const padding = 60; // Increased padding for dimension labels
@@ -507,30 +507,30 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
     // Store current scale for grid snapping (1mm in canvas pixels)
     currentScaleRef.current = scale;
 
-    // Update wall size and position
-    const wallWidth = wallDimensions.width * scale;
-    const wallHeight = wallDimensions.height * scale;
-    const wallLeft = (containerWidth - wallWidth) / 2;
-    const wallTop = (containerHeight - wallHeight) / 2;
+    // Update wall size and position - ensure integers
+    const wallWidth = Math.round(wallDimensions.width * scale);
+    const wallHeight = Math.round(wallDimensions.height * scale);
+    const wallLeft = Math.round((containerWidth - wallWidth) / 2);
+    const wallTop = Math.round((containerHeight - wallHeight) / 2);
 
     wall.set({
-      left: wallLeft,
-      top: wallTop,
-      width: wallWidth,
-      height: wallHeight,
+      left: Math.round(wallLeft),
+      top: Math.round(wallTop),
+      width: Math.round(wallWidth),
+      height: Math.round(wallHeight),
     });
 
-    // Update opening size and position
-    const openingWidth = width * scale;
-    const openingHeight = height * scale;
-    const openingLeft = wallLeft + distance * scale;
-    const openingTop = wallTop + yOffset * scale;
+    // Update opening size and position - ensure integers
+    const openingWidth = Math.round(width * scale);
+    const openingHeight = Math.round(height * scale);
+    const openingLeft = Math.round(wallLeft + distance * scale);
+    const openingTop = Math.round(wallTop + yOffset * scale);
 
     opening.set({
-      left: openingLeft,
-      top: openingTop,
-      width: openingWidth,
-      height: openingHeight,
+      left: Math.round(openingLeft),
+      top: Math.round(openingTop),
+      width: Math.round(openingWidth),
+      height: Math.round(openingHeight),
       scaleX: 1,
       scaleY: 1,
     });
@@ -538,14 +538,14 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
     // Update dimension labels
     widthLabel.set({
       text: `${wallDimensions.width} mm`,
-      left: wallLeft + wallWidth / 2,
-      top: wallTop + wallHeight + 15,
+      left: Math.round(wallLeft + wallWidth / 2),
+      top: Math.round(wallTop + wallHeight + 15),
     });
 
     heightLabel.set({
       text: `${wallDimensions.height} mm`,
-      left: wallLeft - 25,
-      top: wallTop + wallHeight / 2,
+      left: Math.round(wallLeft - 25),
+      top: Math.round(wallTop + wallHeight / 2),
     });
 
     wall.setCoords();
@@ -558,16 +558,16 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
     updateCanvasObjects();
   }, [updateCanvasObjects]);
 
-  // Apply template
+  // Apply template - ensure integers
   useEffect(() => {
     if (tplIndex === '') return;
     const tpl = openingTemplates[tplIndex];
     if (!tpl) return;
     setWallSide(tpl.wallSide);
-    setDistance(tpl.distanceAlongWall);
-    setYOffset(tpl.yOffset);
-    setWidth(tpl.width);
-    setHeight(tpl.height);
+    setDistance(Math.round(tpl.distanceAlongWall));
+    setYOffset(Math.round(tpl.yOffset));
+    setWidth(Math.round(tpl.width));
+    setHeight(Math.round(tpl.height));
   }, [tplIndex, openingTemplates]);
 
   const onSubmit = () => {
@@ -576,10 +576,10 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
     if (existing) {
       updateOpening(existing.id, {
         wallSide,
-        distanceAlongWall: distance,
-        yOffset,
-        width,
-        height,
+        distanceAlongWall: Math.round(distance),
+        yOffset: Math.round(yOffset),
+        width: Math.round(width),
+        height: Math.round(height),
       });
     } else {
       const id = Date.now().toString();
@@ -587,10 +587,10 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
         id,
         moduleId,
         wallSide,
-        distanceAlongWall: distance,
-        yOffset,
-        width,
-        height,
+        distanceAlongWall: Math.round(distance),
+        yOffset: Math.round(yOffset),
+        width: Math.round(width),
+        height: Math.round(height),
       });
     }
     onClose();
@@ -599,10 +599,10 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
   const onSaveTpl = () => {
     addOpeningTemplate({
       wallSide,
-      distanceAlongWall: distance,
-      yOffset,
-      width,
-      height,
+      distanceAlongWall: Math.round(distance),
+      yOffset: Math.round(yOffset),
+      width: Math.round(width),
+      height: Math.round(height),
     });
   };
 
@@ -613,7 +613,7 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
     { value: '', label: 'Select template' },
     ...openingTemplates.map((t, i) => ({
       value: i,
-      label: `tpl ${i + 1}: w${t.width}×h${t.height}`,
+      label: `tpl ${i + 1}: w${Math.round(t.width)}×h${Math.round(t.height)}`,
     })),
   ];
 
@@ -661,13 +661,13 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
                   Template
                 </Text>
                 <DrowdownWrap>
-                <InputLabel>Select template</InputLabel>
-                <Dropdown
-                  options={templateOptions}
-                  value={tplIndex}
-                  onChange={value => setTplIndex(value === '' ? '' : Number(value))}
-                  placeholder="Select template"
-                />
+                  <InputLabel>Select template</InputLabel>
+                  <Dropdown
+                    options={templateOptions}
+                    value={tplIndex}
+                    onChange={value => setTplIndex(value === '' ? '' : Number(value))}
+                    placeholder="Select template"
+                  />
                 </DrowdownWrap>
               </MenuItem>
 
@@ -677,13 +677,13 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
                   Wall side
                 </Text>
                 <DrowdownWrap>
-                <InputLabel>Select wall</InputLabel>
-                <Dropdown
-                  options={wallSideOptions}
-                  value={wallSide}
-                  onChange={value => setWallSide(Number(value) as 1 | 2 | 3 | 4)}
-                  placeholder="Select wall side"
-                />
+                  <InputLabel>Select wall</InputLabel>
+                  <Dropdown
+                    options={wallSideOptions}
+                    value={wallSide}
+                    onChange={value => setWallSide(Number(value) as 1 | 2 | 3 | 4)}
+                    placeholder="Select wall side"
+                  />
                 </DrowdownWrap>
                 <Text size={14} color="#64748b">
                   Wall dimensions: {wallDimensions.width} × {wallDimensions.height} mm
@@ -701,9 +701,10 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
                       label="Width"
                       suffix="mm"
                       type="number"
-                      min={1}
+                      step="1"
+                      min="1"
                       value={width}
-                      onChange={e => setWidth(Math.max(1, +e.target.value))}
+                      onChange={e => setWidth(Math.max(1, Math.round(parseInt(e.target.value) || 1)))}
                       error={validationErrors.width}
                     />
                     {!validationErrors.width && <SuccessMessage>Maximum: {wallDimensions.width} mm</SuccessMessage>}
@@ -713,9 +714,10 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
                       label="Height"
                       suffix="mm"
                       type="number"
-                      min={1}
+                      step="1"
+                      min="1"
                       value={height}
-                      onChange={e => setHeight(Math.max(1, +e.target.value))}
+                      onChange={e => setHeight(Math.max(1, Math.round(parseInt(e.target.value) || 1)))}
                       error={validationErrors.height}
                     />
                     {!validationErrors.height && <SuccessMessage>Maximum: {wallDimensions.height} mm</SuccessMessage>}
@@ -734,9 +736,10 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
                       label="X-position"
                       suffix="mm"
                       type="number"
-                      min={0}
+                      step="1"
+                      min="0"
                       value={distance}
-                      onChange={e => setDistance(Math.max(0, +e.target.value))}
+                      onChange={e => setDistance(Math.max(0, Math.round(parseInt(e.target.value) || 0)))}
                       error={validationErrors.distance}
                     />
                     {!validationErrors.distance && (
@@ -748,9 +751,10 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
                       label="Y-position"
                       suffix="mm"
                       type="number"
-                      min={0}
+                      step="1"
+                      min="0"
                       value={yOffset}
-                      onChange={e => setYOffset(Math.max(0, +e.target.value))}
+                      onChange={e => setYOffset(Math.max(0, Math.round(parseInt(e.target.value) || 0)))}
                       error={validationErrors.yOffset}
                     />
                     {!validationErrors.yOffset && (

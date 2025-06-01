@@ -1,8 +1,8 @@
 // src/components/Canvas/hooks/useScaleCalibration.ts
 import { useEffect } from 'react';
 import { Canvas, Line } from 'fabric';
-import { useCanvasStore } from '../../../state/canvasStore';
-import { useToolStore } from '../../../state/toolStore';
+import { useCanvasStore } from '@/state/canvasStore';
+import { useToolStore } from '@/state/toolStore';
 
 export default function useScaleCalibration(canvas: Canvas | null) {
   const tool = useToolStore(s => s.tool);
@@ -19,33 +19,34 @@ export default function useScaleCalibration(canvas: Canvas | null) {
     const onMouseDown = (opt: any) => {
       if (tool !== 'calibrate') return;
       const pointer = canvas.getPointer(opt.e);
-      startX = pointer.x;
-      startY = pointer.y;
+      // Ensure integer coordinates
+      startX = Math.round(pointer.x);
+      startY = Math.round(pointer.y);
       // створюємо нову горизонтальну лінію
-      currentLine = new Line(
-          [startX, startY, startX, startY],
-          {
-            stroke: 'red',
-            strokeWidth: 2,
-            selectable: false,
-            evented: false,
-          }
-      );
+      currentLine = new Line([startX, startY, startX, startY], {
+        stroke: 'red',
+        strokeWidth: 2,
+        selectable: false,
+        evented: false,
+      });
       canvas.add(currentLine);
     };
 
     const onMouseMove = (opt: any) => {
       if (tool !== 'calibrate' || !currentLine) return;
       const pointer = canvas.getPointer(opt.e);
-      // оновлюємо x2, y2 = стартове y
-      currentLine.set({ x2: pointer.x, y2: startY });
+      // оновлюємо x2, y2 = стартове y - ensure integers
+      currentLine.set({
+        x2: Math.round(pointer.x),
+        y2: Math.round(startY),
+      });
       canvas.requestRenderAll();
     };
 
     const onMouseUp = () => {
       if (tool !== 'calibrate' || !currentLine) return;
-      // обчислюємо довжину в пікселях
-      const dx = currentLine.x2! - currentLine.x1!;
+      // обчислюємо довжину в пікселях - ensure integer
+      const dx = Math.round(currentLine.x2!) - Math.round(currentLine.x1!);
       const pixelLen = Math.abs(dx);
       // питаємо реальну довжину
       const realMmStr = prompt('Enter real length in millimetres for this line:', '1000');
@@ -61,12 +62,12 @@ export default function useScaleCalibration(canvas: Canvas | null) {
 
     canvas.on('mouse:down', onMouseDown);
     canvas.on('mouse:move', onMouseMove);
-    canvas.on('mouse:up',   onMouseUp);
+    canvas.on('mouse:up', onMouseUp);
 
     return () => {
       canvas.off('mouse:down', onMouseDown);
       canvas.off('mouse:move', onMouseMove);
-      canvas.off('mouse:up',   onMouseUp);
+      canvas.off('mouse:up', onMouseUp);
     };
   }, [canvas, tool, setScale, setTool]);
 }

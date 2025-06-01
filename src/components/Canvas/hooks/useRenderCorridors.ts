@@ -10,7 +10,6 @@ export default function useRenderCorridors(canvas: Canvas | null) {
   const scaleFactor = useCanvasStore(s => s.scaleFactor);
   const floor = useCanvasStore(s => s.currentFloor);
 
-
   useEffect(() => {
     if (!canvas) return;
     // remove any old corridor objects
@@ -20,16 +19,18 @@ export default function useRenderCorridors(canvas: Canvas | null) {
 
     corridors.forEach(c => {
       if (c.floor !== floor) return;
-      const left = c.x1 * scaleFactor;
-      const top = c.y1 * scaleFactor;
-      const width = (c.x2 - c.x1) * scaleFactor;
-      const height = (c.y2 - c.y1) * scaleFactor;
+
+      // Ensure all calculations result in integers
+      const left = Math.round(c.x1 * scaleFactor);
+      const top = Math.round(c.y1 * scaleFactor);
+      const width = Math.round((c.x2 - c.x1) * scaleFactor);
+      const height = Math.round((c.y2 - c.y1) * scaleFactor);
 
       const rect = new fabric.Rect({
-        left,
-        top,
-        width,
-        height,
+        left: Math.round(left),
+        top: Math.round(top),
+        width: Math.round(width),
+        height: Math.round(height),
         fill: 'rgba(128,128,128,0.3)',
         stroke: '#666',
         strokeDashArray: [4, 4],
@@ -43,7 +44,7 @@ export default function useRenderCorridors(canvas: Canvas | null) {
         lockUniScaling: false,
       });
 
-      // ← store the corridor’s ID, so movement‐hook can pick it up
+      // ← store the corridor's ID, so movement‐hook can pick it up
       (rect as any).isCorridor = c.id;
 
       canvas.add(rect);

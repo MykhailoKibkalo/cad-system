@@ -1,7 +1,7 @@
 // src/components/Canvas/hooks/usePanZoom.ts
 import { useEffect } from 'react';
 import type { Canvas } from 'fabric';
-import { useCanvasStore } from '../../../state/canvasStore';
+import { useCanvasStore } from '@/state/canvasStore';
 
 export default function usePanZoom(canvas: Canvas | null) {
   const zoomLevel = useCanvasStore(s => s.zoomLevel);
@@ -31,7 +31,8 @@ export default function usePanZoom(canvas: Canvas | null) {
     canvas.requestRenderAll();
     {
       const [, , , , tx, ty] = canvas.viewportTransform!;
-      useCanvasStore.getState().setPan(tx, ty);
+      // Ensure integer pan values
+      useCanvasStore.getState().setPan(Math.round(tx), Math.round(ty));
     }
   }, [canvas, zoomLevel]);
 
@@ -77,20 +78,22 @@ export default function usePanZoom(canvas: Canvas | null) {
     const onDown = (e: MouseEvent) => {
       if (!handMode) return;
       dragging = true;
-      lastX = e.clientX;
-      lastY = e.clientY;
+      lastX = Math.round(e.clientX);
+      lastY = Math.round(e.clientY);
       el.style.cursor = 'grabbing';
     };
     // mousemove → пан
     const onMove = (e: MouseEvent) => {
       if (!dragging) return;
       const vpt = canvas.viewportTransform!;
-      vpt[4] += e.clientX - lastX;
-      vpt[5] += e.clientY - lastY;
-      lastX = e.clientX;
-      lastY = e.clientY;
+      // Ensure integer pan movements
+      vpt[4] += Math.round(e.clientX - lastX);
+      vpt[5] += Math.round(e.clientY - lastY);
+      lastX = Math.round(e.clientX);
+      lastY = Math.round(e.clientY);
       canvas.requestRenderAll();
-      useCanvasStore.getState().setPan(vpt[4], vpt[5]);
+      // Ensure integer pan values in store
+      useCanvasStore.getState().setPan(Math.round(vpt[4]), Math.round(vpt[5]));
     };
     // mouseup → кінець пану
     const onUp = () => {

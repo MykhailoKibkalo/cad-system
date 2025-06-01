@@ -66,15 +66,6 @@ const HalfButton = styled(Button)`
   flex: 1;
 `;
 
-const ValidationMessage = styled.div`
-  color: #dc2626;
-  font-size: 14px;
-  margin-top: 4px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-`;
-
 const SuccessMessage = styled.div`
   color: #059669;
   font-size: 14px;
@@ -97,10 +88,10 @@ export default function BathroomPodProperties({ canvas }: { canvas: Canvas }) {
 
   const [form, setForm] = useState({
     name: pod.name,
-    width: pod.width.toString(),
-    length: pod.length.toString(),
-    x_offset: pod.x_offset.toString(),
-    y_offset: pod.y_offset.toString(),
+    width: Math.round(pod.width).toString(),
+    length: Math.round(pod.length).toString(),
+    x_offset: Math.round(pod.x_offset).toString(),
+    y_offset: Math.round(pod.y_offset).toString(),
     type: pod.type ?? 'F',
   });
 
@@ -115,10 +106,10 @@ export default function BathroomPodProperties({ canvas }: { canvas: Canvas }) {
   useEffect(() => {
     setForm({
       name: pod.name,
-      width: pod.width.toString(),
-      length: pod.length.toString(),
-      x_offset: pod.x_offset.toString(),
-      y_offset: pod.y_offset.toString(),
+      width: Math.round(pod.width).toString(),
+      length: Math.round(pod.length).toString(),
+      x_offset: Math.round(pod.x_offset).toString(),
+      y_offset: Math.round(pod.y_offset).toString(),
       type: pod.type ?? 'F',
     });
   }, [pod]);
@@ -129,44 +120,51 @@ export default function BathroomPodProperties({ canvas }: { canvas: Canvas }) {
 
     const errors: typeof validationErrors = {};
 
-    const widthValue = parseFloat(form.width);
-    const lengthValue = parseFloat(form.length);
-    const xOffsetValue = parseFloat(form.x_offset);
-    const yOffsetValue = parseFloat(form.y_offset);
+    const widthValue = Math.round(parseInt(form.width) || 0);
+    const lengthValue = Math.round(parseInt(form.length) || 0);
+    const xOffsetValue = Math.round(parseInt(form.x_offset) || 0);
+    const yOffsetValue = Math.round(parseInt(form.y_offset) || 0);
 
     // Validate width
     if (isNaN(widthValue) || widthValue <= 0) {
       errors.width = 'Width must be greater than 0';
-    } else if (widthValue > module.width) {
-      errors.width = `Width must be ≤${module.width} mm`;
+    } else if (widthValue > Math.round(module.width)) {
+      errors.width = `Width must be ≤${Math.round(module.width)} mm`;
     }
 
     // Validate length
     if (isNaN(lengthValue) || lengthValue <= 0) {
       errors.length = 'Length must be greater than 0';
-    } else if (lengthValue > module.length) {
-      errors.length = `Length must be ≤${module.length} mm`;
+    } else if (lengthValue > Math.round(module.length)) {
+      errors.length = `Length must be ≤${Math.round(module.length)} mm`;
     }
 
     // Validate x_offset
     if (isNaN(xOffsetValue) || xOffsetValue < 0) {
       errors.x_offset = 'X-offset cannot be negative';
-    } else if (xOffsetValue + widthValue > module.width) {
-      errors.x_offset = `X-offset + width must be ≤${module.width} mm`;
+    } else if (xOffsetValue + widthValue > Math.round(module.width)) {
+      errors.x_offset = `X-offset + width must be ≤${Math.round(module.width)} mm`;
     }
 
     // Validate y_offset
     if (isNaN(yOffsetValue) || yOffsetValue < 0) {
       errors.y_offset = 'Y-offset cannot be negative';
-    } else if (yOffsetValue + lengthValue > module.length) {
-      errors.y_offset = `Y-offset + length must be ≤${module.length} mm`;
+    } else if (yOffsetValue + lengthValue > Math.round(module.length)) {
+      errors.y_offset = `Y-offset + length must be ≤${Math.round(module.length)} mm`;
     }
 
     setValidationErrors(errors);
   }, [form.width, form.length, form.x_offset, form.y_offset, module]);
 
   const onChange = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+    let value = e.target.value;
+
+    // For numeric fields, ensure integer-only values
+    if (field !== 'name' && field !== 'type') {
+      // Remove any decimal points and non-numeric characters except for empty string
+      value = value.replace(/[^\d]/g, '');
+    }
+
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
@@ -181,10 +179,10 @@ export default function BathroomPodProperties({ canvas }: { canvas: Canvas }) {
 
     updatePod(pod.id, {
       name: form.name,
-      width: parseFloat(form.width),
-      length: parseFloat(form.length),
-      x_offset: parseFloat(form.x_offset),
-      y_offset: parseFloat(form.y_offset),
+      width: Math.round(parseInt(form.width)),
+      length: Math.round(parseInt(form.length)),
+      x_offset: Math.round(parseInt(form.x_offset)),
+      y_offset: Math.round(parseInt(form.y_offset)),
       type: form.type,
     });
     canvas.requestRenderAll();
@@ -211,8 +209,6 @@ export default function BathroomPodProperties({ canvas }: { canvas: Canvas }) {
     { value: 'S', label: 'Shower Only' },
     { value: 'T', label: 'Toilet Only' },
   ];
-
-  console.log(validationErrors.width);
 
   if (!module) {
     return (
@@ -262,26 +258,38 @@ export default function BathroomPodProperties({ canvas }: { canvas: Canvas }) {
                 label="Width"
                 suffix="mm"
                 type="number"
+                step="1"
+                min="1"
                 value={form.width}
                 onChange={onChange('width')}
+                onBlur={e => {
+                  const val = Math.max(1, Math.round(parseInt(e.target.value) || 1));
+                  setForm(prev => ({ ...prev, width: val.toString() }));
+                }}
                 error={validationErrors.width}
               />
-              {!validationErrors.width && <SuccessMessage>Maximum: {module.width} mm</SuccessMessage>}
+              {!validationErrors.width && <SuccessMessage>Maximum: {Math.round(module.width)} mm</SuccessMessage>}
             </div>
             <div style={{ flex: 1 }}>
               <Input
                 label="Length"
                 suffix="mm"
                 type="number"
+                step="1"
+                min="1"
                 value={form.length}
                 onChange={onChange('length')}
+                onBlur={e => {
+                  const val = Math.max(1, Math.round(parseInt(e.target.value) || 1));
+                  setForm(prev => ({ ...prev, length: val.toString() }));
+                }}
                 error={validationErrors.length}
               />
-              {!validationErrors.length && <SuccessMessage>Maximum: {module.length} mm</SuccessMessage>}
+              {!validationErrors.length && <SuccessMessage>Maximum: {Math.round(module.length)} mm</SuccessMessage>}
             </div>
           </Row>
           <Text size={14} color="#64748b">
-            Module dimensions: {module.width} × {module.length} mm
+            Module dimensions: {Math.round(module.width)} × {Math.round(module.length)} mm
           </Text>
         </MenuItem>
 
@@ -297,13 +305,19 @@ export default function BathroomPodProperties({ canvas }: { canvas: Canvas }) {
                 label="X-offset"
                 suffix="mm"
                 type="number"
+                step="1"
+                min="0"
                 value={form.x_offset}
                 onChange={onChange('x_offset')}
+                onBlur={e => {
+                  const val = Math.max(0, Math.round(parseInt(e.target.value) || 0));
+                  setForm(prev => ({ ...prev, x_offset: val.toString() }));
+                }}
                 error={validationErrors.x_offset}
               />
               {!validationErrors.x_offset && (
                 <SuccessMessage>
-                  Available: {Math.max(0, module.width - parseFloat(form.width || '0'))} mm
+                  Available: {Math.max(0, Math.round(module.width) - Math.round(parseInt(form.width) || 0))} mm
                 </SuccessMessage>
               )}
             </div>
@@ -312,13 +326,21 @@ export default function BathroomPodProperties({ canvas }: { canvas: Canvas }) {
                 label="Y-offset"
                 suffix="mm"
                 type="number"
+                step="1"
+                min="0"
                 value={form.y_offset}
                 onChange={onChange('y_offset')}
+                onBlur={e => {
+                  const val = Math.max(0, Math.round(parseInt(e.target.value) || 0));
+                  setForm(prev => ({ ...prev, y_offset: val.toString() }));
+                }}
                 error={validationErrors.y_offset}
               />
-              {!validationErrors.y_offset && (<SuccessMessage>
-                Available: {Math.max(0, module.length - parseFloat(form.length || '0'))} mm
-              </SuccessMessage>)}
+              {!validationErrors.y_offset && (
+                <SuccessMessage>
+                  Available: {Math.max(0, Math.round(module.length) - Math.round(parseInt(form.length) || 0))} mm
+                </SuccessMessage>
+              )}
             </div>
           </Row>
         </MenuItem>

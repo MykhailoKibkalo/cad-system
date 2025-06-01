@@ -172,8 +172,8 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
     if (module) {
       setForm({
         name: module.name,
-        width: module.width.toString(),
-        length: module.length.toString(),
+        width: Math.round(module.width).toString(),
+        length: Math.round(module.length).toString(),
       });
     } else {
       setForm({ name: '', width: '', length: '' });
@@ -181,7 +181,13 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
   }, [module]);
 
   const onChange = (field: 'name' | 'width' | 'length' | 'showBorder') => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = e.target.value;
+    let v = e.target.value;
+
+    if (field === 'width' || field === 'length') {
+      // For numeric fields, ensure integer-only values
+      v = v.replace(/[^\d]/g, ''); // Remove any decimal points and non-numeric characters
+    }
+
     setForm(f => ({ ...f, [field]: v }));
     if (!module) return;
 
@@ -197,15 +203,16 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
     if (field === 'name') {
       updates.name = v;
     } else {
-      const num = parseFloat(v);
-      if (isNaN(num)) return;
-      updates[field] = num;
-      const obj = canvas?.getObjects().find(o => (o as any).isModule === module.id);
-      if (obj) {
-        if (field === 'width') obj.set({ width: num * scaleFactor });
-        if (field === 'length') obj.set({ height: num * scaleFactor });
-        obj.setCoords();
-        canvas!.requestRenderAll();
+      const num = Math.round(parseInt(v) || 0);
+      if (num > 0) {
+        updates[field] = num;
+        const obj = canvas?.getObjects().find(o => (o as any).isModule === module.id);
+        if (obj) {
+          if (field === 'width') obj.set({ width: Math.round(num * scaleFactor) });
+          if (field === 'length') obj.set({ height: Math.round(num * scaleFactor) });
+          obj.setCoords();
+          canvas!.requestRenderAll();
+        }
       }
     }
     updateModule(module.id, updates);
@@ -234,7 +241,7 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
     const newOpening = {
       ...opening,
       id: `opening_${Date.now()}`,
-      distanceAlongWall: opening.distanceAlongWall + 100, // Offset slightly
+      distanceAlongWall: Math.round(opening.distanceAlongWall) + 100, // Offset slightly
     };
     addOpening(newOpening);
     canvas?.requestRenderAll();
@@ -245,7 +252,7 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
       ...pod,
       id: `BP${Date.now()}`,
       name: `${pod.name}_copy`,
-      x_offset: pod.x_offset + 100, // Offset slightly
+      x_offset: Math.round(pod.x_offset) + 100, // Offset slightly
     };
     addBathroomPod(newPod);
     canvas?.requestRenderAll();
@@ -256,7 +263,7 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
       ...balcony,
       id: `BC${Date.now()}`,
       name: `${balcony.name}_copy`,
-      distanceAlongWall: balcony.distanceAlongWall + 100, // Offset slightly
+      distanceAlongWall: Math.round(balcony.distanceAlongWall) + 100, // Offset slightly
     };
     addBalcony(newBalcony);
     canvas?.requestRenderAll();
@@ -351,8 +358,15 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
                 suffix={'mm'}
                 id="prop-width"
                 type="number"
+                step="1"
+                min="1"
                 value={form.width}
                 onChange={onChange('width')}
+                onBlur={e => {
+                  const val = Math.max(1, Math.round(parseInt(e.target.value) || 1));
+                  setForm(prev => ({ ...prev, width: val.toString() }));
+                  onChange('width')({ target: { value: val.toString() } } as any);
+                }}
               />
             </Field>
             <Field>
@@ -361,8 +375,15 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
                 suffix={'mm'}
                 id="prop-length"
                 type="number"
+                step="1"
+                min="1"
                 value={form.length}
                 onChange={onChange('length')}
+                onBlur={e => {
+                  const val = Math.max(1, Math.round(parseInt(e.target.value) || 1));
+                  setForm(prev => ({ ...prev, length: val.toString() }));
+                  onChange('length')({ target: { value: val.toString() } } as any);
+                }}
               />
             </Field>
           </Row>
@@ -384,7 +405,7 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
                     </ItemIcon>
                     <ItemText>
                       <ItemDescription>
-                        Side {o.wallSide}, dist {o.distanceAlongWall} mm, y {o.yOffset} mm
+                        Side {o.wallSide}, dist {Math.round(o.distanceAlongWall)} mm, y {Math.round(o.yOffset)} mm
                       </ItemDescription>
                     </ItemText>
                   </ItemContent>
@@ -395,11 +416,6 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
                         icon: <LuPencil size={14} />,
                         onClick: () => setEditingOpeningId(o.id),
                       },
-                      // {
-                      //   label: 'Copy',
-                      //   icon: <LuCopy size={14} />,
-                      //   onClick: () => handleCopyOpening(o),
-                      // },
                       {
                         label: 'Delete',
                         icon: <LuTrash2 size={14} />,
@@ -441,7 +457,8 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
                     </ItemIcon>
                     <ItemText>
                       <ItemDescription>
-                        {bp.name}: {bp.width}×{bp.length} mm @ ({bp.x_offset},{bp.y_offset})
+                        {bp.name}: {Math.round(bp.width)}×{Math.round(bp.length)} mm @ ({Math.round(bp.x_offset)},
+                        {Math.round(bp.y_offset)})
                       </ItemDescription>
                     </ItemText>
                   </ItemContent>
@@ -452,11 +469,6 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
                         icon: <LuPencil size={14} />,
                         onClick: () => setEditingBathroomPodId(bp.id),
                       },
-                      // {
-                      //   label: 'Copy',
-                      //   icon: <LuCopy size={14} />,
-                      //   onClick: () => handleCopyBathroomPod(bp),
-                      // },
                       {
                         label: 'Delete',
                         icon: <LuTrash2 size={14} />,
@@ -498,7 +510,8 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
                     </ItemIcon>
                     <ItemText>
                       <ItemDescription>
-                        {b.name}: {b.width}×{b.length} mm @ {b.distanceAlongWall} mm on side {b.wallSide}
+                        {b.name}: {Math.round(b.width)}×{Math.round(b.length)} mm @ {Math.round(b.distanceAlongWall)} mm
+                        on side {b.wallSide}
                       </ItemDescription>
                     </ItemText>
                   </ItemContent>
@@ -509,11 +522,6 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
                         icon: <LuPencil size={14} />,
                         onClick: () => setEditingBalconyId(b.id),
                       },
-                      // {
-                      //   label: 'Copy',
-                      //   icon: <LuCopy size={14} />,
-                      //   onClick: () => handleCopyBalcony(b),
-                      // },
                       {
                         label: 'Delete',
                         icon: <LuTrash2 size={14} />,

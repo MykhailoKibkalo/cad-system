@@ -9,48 +9,48 @@ export default function useSnapping(canvas: Canvas | null) {
   useEffect(() => {
     if (!canvas) return;
 
-    const gapPx = elementGapMm * scaleFactor;
+    const gapPx = Math.round(elementGapMm * scaleFactor);
     const TOL = 24;
 
     function snapAxis(pos: number, size: number, leftEdges: number[], rightEdges: number[]): number {
       const candidates: number[] = [];
       // Ставимо this.left = other.right + gap
       for (const e of rightEdges) {
-        candidates.push(e + gapPx);
+        candidates.push(Math.round(e + gapPx));
       }
       // Ставимо this.right = other.left - gap → this.left = other.left - gap - size
       for (const e of leftEdges) {
-        candidates.push(e - gapPx - size);
+        candidates.push(Math.round(e - gapPx - size));
       }
-      let best = pos;
+      let best = Math.round(pos);
       let dist = Infinity;
       for (const c of candidates) {
-        const d = Math.abs(pos - c);
+        const d = Math.abs(Math.round(pos) - c);
         if (d < dist) {
           dist = d;
           best = c;
         }
       }
-      return dist < TOL ? best : pos; // поріг лишаємо лише TOL, а не gapPx
+      return dist < TOL ? Math.round(best) : Math.round(pos); // поріг лишаємо лише TOL, а не gapPx
     }
 
     const onMoving = (opt: any) => {
       if (snapMode !== 'element' && snapMode !== 'grid') return;
       const obj = opt.target;
-      let left = obj.left!;
-      let top = obj.top!;
+      let left = Math.round(obj.left!);
+      let top = Math.round(obj.top!);
       const bObj = obj.getBoundingRect(true);
-      const myW = bObj.width,
-        myH = bObj.height;
+      const myW = Math.round(bObj.width),
+        myH = Math.round(bObj.height);
 
-      // grid-snap
+      // grid-snap - ensure integers
       if (snapMode === 'grid') {
-        const gridPx = gridSizeMm * scaleFactor;
-        left = Math.round(left / gridPx) * gridPx;
-        top = Math.round(top / gridPx) * gridPx;
+        const gridPx = Math.round(gridSizeMm * scaleFactor);
+        left = Math.round(Math.round(left / gridPx) * gridPx);
+        top = Math.round(Math.round(top / gridPx) * gridPx);
       }
 
-      // element-snap
+      // element-snap - ensure integers
       if (snapMode === 'element') {
         const leftEdges: number[] = [];
         const rightEdges: number[] = [];
@@ -60,20 +60,20 @@ export default function useSnapping(canvas: Canvas | null) {
         canvas.getObjects().forEach(o => {
           if ((o as any).isModule && o !== obj) {
             const b = (o as any).getBoundingRect(true);
-            leftEdges.push(b.left);
-            rightEdges.push(b.left + b.width);
-            topEdges.push(b.top);
-            bottomEdges.push(b.top + b.height);
+            leftEdges.push(Math.round(b.left));
+            rightEdges.push(Math.round(b.left + b.width));
+            topEdges.push(Math.round(b.top));
+            bottomEdges.push(Math.round(b.top + b.height));
           }
         });
 
-        // прив’язуємо X-вісь
+        // прив'язуємо X-вісь - ensure integers
         left = snapAxis(left, myW, leftEdges, rightEdges);
-        // прив’язуємо Y-вісь аналогічним чином
+        // прив'язуємо Y-вісь аналогічним чином - ensure integers
         top = snapAxis(top, myH, topEdges, bottomEdges);
       }
 
-      obj.set({ left, top });
+      obj.set({ left: Math.round(left), top: Math.round(top) });
     };
 
     canvas.on('object:moving', onMoving);

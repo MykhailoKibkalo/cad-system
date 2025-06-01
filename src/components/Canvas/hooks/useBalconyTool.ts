@@ -25,22 +25,26 @@ export default function useBalconyTool(canvas: Canvas | null) {
 
     const onMouseDown = (opt: any) => {
       const p = canvas.getPointer(opt.e);
+      // Round pointer coordinates to integers
+      const px = Math.round(p.x);
+      const py = Math.round(p.y);
+
       // знайти модуль поруч зі стіною в межах thresholdPx
       const mod = modules.find(m => {
-        const left = m.x0! * scale,
-          top = m.y0! * scale;
-        const w = m.width! * scale,
-          h = m.length! * scale;
-        const inX = p.x >= left - thresholdPx && p.x <= left + w + thresholdPx;
-        const inY = p.y >= top - thresholdPx && p.y <= top + h + thresholdPx;
+        const left = Math.round(m.x0! * scale),
+          top = Math.round(m.y0! * scale);
+        const w = Math.round(m.width! * scale),
+          h = Math.round(m.length! * scale);
+        const inX = px >= left - thresholdPx && px <= left + w + thresholdPx;
+        const inY = py >= top - thresholdPx && py <= top + h + thresholdPx;
         // top side
-        if (inX && Math.abs(p.y - top) <= thresholdPx) return true;
+        if (inX && Math.abs(py - top) <= thresholdPx) return true;
         // bottom
-        if (inX && Math.abs(p.y - (top + h)) <= thresholdPx) return true;
+        if (inX && Math.abs(py - (top + h)) <= thresholdPx) return true;
         // left
-        if (inY && Math.abs(p.x - left) <= thresholdPx) return true;
+        if (inY && Math.abs(px - left) <= thresholdPx) return true;
         // right
-        if (inY && Math.abs(p.x - (left + w)) <= thresholdPx) return true;
+        if (inY && Math.abs(px - (left + w)) <= thresholdPx) return true;
         return false;
       });
       if (!mod) {
@@ -50,24 +54,24 @@ export default function useBalconyTool(canvas: Canvas | null) {
 
       // зберігаємо
       parentRef.current = mod.id;
-      startRef.current = p;
+      startRef.current = { x: px, y: py };
 
       // визначаємо сторону
-      const left = mod.x0! * scale,
-        top = mod.y0! * scale;
-      const w = mod.width! * scale,
-        h = mod.length! * scale;
-      const dTop = Math.abs(p.y - top);
-      const dBottom = Math.abs(p.y - (top + h));
-      const dLeft = Math.abs(p.x - left);
-      const dRight = Math.abs(p.x - (left + w));
+      const left = Math.round(mod.x0! * scale),
+        top = Math.round(mod.y0! * scale);
+      const w = Math.round(mod.width! * scale),
+        h = Math.round(mod.length! * scale);
+      const dTop = Math.abs(py - top);
+      const dBottom = Math.abs(py - (top + h));
+      const dLeft = Math.abs(px - left);
+      const dRight = Math.abs(px - (left + w));
       const m = Math.min(dTop, dRight, dBottom, dLeft);
       sideRef.current = m === dTop ? 1 : m === dRight ? 2 : m === dBottom ? 3 : 4;
 
       // малюємо тимчасовий прямокутник
       const rect = new fabric.Rect({
-        left: p.x,
-        top: p.y,
+        left: Math.round(px),
+        top: Math.round(py),
         width: 0,
         height: 0,
         fill: 'rgba(200,150,0,0.3)',
@@ -85,6 +89,9 @@ export default function useBalconyTool(canvas: Canvas | null) {
       const side = sideRef.current;
       if (!rect || !start || !side) return;
       const p = canvas.getPointer(opt.e);
+      // Round coordinates to integers
+      const px = Math.round(p.x);
+      const py = Math.round(p.y);
       let x = start.x,
         y = start.y,
         w = 0,
@@ -92,36 +99,36 @@ export default function useBalconyTool(canvas: Canvas | null) {
 
       switch (side) {
         case 1: // top
-          x = p.x < start.x ? p.x : start.x;
-          w = Math.abs(p.x - start.x);
+          x = px < start.x ? px : start.x;
+          w = Math.abs(px - start.x);
           y = start.y;
-          h = p.y - start.y;
+          h = py - start.y;
           break;
         case 3: // bottom
-          x = p.x < start.x ? p.x : start.x;
-          w = Math.abs(p.x - start.x);
-          y = p.y;
-          h = start.y - p.y;
+          x = px < start.x ? px : start.x;
+          w = Math.abs(px - start.x);
+          y = py;
+          h = start.y - py;
           break;
         case 2: // right
           x = start.x;
-          w = p.x - start.x;
-          y = p.y < start.y ? p.y : start.y;
-          h = Math.abs(p.y - start.y);
+          w = px - start.x;
+          y = py < start.y ? py : start.y;
+          h = Math.abs(py - start.y);
           break;
         case 4: // left
-          x = p.x;
-          w = start.x - p.x;
-          y = p.y < start.y ? p.y : start.y;
-          h = Math.abs(p.y - start.y);
+          x = px;
+          w = start.x - px;
+          y = py < start.y ? py : start.y;
+          h = Math.abs(py - start.y);
           break;
       }
 
       rect.set({
-        left: x,
-        top: y,
-        width: Math.abs(w),
-        height: Math.abs(h),
+        left: Math.round(x),
+        top: Math.round(y),
+        width: Math.round(Math.abs(w)),
+        height: Math.round(Math.abs(h)),
       });
       canvas.requestRenderAll();
     };
@@ -133,30 +140,30 @@ export default function useBalconyTool(canvas: Canvas | null) {
       const parent = parentRef.current;
       if (rect && start && side && parent) {
         const mod = modules.find(m => m.id === parent)!;
-        const leftPx = rect.left!,
-          topPx = rect.top!;
-        const wPx = rect.getScaledWidth(),
-          hPx = rect.getScaledHeight();
+        const leftPx = Math.round(rect.left!),
+          topPx = Math.round(rect.top!);
+        const wPx = Math.round(rect.getScaledWidth()),
+          hPx = Math.round(rect.getScaledHeight());
 
         let distanceAlongWall: number, widthMm: number, lengthMm: number;
 
         if (side === 1 || side === 3) {
-          distanceAlongWall = (leftPx - mod.x0! * scale) / scale;
-          widthMm = wPx / scale;
-          lengthMm = hPx / scale;
+          distanceAlongWall = Math.round((leftPx - Math.round(mod.x0! * scale)) / scale);
+          widthMm = Math.round(wPx / scale);
+          lengthMm = Math.round(hPx / scale);
         } else {
-          distanceAlongWall = (topPx - mod.y0! * scale) / scale;
-          widthMm = hPx / scale;
-          lengthMm = wPx / scale;
+          distanceAlongWall = Math.round((topPx - Math.round(mod.y0! * scale)) / scale);
+          widthMm = Math.round(hPx / scale);
+          lengthMm = Math.round(wPx / scale);
         }
 
         addBalcony({
           id: `BC${Date.now()}`,
           moduleId: parent,
           name: `BC${Date.now()}`,
-          width: widthMm,
-          length: lengthMm,
-          distanceAlongWall,
+          width: Math.round(widthMm),
+          length: Math.round(lengthMm),
+          distanceAlongWall: Math.round(distanceAlongWall),
           wallSide: side,
         });
       }

@@ -1,4 +1,4 @@
-// src/components/Ribbon/Ribbon.tsx
+// src/components/ui/Header.tsx
 'use client';
 
 import styled from '@emotion/styled';
@@ -55,14 +55,6 @@ const MenuWrap = styled.div`
   display: flex;
   align-items: center;
   gap: 16px;
-`;
-
-const InputGrid = styled.input`
-  width: 40%;
-  padding: 14px 16px;
-  font-size: 16px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
 `;
 
 const Label = styled.label`
@@ -134,14 +126,33 @@ export default function Header() {
   const setGridSize = useCanvasStore(s => s.setGridSize);
 
   const onChangeGrid = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = parseInt(e.target.value, 10);
+    let value = e.target.value;
+    // Remove any decimal points and non-numeric characters
+    value = value.replace(/[^\d]/g, '');
+
+    const v = parseInt(value, 10);
     if (!isNaN(v) && v > 0) {
-      setGridSize(v);
+      setGridSize(Math.round(v));
     }
   };
 
+  const onGridBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const v = Math.max(1, Math.round(parseInt(e.target.value) || 1));
+    setGridSize(v);
+  };
+
   const onChangeGap = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setElementGapMm(Math.max(0, +e.target.value));
+    let value = e.target.value;
+    // Remove any decimal points and non-numeric characters
+    value = value.replace(/[^\d]/g, '');
+
+    const numValue = Math.max(0, Math.round(parseInt(value) || 0));
+    setElementGapMm(numValue);
+  };
+
+  const onGapBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const v = Math.max(0, Math.round(parseInt(e.target.value) || 0));
+    setElementGapMm(v);
   };
 
   return (
@@ -163,16 +174,12 @@ export default function Header() {
           <MenuItem>
             <LuLayers size={24} />
             <Text size={16}>
-              Floor: {floorName} ({floorHeightMm} mm)
+              Floor: {floorName} ({Math.round(floorHeightMm)} mm)
             </Text>
           </MenuItem>
         </MenuWrap>
 
         <MenuWrap>
-          {/*<MenuItem>*/}
-          {/*  <RiArrowGoBackFill size={24} />*/}
-          {/*  <RiArrowGoBackFill size={24} style={{transform: 'scaleX( -1)', marginLeft: '16px'}} />*/}
-          {/*</MenuItem>*/}
           <Divider orientation="vertical" length={'40px'} />
           <SettingsContainer>
             <MenuItem>
@@ -185,7 +192,15 @@ export default function Header() {
                   <Text size={16}>Grid (mm)</Text>
                 </MenuItem>
                 <InputWrap>
-                  <InputWithAffix min={1} value={gridSizeMm} onChange={onChangeGrid} type="number" suffix={'mm'} />
+                  <InputWithAffix
+                    min="1"
+                    step="1"
+                    value={Math.round(gridSizeMm)}
+                    onChange={onChangeGrid}
+                    onBlur={onGridBlur}
+                    type="number"
+                    suffix={'mm'}
+                  />
                 </InputWrap>
               </SettingsItem>
 
@@ -211,7 +226,15 @@ export default function Header() {
                   <Text size={16}>Gap between elements</Text>
                 </MenuItem>
                 <InputWrap>
-                  <InputWithAffix min={0} value={elementGapMm} onChange={onChangeGap} type="number" suffix={'mm'} />
+                  <InputWithAffix
+                    min="0"
+                    step="1"
+                    value={Math.round(elementGapMm)}
+                    onChange={onChangeGap}
+                    onBlur={onGapBlur}
+                    type="number"
+                    suffix={'mm'}
+                  />
                 </InputWrap>
               </AnimatedSettingsItem>
             </SettingsPopup>

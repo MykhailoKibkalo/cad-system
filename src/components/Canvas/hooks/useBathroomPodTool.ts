@@ -11,11 +11,11 @@ export default function useBathroomPodTool(canvas: Canvas | null) {
   const modules = useObjectStore(s => s.modules);
 
   const scaleFactor = useCanvasStore(s => s.scaleFactor);
-  const snapMode    = useCanvasStore(s => s.snapMode);
-  const gridSizeMm  = useCanvasStore(s => s.gridSizeMm);
+  const snapMode = useCanvasStore(s => s.snapMode);
+  const gridSizeMm = useCanvasStore(s => s.gridSizeMm);
 
   const startRef = useRef<{ x: number; y: number } | null>(null);
-  const rectRef  = useRef<Rect | null>(null);
+  const rectRef = useRef<Rect | null>(null);
   const parentModuleId = useRef<string | null>(null);
 
   useEffect(() => {
@@ -29,17 +29,18 @@ export default function useBathroomPodTool(canvas: Canvas | null) {
       if (!hit) return;
       parentModuleId.current = (hit as any).isModule as string;
 
-      let x = p.x, y = p.y;
+      let x = Math.round(p.x),
+        y = Math.round(p.y);
       if (snapMode === 'grid') {
-        const g = gridSizeMm * scaleFactor;
-        x = Math.round(x / g) * g;
-        y = Math.round(y / g) * g;
+        const g = Math.round(gridSizeMm * scaleFactor);
+        x = Math.round(Math.round(x / g) * g);
+        y = Math.round(Math.round(y / g) * g);
       }
       startRef.current = { x, y };
 
       const r = new Rect({
-        left: x,
-        top: y,
+        left: Math.round(x),
+        top: Math.round(y),
         width: 0,
         height: 0,
         fill: 'rgba(0,150,200,0.3)',
@@ -55,19 +56,21 @@ export default function useBathroomPodTool(canvas: Canvas | null) {
     const onMouseMove = (opt: any) => {
       if (tool !== 'bathroomPod' || !startRef.current || !rectRef.current) return;
       const p = canvas.getPointer(opt.e);
-      let x2 = p.x, y2 = p.y;
+      let x2 = Math.round(p.x),
+        y2 = Math.round(p.y);
       if (snapMode === 'grid') {
-        const g = gridSizeMm * scaleFactor;
-        x2 = Math.round(x2 / g) * g;
-        y2 = Math.round(y2 / g) * g;
+        const g = Math.round(gridSizeMm * scaleFactor);
+        x2 = Math.round(Math.round(x2 / g) * g);
+        y2 = Math.round(Math.round(y2 / g) * g);
       }
       const { x: x1, y: y1 } = startRef.current;
-      const w = x2 - x1, h = y2 - y1;
+      const w = x2 - x1,
+        h = y2 - y1;
       rectRef.current.set({
-        left:  w < 0 ? x2 : x1,
-        top:   h < 0 ? y2 : y1,
-        width: Math.abs(w),
-        height: Math.abs(h),
+        left: w < 0 ? x2 : x1,
+        top: h < 0 ? y2 : y1,
+        width: Math.round(Math.abs(w)),
+        height: Math.round(Math.abs(h)),
       });
       canvas.requestRenderAll();
     };
@@ -77,25 +80,25 @@ export default function useBathroomPodTool(canvas: Canvas | null) {
       const r = rectRef.current;
       const mod = modules.find(m => m.id === parentModuleId.current);
       if (r.width! > 0 && r.height! > 0 && mod) {
-        const leftPx   = r.left!;
-        const topPx    = r.top!;
-        const widthPx  = r.width!;
-        const heightPx = r.height!;
+        const leftPx = Math.round(r.left!);
+        const topPx = Math.round(r.top!);
+        const widthPx = Math.round(r.width!);
+        const heightPx = Math.round(r.height!);
 
-        const x_offset = (leftPx - mod.x0! * scaleFactor) / scaleFactor;
-        const y_offset = (topPx  - mod.y0! * scaleFactor) / scaleFactor;
-        const width    = widthPx  / scaleFactor;
-        const length   = heightPx / scaleFactor;
+        const x_offset = Math.round((leftPx - Math.round(mod.x0! * scaleFactor)) / scaleFactor);
+        const y_offset = Math.round((topPx - Math.round(mod.y0! * scaleFactor)) / scaleFactor);
+        const width = Math.round(widthPx / scaleFactor);
+        const length = Math.round(heightPx / scaleFactor);
 
         const id = `BP${Date.now()}`;
         addBathroomPod({
           id,
           moduleId: mod.id,
           name: id,
-          width,
-          length,
-          x_offset,
-          y_offset,
+          width: Math.round(width),
+          length: Math.round(length),
+          x_offset: Math.round(x_offset),
+          y_offset: Math.round(y_offset),
           type: 'F',
         });
       }
@@ -110,21 +113,12 @@ export default function useBathroomPodTool(canvas: Canvas | null) {
 
     canvas.on('mouse:down', onMouseDown);
     canvas.on('mouse:move', onMouseMove);
-    canvas.on('mouse:up',   onMouseUp);
+    canvas.on('mouse:up', onMouseUp);
 
     return () => {
       canvas.off('mouse:down', onMouseDown);
       canvas.off('mouse:move', onMouseMove);
-      canvas.off('mouse:up',   onMouseUp);
+      canvas.off('mouse:up', onMouseUp);
     };
-  }, [
-    canvas,
-    tool,
-    modules,
-    scaleFactor,
-    snapMode,
-    gridSizeMm,
-    addBathroomPod,
-    setTool,
-  ]);
+  }, [canvas, tool, modules, scaleFactor, snapMode, gridSizeMm, addBathroomPod, setTool]);
 }

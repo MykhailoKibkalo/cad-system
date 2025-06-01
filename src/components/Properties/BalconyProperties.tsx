@@ -89,9 +89,9 @@ export default function BalconyProperties({ canvas }: { canvas: Canvas }) {
 
   const [form, setForm] = useState({
     name: balcony.name,
-    width: balcony.width.toString(),
-    length: balcony.length.toString(),
-    distanceAlongWall: balcony.distanceAlongWall.toString(),
+    width: Math.round(balcony.width).toString(),
+    length: Math.round(balcony.length).toString(),
+    distanceAlongWall: Math.round(balcony.distanceAlongWall).toString(),
     wallSide: balcony.wallSide as 1 | 2 | 3 | 4,
   });
 
@@ -105,9 +105,9 @@ export default function BalconyProperties({ canvas }: { canvas: Canvas }) {
   useEffect(() => {
     setForm({
       name: balcony.name,
-      width: balcony.width.toString(),
-      length: balcony.length.toString(),
-      distanceAlongWall: balcony.distanceAlongWall.toString(),
+      width: Math.round(balcony.width).toString(),
+      length: Math.round(balcony.length).toString(),
+      distanceAlongWall: Math.round(balcony.distanceAlongWall).toString(),
       wallSide: balcony.wallSide,
     });
   }, [balcony]);
@@ -121,9 +121,9 @@ export default function BalconyProperties({ canvas }: { canvas: Canvas }) {
     const maxLengthDepth = 3000; // Maximum reasonable balcony depth
 
     return {
-      maxWidth: maxWidthAlongWall,
-      maxLength: maxLengthDepth,
-      maxDistance: maxWidthAlongWall,
+      maxWidth: Math.round(maxWidthAlongWall),
+      maxLength: Math.round(maxLengthDepth),
+      maxDistance: Math.round(maxWidthAlongWall),
     };
   }, [module, form.wallSide]);
 
@@ -141,9 +141,9 @@ export default function BalconyProperties({ canvas }: { canvas: Canvas }) {
   useEffect(() => {
     const errors: typeof validationErrors = {};
 
-    const widthValue = parseFloat(form.width);
-    const lengthValue = parseFloat(form.length);
-    const distanceValue = parseFloat(form.distanceAlongWall);
+    const widthValue = Math.round(parseInt(form.width) || 0);
+    const lengthValue = Math.round(parseInt(form.length) || 0);
+    const distanceValue = Math.round(parseInt(form.distanceAlongWall) || 0);
 
     // Validate width
     if (!form.width.trim() || isNaN(widthValue)) {
@@ -193,7 +193,14 @@ export default function BalconyProperties({ canvas }: { canvas: Canvas }) {
   }, [form.width, form.length, form.distanceAlongWall, constraints, snapMode, gridSizeMm]);
 
   const onChange = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = field === 'name' ? e.target.value : e.target.value;
+    let value = e.target.value;
+
+    // For numeric fields, ensure integer-only values
+    if (field !== 'name') {
+      // Remove any decimal points and non-numeric characters except for empty string
+      value = value.replace(/[^\d]/g, '');
+    }
+
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
@@ -208,9 +215,9 @@ export default function BalconyProperties({ canvas }: { canvas: Canvas }) {
 
     updateBalcony(balcony.id, {
       name: form.name,
-      width: parseFloat(form.width),
-      length: parseFloat(form.length),
-      distanceAlongWall: parseFloat(form.distanceAlongWall),
+      width: Math.round(parseInt(form.width)),
+      length: Math.round(parseInt(form.length)),
+      distanceAlongWall: Math.round(parseInt(form.distanceAlongWall)),
       wallSide: form.wallSide,
     });
     canvas.requestRenderAll();
@@ -268,7 +275,7 @@ export default function BalconyProperties({ canvas }: { canvas: Canvas }) {
             placeholder="Select wall side"
           />
           <Text size={14} color="#64748b">
-            Module dimensions: {module?.width} × {module?.length} mm
+            Module dimensions: {Math.round(module?.width || 0)} × {Math.round(module?.length || 0)} mm
           </Text>
         </MenuItem>
 
@@ -284,8 +291,14 @@ export default function BalconyProperties({ canvas }: { canvas: Canvas }) {
                 label="Width"
                 suffix="mm"
                 type="number"
+                step="1"
+                min="1"
                 value={form.width}
                 onChange={onChange('width')}
+                onBlur={e => {
+                  const val = Math.max(1, Math.round(parseInt(e.target.value) || 1));
+                  setForm(prev => ({ ...prev, width: val.toString() }));
+                }}
                 error={validationErrors.width}
               />
               {!validationErrors.width && <SuccessMessage>Maximum: {constraints.maxWidth} mm</SuccessMessage>}
@@ -295,8 +308,14 @@ export default function BalconyProperties({ canvas }: { canvas: Canvas }) {
                 label="Length"
                 suffix="mm"
                 type="number"
+                step="1"
+                min="1"
                 value={form.length}
                 onChange={onChange('length')}
+                onBlur={e => {
+                  const val = Math.max(1, Math.round(parseInt(e.target.value) || 1));
+                  setForm(prev => ({ ...prev, length: val.toString() }));
+                }}
                 error={validationErrors.length}
               />
               {!validationErrors.length && <SuccessMessage>Maximum: {constraints.maxLength} mm</SuccessMessage>}
@@ -321,13 +340,19 @@ export default function BalconyProperties({ canvas }: { canvas: Canvas }) {
             label="Distance Along Wall"
             suffix="mm"
             type="number"
+            step="1"
+            min="0"
             value={form.distanceAlongWall}
             onChange={onChange('distanceAlongWall')}
+            onBlur={e => {
+              const val = Math.max(0, Math.round(parseInt(e.target.value) || 0));
+              setForm(prev => ({ ...prev, distanceAlongWall: val.toString() }));
+            }}
             error={validationErrors.distanceAlongWall}
           />
           {!validationErrors.distanceAlongWall && (
             <SuccessMessage>
-              Available space: {Math.max(0, constraints.maxDistance - parseFloat(form.width || '0'))} mm
+              Available space: {Math.max(0, constraints.maxDistance - Math.round(parseInt(form.width) || 0))} mm
             </SuccessMessage>
           )}
         </MenuItem>
