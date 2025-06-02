@@ -1,10 +1,9 @@
-// src/components/Canvas/CanvasArea.tsx
+// src/components/Canvas/CanvasArea.tsx (Updated)
 'use client';
 
 import { useEffect, useRef } from 'react';
 import styled from '@emotion/styled';
 import { useFabricCanvas } from './hooks/useFabricCanvas';
-import PdfLoader from './PdfLoader';
 import useSnapping from './hooks/useSnapping';
 import { useCanvasStore } from '@/state/canvasStore';
 import useScaleCalibration from '@/components/Canvas/hooks/useScaleCalibration';
@@ -24,11 +23,14 @@ import useBathroomPodTool from '@/components/Canvas/hooks/useBathroomPodTool';
 import useRenderBathroomPods from '@/components/Canvas/hooks/useRenderBathroomPods';
 import useBathroomPodMovement from '@/components/Canvas/hooks/useBathroomPodMovement';
 import useIgnoreModulesFindTarget from '@/components/Canvas/hooks/useIgnoreModulesFindTarget';
-import useBalconyTool from "@/components/Canvas/hooks/useBalconyTool";
-import useRenderBalconies from "@/components/Canvas/hooks/useRenderBalconies";
-import useBalconyMovement from "@/components/Canvas/hooks/useBalconyMovement";
-import ZoomControl from "@/components/ui/ZoomControl";
-import ControlWrap from "@/components/ui/ControlPanel";
+import useBalconyTool from '@/components/Canvas/hooks/useBalconyTool';
+import useRenderBalconies from '@/components/Canvas/hooks/useRenderBalconies';
+import useBalconyMovement from '@/components/Canvas/hooks/useBalconyMovement';
+import ZoomControl from '@/components/ui/ZoomControl';
+import ControlWrap from '@/components/ui/ControlPanel';
+import { PdfManager, printPDF } from '@/utils/pdfUtils';
+import * as fabric from 'fabric';
+import {useFloorStore} from "@/state/floorStore";
 
 const CanvasContainer = styled.div<{ gridSizePx?: number; offsetX?: number; offsetY?: number }>`
   flex: 1;
@@ -67,9 +69,14 @@ const Wrapper = styled.div`
 export default function CanvasArea() {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvas = useFabricCanvas('fabricCanvas');
-  const { scaleFactor, gridSizeMm, zoomLevel } = useCanvasStore();
+  const { scaleFactor, zoomLevel } = useCanvasStore();
+  const { getCurrentFloor, currentFloorId } = useFloorStore();
 
   const setCenter = useCanvasStore(s => s.setCenterCanvas);
+  const currentFloor = getCurrentFloor();
+
+  // Get grid settings from current floor, fallback to defaults
+  const gridSizeMm = currentFloor?.gridSettings.gridSize || 100;
 
   useEffect(() => {
     if (canvas && wrapperRef.current) {
@@ -80,7 +87,6 @@ export default function CanvasArea() {
 
   useEffect(() => {
     if (canvas) {
-      // зберігаємо функцію центрування
       setCenter(() => () => {
         canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
         canvas.requestRenderAll();
@@ -101,15 +107,83 @@ export default function CanvasArea() {
     return () => window.removeEventListener('resize', onResize);
   }, [canvas]);
 
-  // 3) Grid та Snapping
-  // useGrid(canvas, scaleFactor, gridSizeMm);
+  // Floor switching behavior
+  useEffect(() => {
+    if (!canvas || !currentFloorId) return;
+
+    // Clear all existing Fabric.js objects from canvas
+    const clearCanvas = () => {
+      // Remove all objects from canvas
+      const objects = canvas.getObjects();
+      objects.forEach(obj => {
+        canvas.remove(obj);
+      });
+      canvas.clear();
+      canvas.requestRenderAll();
+    };
+
+    clearCanvas();
+
+    // Load PDF for current floor if it exists
+    const loadFloorPDF = async () => {
+      if (currentFloor?.pdf) {
+        try {
+          // Fetch the PDF blob from the object URL
+          const response = await fetch(currentFloor.pdf.url);
+          const blob = await response.blob();
+          const canvases = await printPDF(blob);
+
+          if (canvases.length > 0) {
+            const scale = 1 / window.devicePixelRatio;
+
+            for (const cEl of canvases) {
+              const img = new fabric.Image(cEl, {
+                originX: 'left',
+                originY: 'top',
+                scaleX: scale,
+                scaleY: scale,
+                selectable: !currentFloor.pdfLocked,
+                evented: !currentFloor.pdfLocked,
+                hasControls: !currentFloor.pdfLocked,
+                lockUniScaling: false,
+                opacity: currentFloor.pdf.opacity,
+              });
+
+              // Configure as PDF object
+              const pdfManager = new PdfManager(canvas);
+              pdfManager.configurePdfObject(img, currentFloor.pdfLocked || false, currentFloor.pdf.opacity);
+
+              canvas.add(img);
+              canvas.sendObjectToBack(img);
+            }
+
+            canvas.requestRenderAll();
+          }
+        } catch (error) {
+          console.error('Failed to load floor PDF:', error);
+        }
+      }
+    };
+
+    loadFloorPDF();
+
+    // Note: Floor elements will be rendered by the render hooks
+    // which filter based on the current floor automatically
+  }, [canvas, currentFloorId, currentFloor]);
+
+  // Update PDF lock state when it changes
+  useEffect(() => {
+    if (!canvas || !currentFloor?.pdf) return;
+
+    const pdfManager = new PdfManager(canvas);
+    pdfManager.updatePdfLockState(currentFloor.pdfLocked || false);
+    pdfManager.updatePdfOpacity(currentFloor.pdf.opacity);
+  }, [canvas, currentFloor?.pdfLocked, currentFloor?.pdf?.opacity]);
 
   useSelection(canvas);
-
   useSnapping(canvas);
   useScaleCalibration(canvas);
   usePdfLock(canvas);
-
   usePanZoom(canvas);
 
   useModuleTool(canvas);
@@ -128,15 +202,15 @@ export default function CanvasArea() {
   useBathroomPodMovement(canvas);
   useIgnoreModulesFindTarget(canvas);
 
-  useBalconyTool(canvas)
-  useRenderBalconies(canvas)
-  useBalconyMovement(canvas)
+  useBalconyTool(canvas);
+  useRenderBalconies(canvas);
+  useBalconyMovement(canvas);
 
-  // Розмір клітини в px
+  // Grid rendering calculations
   const baseGridPx = gridSizeMm * scaleFactor;
   const gridSizePx = baseGridPx * zoomLevel;
 
-  // Зсув pattern на основі canvas.viewportTransform
+  // Grid offset based on canvas viewport transform
   const vpt = canvas?.viewportTransform ?? [1, 0, 0, 1, 0, 0];
   const offsetX = vpt[4] % gridSizePx;
   const offsetY = vpt[5] % gridSizePx;
@@ -145,13 +219,13 @@ export default function CanvasArea() {
     <Wrapper ref={wrapperRef}>
       <CanvasContainer>
         <canvas id="fabricCanvas" />
-        <GridOverlay gridSizePx={gridSizePx} offsetX={offsetX} offsetY={offsetY} />
+        {currentFloor?.gridSettings.showGrid && (
+          <GridOverlay gridSizePx={gridSizePx} offsetX={offsetX} offsetY={offsetY} />
+        )}
       </CanvasContainer>
-      {/*{canvas && <CanvasContextMenu canvas={canvas} />}*/}
-      {canvas && <PdfLoader canvas={canvas} />}
       {canvas && <PropertyPanel canvas={canvas} />}
-      <ZoomControl/>
-      <ControlWrap/>
+      <ZoomControl />
+      <ControlWrap />
     </Wrapper>
   );
 }

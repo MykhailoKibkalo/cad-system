@@ -1,16 +1,21 @@
-// src/components/ui/PdfSettingsMenu.tsx
+// src/components/ui/PDFSettingsPanel.tsx
 'use client';
 
 import React from 'react';
 import styled from '@emotion/styled';
-import { colors } from '@/styles/theme';
-import { useCanvasStore } from '@/state/canvasStore';
 import { Text } from '@/components/ui/Text';
 import { Toggle } from '@/components/ui/Toggle';
 import { Button } from '@/components/ui/Button';
 import { InputWithAffix } from '@/components/ui/InputWithAffix';
-import { LuFileX, LuLock, LuLockOpen, LuSettings } from 'react-icons/lu';
+import { LuFileX, LuLock, LuLockOpen, LuRuler, LuSettings } from 'react-icons/lu';
 import { Divider } from '@/components/ui/Divider';
+import { colors } from '@/styles/theme';
+import { useFloorStore } from '@/state/floorStore';
+
+interface PDFSettingsPanelProps {
+  onDeletePdf: () => void;
+  onRecalibrate: () => void;
+}
 
 const Container = styled.div`
   position: relative;
@@ -41,9 +46,9 @@ const Popup = styled.div`
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  min-width: 350px;
+  min-width: 380px;
   background: ${colors.white};
-  border: 1px solid ${colors.gray};
+  border: 1px solid #e2e8f0;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   border-radius: 8px;
   padding: 16px;
@@ -141,24 +146,47 @@ const Slider = styled.input`
   }
 `;
 
-interface PdfSettingsMenuProps {
-  onDeletePdf: () => void;
-  onRecalibrate?: () => void;
-}
+const StatusIndicator = styled.div<{ calibrated: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  background: ${props => (props.calibrated ? '#dcfce7' : '#fef2f2')};
+  color: ${props => (props.calibrated ? '#166534' : '#dc2626')};
+`;
 
-export const PdfSettingsMenu: React.FC<PdfSettingsMenuProps> = ({ onDeletePdf, onRecalibrate }) => {
-  const { pdfLocked, pdfWidthGrid, pdfHeightGrid, pdfCalibrated, pdfOpacity, setPdfLocked, setPdfOpacity, gridSizeMm } =
-    useCanvasStore();
+const StatusDot = styled.div<{ calibrated: boolean }>`
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: ${props => (props.calibrated ? '#22c55e' : '#ef4444')};
+`;
+
+export const PDFSettingsPanel: React.FC<PDFSettingsPanelProps> = ({ onDeletePdf, onRecalibrate }) => {
+  const { getCurrentFloor, setFloorPDFLocked, setFloorPDF } = useFloorStore();
+
+  const currentFloor = getCurrentFloor();
+  const pdf = currentFloor?.pdf;
+  const pdfLocked = currentFloor?.pdfLocked || false;
+
+  if (!currentFloor || !pdf) return null;
 
   const handleOpacityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value) / 100;
-    setPdfOpacity(value);
+    setFloorPDF(currentFloor.id, { ...pdf, opacity: value });
   };
 
   const handleOpacityInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value.replace(/[^\d]/g, '');
     const numValue = Math.max(0, Math.min(100, parseInt(value) || 0));
-    setPdfOpacity(numValue / 100);
+    setFloorPDF(currentFloor.id, { ...pdf, opacity: numValue / 100 });
+  };
+
+  const handleLockToggle = (locked: boolean) => {
+    setFloorPDFLocked(currentFloor.id, locked);
   };
 
   return (
@@ -178,7 +206,7 @@ export const PdfSettingsMenu: React.FC<PdfSettingsMenuProps> = ({ onDeletePdf, o
                 Lock PDF
               </Text>
             </div>
-            <Toggle checked={pdfLocked} onChange={setPdfLocked} />
+            <Toggle checked={pdfLocked} onChange={handleLockToggle} />
           </Row>
           <Text size={12} color="#64748b">
             When locked, PDF cannot be selected or moved
@@ -195,20 +223,23 @@ export const PdfSettingsMenu: React.FC<PdfSettingsMenuProps> = ({ onDeletePdf, o
           <InfoGrid>
             <InfoItem>
               <InfoLabel>Width (grid units)</InfoLabel>
-              <InfoValue>{pdfWidthGrid}</InfoValue>
+              <InfoValue>{Math.round(pdf.widthGrid)}</InfoValue>
             </InfoItem>
             <InfoItem>
               <InfoLabel>Height (grid units)</InfoLabel>
-              <InfoValue>{pdfHeightGrid}</InfoValue>
+              <InfoValue>{Math.round(pdf.heightGrid)}</InfoValue>
             </InfoItem>
             <InfoItem>
               <InfoLabel>Grid size</InfoLabel>
-              <InfoValue>{Math.round(gridSizeMm)} mm</InfoValue>
+              <InfoValue>{Math.round(currentFloor.gridSettings.gridSize)} mm</InfoValue>
             </InfoItem>
             <InfoItem>
               <InfoLabel>Calibrated</InfoLabel>
-              <InfoValue style={{ color: pdfCalibrated ? '#059669' : '#dc2626' }}>
-                {pdfCalibrated ? 'Yes' : 'No'}
+              <InfoValue>
+                <StatusIndicator calibrated={pdf.calibrated}>
+                  <StatusDot calibrated={pdf.calibrated} />
+                  {pdf.calibrated ? 'Yes' : 'No'}
+                </StatusIndicator>
               </InfoValue>
             </InfoItem>
           </InfoGrid>
@@ -227,7 +258,7 @@ export const PdfSettingsMenu: React.FC<PdfSettingsMenuProps> = ({ onDeletePdf, o
                 type="range"
                 min="0"
                 max="100"
-                value={Math.round(pdfOpacity * 100)}
+                value={Math.round(pdf.opacity * 100)}
                 onChange={handleOpacityChange}
               />
               <div style={{ minWidth: '60px' }}>
@@ -235,7 +266,7 @@ export const PdfSettingsMenu: React.FC<PdfSettingsMenuProps> = ({ onDeletePdf, o
                   type="number"
                   min="0"
                   max="100"
-                  value={Math.round(pdfOpacity * 100)}
+                  value={Math.round(pdf.opacity * 100)}
                   onChange={handleOpacityInputChange}
                   suffix="%"
                   inputWidth="50px"
@@ -253,9 +284,9 @@ export const PdfSettingsMenu: React.FC<PdfSettingsMenuProps> = ({ onDeletePdf, o
             <Button variant="danger" icon={<LuFileX size={16} />} onClick={onDeletePdf} style={{ flex: 1 }}>
               Delete PDF
             </Button>
-            {!pdfCalibrated && onRecalibrate && (
-              <Button variant="secondary" onClick={onRecalibrate} style={{ flex: 1 }}>
-                Recalibrate
+            {!pdf.calibrated && (
+              <Button variant="secondary" icon={<LuRuler size={16} />} onClick={onRecalibrate} style={{ flex: 1 }}>
+                Calibrate
               </Button>
             )}
           </div>

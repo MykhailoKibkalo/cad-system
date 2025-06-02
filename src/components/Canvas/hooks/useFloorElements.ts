@@ -1,8 +1,8 @@
 // src/hooks/useFloorElements.ts
 import { useMemo } from 'react';
 import { useObjectStore } from '@/state/objectStore';
-import { useCanvasStore } from '@/state/canvasStore';
 import { Balcony, BathroomPod, Corridor, Module, Opening, Roof } from '@/types/geometry';
+import { useFloorStore } from '@/state/floorStore';
 
 interface FloorElementsData {
   modules: Module[];
@@ -13,7 +13,7 @@ interface FloorElementsData {
   roofs: Roof[];
 }
 
-export function useFloorElements(floor?: number): FloorElementsData {
+export function useFloorElements(floorId?: string): FloorElementsData {
   const {
     modules: allModules,
     openings: allOpenings,
@@ -23,17 +23,43 @@ export function useFloorElements(floor?: number): FloorElementsData {
     roofs: allRoofs,
   } = useObjectStore();
 
-  const { currentFloor } = useCanvasStore();
-  const targetFloor = floor ?? currentFloor;
+  const { currentFloorId, floors } = useFloorStore();
+  const targetFloorId = floorId ?? currentFloorId;
 
   return useMemo(() => {
+    if (!targetFloorId) {
+      return {
+        modules: [],
+        openings: [],
+        balconies: [],
+        bathroomPods: [],
+        corridors: [],
+        roofs: [],
+      };
+    }
+
+    // Get floor index for this floor ID
+    const floorIndex = floors.findIndex(f => f.id === targetFloorId);
+    const targetFloorNumber = floorIndex + 1; // Floor numbers start at 1
+
+    if (floorIndex === -1) {
+      return {
+        modules: [],
+        openings: [],
+        balconies: [],
+        bathroomPods: [],
+        corridors: [],
+        roofs: [],
+      };
+    }
+
     // Filter modules for the current floor
     // Since modules can be stacked (stackedFloors), we need to check if the target floor
     // falls within the range of this module's floors
     const modules = allModules.filter(module => {
       const moduleStartFloor = Math.floor(module.zOffset / (module.height || 3100)) + 1;
       const moduleEndFloor = moduleStartFloor + module.stackedFloors - 1;
-      return targetFloor >= moduleStartFloor && targetFloor <= moduleEndFloor;
+      return targetFloorNumber >= moduleStartFloor && targetFloorNumber <= moduleEndFloor;
     });
 
     // Get module IDs for filtering related elements
@@ -49,10 +75,10 @@ export function useFloorElements(floor?: number): FloorElementsData {
     const bathroomPods = allBathroomPods.filter(pod => moduleIds.has(pod.moduleId));
 
     // Filter corridors for the current floor
-    const corridors = allCorridors.filter(corridor => corridor.floor === targetFloor);
+    const corridors = allCorridors.filter(corridor => corridor.floor === targetFloorNumber);
 
     // Filter roofs for the current floor level
-    const roofs = allRoofs.filter((roof: any) => roof.level === targetFloor);
+    const roofs = allRoofs.filter((roof: any) => roof.level === targetFloorNumber);
 
     return {
       modules,
@@ -62,12 +88,12 @@ export function useFloorElements(floor?: number): FloorElementsData {
       corridors,
       roofs: roofs as Roof[], // Type assertion since allRoofs is currently []
     };
-  }, [allModules, allOpenings, allBalconies, allBathroomPods, allCorridors, allRoofs, targetFloor]);
+  }, [allModules, allOpenings, allBalconies, allBathroomPods, allCorridors, allRoofs, targetFloorId, floors]);
 }
 
 // Helper function to check if there are any elements on the current floor
-export function useHasFloorElements(floor?: number): boolean {
-  const elements = useFloorElements(floor);
+export function useHasFloorElements(floorId?: string): boolean {
+  const elements = useFloorElements(floorId);
 
   return useMemo(() => {
     return (

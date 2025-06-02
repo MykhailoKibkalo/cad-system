@@ -1,26 +1,31 @@
-// src/components/ui/Header.tsx
+// src/components/ui/Header.tsx (Updated)
 'use client';
 
+import React, { useState } from 'react';
 import styled from '@emotion/styled';
 import { colors } from '@/styles/theme';
-import { useCanvasStore } from '@/state/canvasStore';
 import { useToolStore } from '@/state/toolStore';
 import Image from 'next/image';
 import logo from '../../assets/images/logo.png';
 import { Button } from '@/components/ui/Button';
-import { LuDownload, LuLayers, LuSettings2, LuTable } from 'react-icons/lu';
+import { LuDownload, LuLayers, LuSettings2, LuTable, LuUpload } from 'react-icons/lu';
 import { Divider } from '@/components/ui/Divider';
 import { RiHomeLine } from 'react-icons/ri';
 import { Text } from '@/components/ui/Text';
 import { Toggle } from '@/components/ui/Toggle';
-import { PdfSettingsMenu } from '@/components/ui/PdfSettingsMenu';
-import React, { useState } from 'react';
 import { BsGrid3X3 } from 'react-icons/bs';
 import { TbBoxAlignLeft, TbBoxAlignTopLeft } from 'react-icons/tb';
 import { CgArrowAlignH } from 'react-icons/cg';
 import { InputWithAffix } from '@/components/ui/InputWithAffix';
+import FloorElementsTable from '@/components/ui/FloorElementsTable';
+import FloorDropdown from '@/components/ui/FloorDropdown';
+import EditFloorModal from '@/components/ui/EditFloorModal';
+import ConfirmImportModal from '@/components/ui/ConfirmImportModal';
+import { downloadJSON, exportProject, importProject, readJSONFile } from '@/utils/exportImport';
+import { printPDF } from '@/utils/pdfUtils';
+import {useFloorStore} from "@/state/floorStore";
 import {useHasFloorElements} from "@/components/Canvas/hooks/useFloorElements";
-import FloorElementsTable from "@/components/ui/FloorElementsTable";
+import {PDFSettingsPanel} from "@/components/ui/PdfSettingsMenu";
 
 const Container = styled.div`
   display: flex;
@@ -142,31 +147,100 @@ const FloorElementsButton = styled.div<{ disabled: boolean }>`
   }
 `;
 
+const FileMenuContainer = styled.div`
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+
+  &:hover > div {
+    visibility: visible;
+    opacity: 1;
+  }
+`;
+
+const FileMenuButton = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.2s;
+
+  &:hover {
+    background: #f8fafc;
+  }
+`;
+
+const FileMenuDropdown = styled.div`
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 200px;
+  background: ${colors.white};
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 8px;
+  visibility: hidden;
+  opacity: 0;
+  transition: all 0.2s;
+  z-index: 10000;
+`;
+
+const FileMenuOption = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.2s;
+
+  &:hover {
+    background: #f8fafc;
+  }
+`;
+
 export default function Header() {
-  const {
-    floorName,
-    floorHeightMm,
-    snapMode,
-    setSnapMode,
-    elementGapMm,
-    setElementGapMm,
-    pdfImported,
-    resetPdfState,
-    currentFloor,
-  } = useCanvasStore();
-
+  const { getCurrentFloor, currentFloorId } = useFloorStore();
   const { setTool } = useToolStore();
-  const [showFloorElementsTable, setShowFloorElementsTable] = useState(false);
-  const hasElements = useHasFloorElements();
 
-  const gridSizeMm = useCanvasStore(s => s.gridSizeMm);
-  const setGridSize = useCanvasStore(s => s.setGridSize);
+  const currentFloor = getCurrentFloor();
+  const hasElements = useHasFloorElements(currentFloorId && +currentFloorId || undefined);
+
+  const [showFloorElementsTable, setShowFloorElementsTable] = useState(false);
+  const [editingFloorId, setEditingFloorId] = useState<string | undefined>(undefined);
+  const [showEditFloorModal, setShowEditFloorModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importData, setImportData] = useState<any>(null);
+
+  // Get grid settings from current floor, fallback to defaults
+  const gridSizeMm = currentFloor?.gridSettings.gridSize || 100;
+  const snapMode = currentFloor?.gridSettings.snapMode || 'off';
+  const elementGapMm = currentFloor?.gridSettings.elementGap || 50;
+
+  const setGridSize = (size: number) => {
+    if (currentFloor) {
+      useFloorStore.getState().updateFloorGridSettings(currentFloor.id, { gridSize: Math.round(size) });
+    }
+  };
+
+  const setSnapMode = (mode: 'off' | 'grid' | 'element') => {
+    if (currentFloor) {
+      useFloorStore.getState().updateFloorGridSettings(currentFloor.id, { snapMode: mode });
+    }
+  };
+
+  const setElementGapMm = (gap: number) => {
+    if (currentFloor) {
+      useFloorStore.getState().updateFloorGridSettings(currentFloor.id, { elementGap: Math.round(gap) });
+    }
+  };
 
   const onChangeGrid = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value;
-    // Remove any decimal points and non-numeric characters
     value = value.replace(/[^\d]/g, '');
-
     const v = parseInt(value, 10);
     if (!isNaN(v) && v > 0) {
       setGridSize(Math.round(v));
@@ -180,9 +254,7 @@ export default function Header() {
 
   const onChangeGap = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value;
-    // Remove any decimal points and non-numeric characters
     value = value.replace(/[^\d]/g, '');
-
     const numValue = Math.max(0, Math.round(parseInt(value) || 0));
     setElementGapMm(numValue);
   };
@@ -193,12 +265,12 @@ export default function Header() {
   };
 
   const handleDeletePdf = () => {
-    // This will be handled by the canvas component through global state
-    resetPdfState();
+    if (currentFloor) {
+      useFloorStore.getState().removeFloorPDF(currentFloor.id);
+    }
   };
 
   const handleRecalibrate = () => {
-    // Switch to calibrate tool
     setTool('calibrate');
   };
 
@@ -208,16 +280,116 @@ export default function Header() {
     }
   };
 
+  const handleEditFloor = (floorId?: string) => {
+    setEditingFloorId(floorId);
+    setShowEditFloorModal(true);
+  };
+
+  const handlePDFImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !currentFloor) return;
+
+    try {
+      const canvases = await printPDF(file);
+      if (canvases.length === 0) return;
+
+      // Create object URL for the PDF
+      const url = URL.createObjectURL(file);
+
+      // Calculate initial dimensions (will be recalculated after calibration)
+      const canvas = canvases[0];
+      const widthPx = Math.round(canvas.width);
+      const heightPx = Math.round(canvas.height);
+
+      // Convert to grid units using current grid size
+      const widthGrid = Math.round(widthPx / gridSizeMm);
+      const heightGrid = Math.round(heightPx / gridSizeMm);
+
+      // Store PDF data for current floor
+      useFloorStore.getState().setFloorPDF(currentFloor.id, {
+        url,
+        widthGrid,
+        heightGrid,
+        calibrated: false,
+        opacity: 1,
+      });
+
+      // Clear the input
+      event.target.value = '';
+    } catch (error) {
+      console.error('Failed to load PDF:', error);
+      alert('Failed to load PDF. Please try again.');
+    }
+  };
+
+  const handleExportProject = async () => {
+    try {
+      const data = await exportProject();
+      const filename = `project-export-${new Date().toISOString().slice(0, 10)}.json`;
+      downloadJSON(data, filename);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Export failed. Please try again.');
+    }
+  };
+
+  const handleImportProject = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    readJSONFile(file)
+      .then(data => {
+        setImportData(data);
+        setShowImportModal(true);
+        event.target.value = ''; // Clear input
+      })
+      .catch(error => {
+        console.error('Import failed:', error);
+        alert('Failed to read import file. Please check the file format.');
+      });
+  };
+
+  const handleConfirmImport = async (options: any) => {
+    if (!importData) return;
+
+    try {
+      await importProject(importData, options);
+      setShowImportModal(false);
+      setImportData(null);
+      alert('Project imported successfully!');
+    } catch (error) {
+      console.error('Import failed:', error);
+      alert('Import failed. Please try again.');
+    }
+  };
+
   return (
     <>
       <Container>
         <MainWrap>
           <Image width={153} height={40} src={logo} alt={'verida'} />
-          <Button icon={<LuDownload size={20} />}>
-            <Label htmlFor="pdfInput">Import PDF</Label>
-            <Input id="pdfInput" type="file" accept="application/pdf" />
-          </Button>
+
+          {/* File Menu */}
+          <FileMenuContainer>
+            <FileMenuButton>
+              <Text size={16}>File</Text>
+            </FileMenuButton>
+            <FileMenuDropdown>
+              <FileMenuOption onClick={handleExportProject}>
+                <LuDownload size={16} />
+                <Text size={14}>Export Project</Text>
+              </FileMenuOption>
+              <FileMenuOption>
+                <LuUpload size={16} />
+                <Label htmlFor="importInput">
+                  <Text size={14}>Import Project</Text>
+                </Label>
+                <Input id="importInput" type="file" accept=".json" onChange={handleImportProject} />
+              </FileMenuOption>
+            </FileMenuDropdown>
+          </FileMenuContainer>
         </MainWrap>
+
         <SecondaryWrap>
           <MenuWrap>
             <MenuItem>
@@ -227,26 +399,39 @@ export default function Header() {
             <Divider orientation="vertical" length={'40px'} />
             <MenuItem>
               <LuLayers size={24} />
-              <Text size={16}>
-                Floor: {floorName} ({Math.round(floorHeightMm)} mm)
-              </Text>
+              <FloorDropdown onEditFloor={handleEditFloor} />
             </MenuItem>
           </MenuWrap>
 
           <MenuWrap>
-            {/* PDF Settings Menu - Only show when PDF is imported */}
-            {pdfImported && (
+            {/* Import PDF Button - Only show when current floor exists */}
+            {currentFloor && !currentFloor.pdf && (
               <>
-                <PdfSettingsMenu onDeletePdf={handleDeletePdf} onRecalibrate={handleRecalibrate} />
+                <Button icon={<LuDownload size={20} />}>
+                  <Label htmlFor="pdfInput">Import PDF</Label>
+                  <Input id="pdfInput" type="file" accept="application/pdf" onChange={handlePDFImport} />
+                </Button>
                 <Divider orientation="vertical" length={'40px'} />
               </>
             )}
 
-            {/* Floor Elements Button - New addition */}
+            {/* PDF Settings Menu - Only show when current floor has PDF */}
+            {currentFloor?.pdf && (
+              <>
+                <PDFSettingsPanel onDeletePdf={handleDeletePdf} onRecalibrate={handleRecalibrate} />
+                <Divider orientation="vertical" length={'40px'} />
+              </>
+            )}
+
+            {/* Floor Elements Button */}
             <FloorElementsButton
               disabled={!hasElements}
               onClick={openFloorElementsPanel}
-              title={hasElements ? `View all elements on ${floorName}` : 'No elements on current floor'}
+              title={
+                hasElements
+                  ? `View all elements on ${currentFloor?.name || 'current floor'}`
+                  : 'No elements on current floor'
+              }
             >
               <LuTable size={24} />
               <Text size={16}>View Floor Elements</Text>
@@ -254,71 +439,101 @@ export default function Header() {
 
             <Divider orientation="vertical" length={'40px'} />
 
-            {/* Grid Settings */}
-            <SettingsContainer>
-              <MenuItem>
-                <LuSettings2 size={24} />
-              </MenuItem>
-              <SettingsPopup>
-                <SettingsItem>
-                  <MenuItem>
-                    <BsGrid3X3 size={24} />
-                    <Text size={16}>Grid (mm)</Text>
-                  </MenuItem>
-                  <InputWrap>
-                    <InputWithAffix
-                      min="1"
-                      step="1"
-                      value={Math.round(gridSizeMm)}
-                      onChange={onChangeGrid}
-                      onBlur={onGridBlur}
-                      type="number"
-                      suffix={'mm'}
+            {/* Grid Settings - Only show when current floor exists */}
+            {currentFloor && (
+              <SettingsContainer>
+                <MenuItem>
+                  <LuSettings2 size={24} />
+                </MenuItem>
+                <SettingsPopup>
+                  <SettingsItem>
+                    <MenuItem>
+                      <BsGrid3X3 size={24} />
+                      <Text size={16}>Grid (mm)</Text>
+                    </MenuItem>
+                    <InputWrap>
+                      <InputWithAffix
+                        min="1"
+                        step="1"
+                        value={Math.round(gridSizeMm)}
+                        onChange={onChangeGrid}
+                        onBlur={onGridBlur}
+                        type="number"
+                        suffix={'mm'}
+                      />
+                    </InputWrap>
+                  </SettingsItem>
+
+                  <SettingsItem>
+                    <MenuItem>
+                      <TbBoxAlignTopLeft size={24} />
+                      <Text size={16}>Snap to grid</Text>
+                    </MenuItem>
+                    <Toggle checked={snapMode === 'grid'} onChange={value => setSnapMode(value ? 'grid' : 'off')} />
+                  </SettingsItem>
+
+                  <SettingsItem>
+                    <MenuItem>
+                      <TbBoxAlignLeft size={24} />
+                      <Text size={16}>Snap to element</Text>
+                    </MenuItem>
+                    <Toggle
+                      checked={snapMode === 'element'}
+                      onChange={value => setSnapMode(value ? 'element' : 'off')}
                     />
-                  </InputWrap>
-                </SettingsItem>
+                  </SettingsItem>
 
-                <SettingsItem>
-                  <MenuItem>
-                    <TbBoxAlignTopLeft size={24} />
-                    <Text size={16}>Snap to grid</Text>
-                  </MenuItem>
-                  <Toggle checked={snapMode === 'grid'} onChange={value => setSnapMode(value ? 'grid' : 'off')} />
-                </SettingsItem>
-
-                <SettingsItem>
-                  <MenuItem>
-                    <TbBoxAlignLeft size={24} />
-                    <Text size={16}>Snap to element</Text>
-                  </MenuItem>
-                  <Toggle checked={snapMode === 'element'} onChange={value => setSnapMode(value ? 'element' : 'off')} />
-                </SettingsItem>
-
-                <AnimatedSettingsItem visible={snapMode === 'element'}>
-                  <MenuItem>
-                    <CgArrowAlignH size={24} />
-                    <Text size={16}>Gap between elements</Text>
-                  </MenuItem>
-                  <InputWrap>
-                    <InputWithAffix
-                      min="0"
-                      step="1"
-                      value={Math.round(elementGapMm)}
-                      onChange={onChangeGap}
-                      onBlur={onGapBlur}
-                      type="number"
-                      suffix={'mm'}
-                    />
-                  </InputWrap>
-                </AnimatedSettingsItem>
-              </SettingsPopup>
-            </SettingsContainer>
+                  <AnimatedSettingsItem visible={snapMode === 'element'}>
+                    <MenuItem>
+                      <CgArrowAlignH size={24} />
+                      <Text size={16}>Gap between elements</Text>
+                    </MenuItem>
+                    <InputWrap>
+                      <InputWithAffix
+                        min="0"
+                        step="1"
+                        value={Math.round(elementGapMm)}
+                        onChange={onChangeGap}
+                        onBlur={onGapBlur}
+                        type="number"
+                        suffix={'mm'}
+                      />
+                    </InputWrap>
+                  </AnimatedSettingsItem>
+                </SettingsPopup>
+              </SettingsContainer>
+            )}
           </MenuWrap>
         </SecondaryWrap>
       </Container>
 
-      {/* Floor Elements Table Modal */}
+      {/* Modals */}
       {showFloorElementsTable && <FloorElementsTable onClose={() => setShowFloorElementsTable(false)} />}
+
+      {showEditFloorModal && (
+        <EditFloorModal
+          floorId={editingFloorId}
+          onClose={() => {
+            setShowEditFloorModal(false);
+            setEditingFloorId(undefined);
+          }}
+          onSuccess={() => {
+            setShowEditFloorModal(false);
+            setEditingFloorId(undefined);
+          }}
+        />
+      )}
+
+      {showImportModal && importData && (
+        <ConfirmImportModal
+          data={importData}
+          onConfirm={handleConfirmImport}
+          onCancel={() => {
+            setShowImportModal(false);
+            setImportData(null);
+          }}
+        />
+      )}
     </>
   );
 }

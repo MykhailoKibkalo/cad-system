@@ -1,14 +1,14 @@
-// src/components/FloorElementsTable.tsx
+// src/components/ui/FloorElementsTable.tsx (Updated)
 'use client';
 
 import React, { useMemo, useState } from 'react';
 import styled from '@emotion/styled';
-import { useCanvasStore } from '@/state/canvasStore';
 import { Text } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/InputWithAffix';
 import { HiMiniXMark } from 'react-icons/hi2';
 import { LuChevronDown, LuChevronUp, LuSearch } from 'react-icons/lu';
+import {useFloorStore} from "@/state/floorStore";
 import {useFloorElements} from "@/components/Canvas/hooks/useFloorElements";
 
 interface FloorElementsTableProps {
@@ -173,8 +173,9 @@ type SortField = string;
 type SortDirection = 'asc' | 'desc';
 
 export default function FloorElementsTable({ onClose }: FloorElementsTableProps) {
-  const { currentFloor } = useCanvasStore();
-  const { modules, openings, balconies, bathroomPods, corridors, roofs } = useFloorElements(currentFloor);
+  const { getCurrentFloor } = useFloorStore();
+  const currentFloor = getCurrentFloor();
+  const { modules, openings, balconies, bathroomPods, corridors, roofs } = useFloorElements();
 
   // Search states for each table
   const [searchTerms, setSearchTerms] = useState({
@@ -407,12 +408,36 @@ export default function FloorElementsTable({ onClose }: FloorElementsTableProps)
     }));
   }, [corridors]);
 
+  if (!currentFloor) {
+    return (
+      <Overlay onClick={onClose}>
+        <Modal onClick={e => e.stopPropagation()}>
+          <Header>
+            <Text size={24} weight={700}>
+              No Floor Selected
+            </Text>
+            <Button variant="ghost" onClick={onClose}>
+              <HiMiniXMark size={24} />
+            </Button>
+          </Header>
+          <Content>
+            <EmptyState>
+              <Text size={16} color="#6b7280">
+                Please select a floor to view its elements.
+              </Text>
+            </EmptyState>
+          </Content>
+        </Modal>
+      </Overlay>
+    );
+  }
+
   return (
     <Overlay onClick={onClose}>
       <Modal onClick={e => e.stopPropagation()}>
         <Header>
           <Text size={24} weight={700}>
-            Floor Elements - Level {currentFloor}
+            Floor Elements - {currentFloor.name}
           </Text>
           <Button variant="ghost" onClick={onClose}>
             <HiMiniXMark size={24} />

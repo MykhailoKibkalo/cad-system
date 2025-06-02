@@ -1,24 +1,33 @@
-// src/components/Canvas/hooks/useSnapping.ts
+// src/components/Canvas/hooks/useSnapping.ts (Updated)
 import { useEffect } from 'react';
 import type { Canvas } from 'fabric';
 import { useCanvasStore } from '@/state/canvasStore';
+import { useFloorStore } from '@/state/floorStore';
 
 export default function useSnapping(canvas: Canvas | null) {
-  const { snapMode, gridSizeMm, elementGapMm, scaleFactor } = useCanvasStore();
+  const { scaleFactor } = useCanvasStore();
+  const { getCurrentFloor } = useFloorStore();
 
   useEffect(() => {
     if (!canvas) return;
+
+    const currentFloor = getCurrentFloor();
+    if (!currentFloor) return;
+
+    const snapMode = currentFloor.gridSettings.snapMode;
+    const gridSizeMm = currentFloor.gridSettings.gridSize;
+    const elementGapMm = currentFloor.gridSettings.elementGap;
 
     const gapPx = Math.round(elementGapMm * scaleFactor);
     const TOL = 24;
 
     function snapAxis(pos: number, size: number, leftEdges: number[], rightEdges: number[]): number {
       const candidates: number[] = [];
-      // Ставимо this.left = other.right + gap
+      // Snap to other.right + gap
       for (const e of rightEdges) {
         candidates.push(Math.round(e + gapPx));
       }
-      // Ставимо this.right = other.left - gap → this.left = other.left - gap - size
+      // Snap to other.left - gap - size
       for (const e of leftEdges) {
         candidates.push(Math.round(e - gapPx - size));
       }
@@ -31,7 +40,7 @@ export default function useSnapping(canvas: Canvas | null) {
           best = c;
         }
       }
-      return dist < TOL ? Math.round(best) : Math.round(pos); // поріг лишаємо лише TOL, а не gapPx
+      return dist < TOL ? Math.round(best) : Math.round(pos);
     }
 
     const onMoving = (opt: any) => {
@@ -43,14 +52,14 @@ export default function useSnapping(canvas: Canvas | null) {
       const myW = Math.round(bObj.width),
         myH = Math.round(bObj.height);
 
-      // grid-snap - ensure integers
+      // Grid-snap - ensure integers
       if (snapMode === 'grid') {
         const gridPx = Math.round(gridSizeMm * scaleFactor);
         left = Math.round(Math.round(left / gridPx) * gridPx);
         top = Math.round(Math.round(top / gridPx) * gridPx);
       }
 
-      // element-snap - ensure integers
+      // Element-snap - ensure integers
       if (snapMode === 'element') {
         const leftEdges: number[] = [];
         const rightEdges: number[] = [];
@@ -67,9 +76,9 @@ export default function useSnapping(canvas: Canvas | null) {
           }
         });
 
-        // прив'язуємо X-вісь - ensure integers
+        // Snap X-axis - ensure integers
         left = snapAxis(left, myW, leftEdges, rightEdges);
-        // прив'язуємо Y-вісь аналогічним чином - ensure integers
+        // Snap Y-axis - ensure integers
         top = snapAxis(top, myH, topEdges, bottomEdges);
       }
 
@@ -78,5 +87,5 @@ export default function useSnapping(canvas: Canvas | null) {
 
     canvas.on('object:moving', onMoving);
     return () => void canvas.off('object:moving', onMoving);
-  }, [canvas, snapMode, gridSizeMm, elementGapMm, scaleFactor]);
+  }, [canvas, scaleFactor]);
 }
