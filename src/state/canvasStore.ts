@@ -4,6 +4,9 @@ import { create } from 'zustand';
 interface CanvasState {
   scaleFactor: number;
   gridSizeMm: number;
+  gridWidthM: number;
+  gridHeightM: number;
+  setGridDimensions: (widthM: number, heightM: number) => void;
   snapMode: 'off' | 'grid' | 'element';
   pdfImported: boolean;
   pdfLocked: boolean;
@@ -44,6 +47,9 @@ interface CanvasState {
 export const useCanvasStore = create<CanvasState>(set => ({
   scaleFactor: 1,
   gridSizeMm: 100,
+  gridWidthM: 100,
+  gridHeightM: 100,
+  setGridDimensions: (widthM, heightM) => set({ gridWidthM: widthM, gridHeightM: heightM }),
   snapMode: 'off',
   pdfImported: false,
   pdfLocked: false,

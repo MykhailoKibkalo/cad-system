@@ -5,6 +5,7 @@ import styled from '@emotion/styled';
 import { colors } from '@/styles/theme';
 import { useCanvasStore } from '@/state/canvasStore';
 import { useToolStore } from '@/state/toolStore';
+import { useFloorStore } from '@/state/floorStore';
 import Image from 'next/image';
 import logo from '../../assets/images/logo.png';
 import { Button } from '@/components/ui/Button';
@@ -111,6 +112,21 @@ const InputWrap = styled.div`
   max-width: 132px;
 `;
 
+const GridSizeRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const GridSizeInputWrap = styled.div`
+  width: 80px;
+`;
+
+const GridSizeSeparator = styled.span`
+  color: ${colors.gray};
+  font-size: 16px;
+`;
+
 const AnimatedSettingsItem = styled(SettingsItem)<{ visible: boolean }>`
   overflow: hidden;
   transition:
@@ -158,9 +174,23 @@ export default function Header() {
   const { setTool } = useToolStore();
   const [showFloorElementsTable, setShowFloorElementsTable] = useState(false);
   const hasElements = useHasFloorElements();
+  
+  // Add floor store
+  const { getSelectedFloor, setSidebarOpen, hasActivePdf, setActivePdfUrl, getActiveGridState, updateActiveGridState } = useFloorStore();
 
   const gridSizeMm = useCanvasStore(s => s.gridSizeMm);
   const setGridSize = useCanvasStore(s => s.setGridSize);
+  
+  // Get grid dimensions from active floor or fallback to canvas store
+  const activeGridState = getActiveGridState();
+  const gridWidthM = activeGridState?.gridWidthM || useCanvasStore(s => s.gridWidthM);
+  const gridHeightM = activeGridState?.gridHeightM || useCanvasStore(s => s.gridHeightM);
+  
+  const setGridDimensions = (width: number, height: number) => {
+    // Update both floor store and canvas store
+    updateActiveGridState({ gridWidthM: width, gridHeightM: height });
+    useCanvasStore.getState().setGridDimensions(width, height);
+  };
 
   const onChangeGrid = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value;
@@ -192,8 +222,42 @@ export default function Header() {
     setElementGapMm(v);
   };
 
+  const onChangeGridWidth = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value;
+    // Remove any decimal points and non-numeric characters
+    value = value.replace(/[^\d]/g, '');
+    
+    const v = parseInt(value, 10);
+    if (!isNaN(v) && v >= 1 && v <= 1000) {
+      setGridDimensions(v, gridHeightM);
+    }
+  };
+
+  const onGridWidthBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const v = Math.max(1, Math.min(1000, parseInt(e.target.value) || 100));
+    setGridDimensions(v, gridHeightM);
+  };
+
+  const onChangeGridHeight = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value;
+    // Remove any decimal points and non-numeric characters
+    value = value.replace(/[^\d]/g, '');
+    
+    const v = parseInt(value, 10);
+    if (!isNaN(v) && v >= 1 && v <= 1000) {
+      setGridDimensions(gridWidthM, v);
+    }
+  };
+
+  const onGridHeightBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const v = Math.max(1, Math.min(1000, parseInt(e.target.value) || 100));
+    setGridDimensions(gridWidthM, v);
+  };
+
   const handleDeletePdf = () => {
-    // This will be handled by the canvas component through global state
+    // Remove PDF from active floor
+    setActivePdfUrl(undefined);
+    // Reset global PDF state
     resetPdfState();
   };
 
@@ -208,6 +272,20 @@ export default function Header() {
     }
   };
 
+  const handlePdfImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && file.type === 'application/pdf') {
+      const url = URL.createObjectURL(file);
+      setActivePdfUrl(url);
+      
+      // Immediately update canvas PDF state
+      useCanvasStore.getState().setPdfImported(true);
+      useCanvasStore.getState().setPdfCalibrated(false);
+    }
+    // Reset input for future uploads
+    e.target.value = '';
+  };
+
   return (
     <>
       <Container>
@@ -215,7 +293,12 @@ export default function Header() {
           <Image width={153} height={40} src={logo} alt={'verida'} />
           <Button icon={<LuDownload size={20} />}>
             <Label htmlFor="pdfInput">Import PDF</Label>
-            <Input id="pdfInput" type="file" accept="application/pdf" />
+            <Input 
+              id="pdfInput" 
+              type="file" 
+              accept="application/pdf" 
+              onChange={handlePdfImport}
+            />
           </Button>
         </MainWrap>
         <SecondaryWrap>
@@ -225,17 +308,17 @@ export default function Header() {
               <Text size={16}>Home</Text>
             </MenuItem>
             <Divider orientation="vertical" length={'40px'} />
-            <MenuItem>
+            <MenuItem onClick={() => setSidebarOpen(true)} style={{ cursor: 'pointer' }}>
               <LuLayers size={24} />
               <Text size={16}>
-                Floor: {floorName} ({Math.round(floorHeightMm)} mm)
+                Floor: {getSelectedFloor()?.name || floorName} ({Math.round(getSelectedFloor()?.height || floorHeightMm)} mm)
               </Text>
             </MenuItem>
           </MenuWrap>
 
           <MenuWrap>
-            {/* PDF Settings Menu - Only show when PDF is imported */}
-            {pdfImported && (
+            {/* PDF Settings Menu - Only show when active floor has PDF */}
+            {hasActivePdf() && (
               <>
                 <PdfSettingsMenu onDeletePdf={handleDeletePdf} onRecalibrate={handleRecalibrate} />
                 <Divider orientation="vertical" length={'40px'} />
@@ -263,7 +346,7 @@ export default function Header() {
                 <SettingsItem>
                   <MenuItem>
                     <BsGrid3X3 size={24} />
-                    <Text size={16}>Grid (mm)</Text>
+                    <Text size={16}>Grid Cell Size</Text>
                   </MenuItem>
                   <InputWrap>
                     <InputWithAffix
@@ -276,6 +359,40 @@ export default function Header() {
                       suffix={'mm'}
                     />
                   </InputWrap>
+                </SettingsItem>
+
+                <SettingsItem>
+                  <MenuItem>
+                    <BsGrid3X3 size={24} />
+                    <Text size={16}>Grid Size (m)</Text>
+                  </MenuItem>
+                  <GridSizeRow>
+                    <GridSizeInputWrap>
+                      <InputWithAffix
+                        min="1"
+                        max="1000"
+                        step="1"
+                        value={gridWidthM}
+                        onChange={onChangeGridWidth}
+                        onBlur={onGridWidthBlur}
+                        type="number"
+                        suffix={'m'}
+                      />
+                    </GridSizeInputWrap>
+                    <GridSizeSeparator>×</GridSizeSeparator>
+                    <GridSizeInputWrap>
+                      <InputWithAffix
+                        min="1"
+                        max="1000"
+                        step="1"
+                        value={gridHeightM}
+                        onChange={onChangeGridHeight}
+                        onBlur={onGridHeightBlur}
+                        type="number"
+                        suffix={'m'}
+                      />
+                    </GridSizeInputWrap>
+                  </GridSizeRow>
                 </SettingsItem>
 
                 <SettingsItem>

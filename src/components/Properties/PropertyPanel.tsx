@@ -320,7 +320,11 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
   if (!module) return null;
 
   return (
-    <Panel>
+    <Panel
+      onMouseDown={(e) => e.stopPropagation()}
+      onMouseUp={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    >
       {/* Fixed Header */}
       <MenuHeader>
         <Text weight={700} size={24}>

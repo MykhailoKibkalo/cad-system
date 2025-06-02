@@ -62,7 +62,7 @@ export class PdfManager {
    * Find all PDF objects on the canvas
    */
   getPdfObjects(): Image[] {
-    return this.canvas.getObjects().filter(obj => (obj as any).isPdfImage) as Image[];
+    return this.canvas.getObjects().filter(obj => (obj as any).isPdf) as Image[];
   }
 
   /**
@@ -185,7 +185,7 @@ export class PdfManager {
 
     if (activeObject) {
       // Check if active object is a PDF
-      if ((activeObject as any).isPdfImage) {
+      if ((activeObject as any).isPdf) {
         this.canvas.discardActiveObject();
         this.sendPdfToBack();
         this.canvas.requestRenderAll();
@@ -194,7 +194,7 @@ export class PdfManager {
       // Check if active selection contains PDFs
       if ((activeObject as any).type === 'activeSelection') {
         const objects = (activeObject as any)._objects || [];
-        const hasPdf = objects.some((obj: any) => obj.isPdfImage);
+        const hasPdf = objects.some((obj: any) => obj.isPdf);
 
         if (hasPdf) {
           this.canvas.discardActiveObject();
@@ -212,7 +212,7 @@ export class PdfManager {
     pdfObj.set({
       // Mark as PDF
       ...(pdfObj as any),
-      isPdfImage: true,
+      isPdf: true,
 
       // Lock state
       selectable: !locked,

@@ -36,18 +36,29 @@ const CanvasContainer = styled.div<{ gridSizePx?: number; offsetX?: number; offs
   background-color: #ffffff;
 `;
 
-const GridOverlay = styled.div<{ gridSizePx: number; offsetX: number; offsetY: number }>`
+const GridOverlay = styled.div<{
+  gridSizePx: number;
+  offsetX: number;
+  offsetY: number;
+  gridWidthPx: number;
+  gridHeightPx: number;
+  panX: number;
+  panY: number;
+  zoom: number;
+}>`
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  top: ${p => Math.max(0, p.panY)}px;
+  left: ${p => Math.max(0, p.panX)}px;
+  width: ${p => p.gridWidthPx * p.zoom}px;
+  height: ${p => p.gridHeightPx * p.zoom}px;
   pointer-events: none;
-  background-image:
-    linear-gradient(to right, #ddd 1px, transparent 1px), linear-gradient(to bottom, #ddd 1px, transparent 1px);
+  background-image: linear-gradient(to right, #ddd 1px, transparent 1px), linear-gradient(to bottom, #ddd 1px, transparent 1px);
   background-size: ${p => p.gridSizePx}px ${p => p.gridSizePx}px;
   background-position: ${p => p.offsetX}px ${p => p.offsetY}px;
+  //border: 1px solid #aeaeae;
+  box-sizing: border-box;
   z-index: 1000;
+  overflow: hidden;
 `;
 
 const Wrapper = styled.div`
@@ -67,9 +78,20 @@ const Wrapper = styled.div`
 export default function CanvasArea() {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvas = useFabricCanvas('fabricCanvas');
-  const { scaleFactor, gridSizeMm, zoomLevel } = useCanvasStore();
+  const { scaleFactor, gridSizeMm, zoomLevel, gridWidthM, gridHeightM } = useCanvasStore();
 
   const setCenter = useCanvasStore(s => s.setCenterCanvas);
+
+  // Expose canvas globally for useFloorSync hook
+  useEffect(() => {
+    if (canvas) {
+      (window as any).__fabricCanvas = canvas;
+      console.log('🎨 Canvas exposed globally for floor sync');
+    }
+  }, [canvas]);
+
+  // Sync floor data - enhanced version
+  // Remove useCanvasClear - it's now handled by the enhanced useFloorSync
 
   useEffect(() => {
     if (canvas && wrapperRef.current) {
@@ -82,6 +104,9 @@ export default function CanvasArea() {
     if (canvas) {
       // зберігаємо функцію центрування
       setCenter(() => () => {
+        // Reset zoom to 100%
+        useCanvasStore.getState().setZoomLevel(1);
+        // Reset pan to 0,0 (constraints will be applied by usePanZoom)
         canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
         canvas.requestRenderAll();
       });
@@ -136,6 +161,10 @@ export default function CanvasArea() {
   const baseGridPx = gridSizeMm * scaleFactor;
   const gridSizePx = baseGridPx * zoomLevel;
 
+  // Grid dimensions in pixels (1m = 1000mm)
+  const gridWidthPx = gridWidthM * 1000 * scaleFactor;
+  const gridHeightPx = gridHeightM * 1000 * scaleFactor;
+
   // Зсув pattern на основі canvas.viewportTransform
   const vpt = canvas?.viewportTransform ?? [1, 0, 0, 1, 0, 0];
   const offsetX = vpt[4] % gridSizePx;
@@ -145,7 +174,16 @@ export default function CanvasArea() {
     <Wrapper ref={wrapperRef}>
       <CanvasContainer>
         <canvas id="fabricCanvas" />
-        <GridOverlay gridSizePx={gridSizePx} offsetX={offsetX} offsetY={offsetY} />
+        <GridOverlay
+          gridSizePx={gridSizePx}
+          offsetX={offsetX}
+          offsetY={offsetY}
+          gridWidthPx={gridWidthPx}
+          gridHeightPx={gridHeightPx}
+          panX={vpt[4]}
+          panY={vpt[5]}
+          zoom={zoomLevel}
+        />
       </CanvasContainer>
       {/*{canvas && <CanvasContextMenu canvas={canvas} />}*/}
       {canvas && <PdfLoader canvas={canvas} />}

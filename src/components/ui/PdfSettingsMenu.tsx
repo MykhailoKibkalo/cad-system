@@ -5,6 +5,7 @@ import React from 'react';
 import styled from '@emotion/styled';
 import { colors } from '@/styles/theme';
 import { useCanvasStore } from '@/state/canvasStore';
+import { useFloorStore } from '@/state/floorStore';
 import { Text } from '@/components/ui/Text';
 import { Toggle } from '@/components/ui/Toggle';
 import { Button } from '@/components/ui/Button';

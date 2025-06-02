@@ -34,12 +34,8 @@ export default function useRenderCorridors(canvas: Canvas | null) {
         fill: 'rgba(128,128,128,0.3)',
         stroke: '#666',
         strokeDashArray: [4, 4],
-
-        // ← allow selection & dragging
         selectable: true,
         evented: true,
-
-        // controls if you want to allow resizing too:
         hasControls: true,
         lockUniScaling: false,
       });

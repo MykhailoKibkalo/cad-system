@@ -34,7 +34,7 @@ const ZoomControl = () => {
   const setZoom = useCanvasStore(s => s.setZoomLevel);
   return (
     <ZoomControlWrap>
-      <IconWrap onClick={() => setZoom(Math.min(4, zoomLevel * 1.2))}>
+      <IconWrap onClick={() => setZoom(Math.min(5, zoomLevel * 1.2))}>
         <LuPlus size={18} />
       </IconWrap>
       <Divider orientation="horizontal" />
@@ -42,7 +42,7 @@ const ZoomControl = () => {
         {Math.round(zoomLevel * 100)}%
       </Text>
       <Divider orientation="horizontal" />
-      <IconWrap onClick={() => setZoom(Math.max(0.25, zoomLevel / 1.2))}>
+      <IconWrap onClick={() => setZoom(Math.max(0.05, zoomLevel / 1.2))}>
         <LuMinus size={18} />
       </IconWrap>
     </ZoomControlWrap>
