@@ -6,7 +6,7 @@ import styled from '@emotion/styled';
 import { Text } from '@/components/ui/Text';
 import { LuChevronDown, LuCopy, LuPencil, LuPlus, LuTrash2 } from 'react-icons/lu';
 import { colors } from '@/styles/theme';
-import {useFloorStore} from "@/state/floorStore";
+import { useFloorStore } from '@/state/floorStore';
 
 interface FloorDropdownProps {
   onEditFloor: (floorId?: string) => void;
@@ -170,7 +170,6 @@ export default function FloorDropdown({ onEditFloor }: FloorDropdownProps) {
 
   const currentFloor = getCurrentFloor();
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
@@ -183,6 +182,12 @@ export default function FloorDropdown({ onEditFloor }: FloorDropdownProps) {
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [isOpen]);
+
+  const handleTriggerClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsOpen(!isOpen);
+  };
 
   const handleFloorSelect = (floorId: string) => {
     setCurrentFloor(floorId);
@@ -213,13 +218,13 @@ export default function FloorDropdown({ onEditFloor }: FloorDropdownProps) {
   };
 
   const handleAddFloor = () => {
-    onEditFloor(); // No ID means create new
+    onEditFloor();
     setIsOpen(false);
   };
 
   return (
     <Container ref={containerRef}>
-      <Trigger isOpen={isOpen} onClick={() => setIsOpen(!isOpen)}>
+      <Trigger isOpen={isOpen} onClick={handleTriggerClick}>
         <FloorName>
           {currentFloor ? (
             <>

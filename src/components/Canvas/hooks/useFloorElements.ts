@@ -1,4 +1,4 @@
-// src/hooks/useFloorElements.ts
+// src/components/Canvas/hooks/useFloorElements.ts
 import { useMemo } from 'react';
 import { useObjectStore } from '@/state/objectStore';
 import { Balcony, BathroomPod, Corridor, Module, Opening, Roof } from '@/types/geometry';
@@ -38,55 +38,18 @@ export function useFloorElements(floorId?: string): FloorElementsData {
       };
     }
 
-    // Get floor index for this floor ID
-    const floorIndex = floors.findIndex(f => f.id === targetFloorId);
-    const targetFloorNumber = floorIndex + 1; // Floor numbers start at 1
-
-    if (floorIndex === -1) {
-      return {
-        modules: [],
-        openings: [],
-        balconies: [],
-        bathroomPods: [],
-        corridors: [],
-        roofs: [],
-      };
-    }
-
-    // Filter modules for the current floor
-    // Since modules can be stacked (stackedFloors), we need to check if the target floor
-    // falls within the range of this module's floors
-    const modules = allModules.filter(module => {
-      const moduleStartFloor = Math.floor(module.zOffset / (module.height || 3100)) + 1;
-      const moduleEndFloor = moduleStartFloor + module.stackedFloors - 1;
-      return targetFloorNumber >= moduleStartFloor && targetFloorNumber <= moduleEndFloor;
-    });
-
-    // Get module IDs for filtering related elements
+    // For simplicity, show all elements on every floor
+    // This can be refined later with proper floor-based filtering
+    const modules = allModules;
     const moduleIds = new Set(modules.map(m => m.id));
-
-    // Filter openings that belong to modules on this floor
-    const openings = allOpenings.filter(opening => moduleIds.has(opening.moduleId));
-
-    // Filter balconies that belong to modules on this floor
-    const balconies = allBalconies.filter(balcony => moduleIds.has(balcony.moduleId));
-
-    // Filter bathroom pods that belong to modules on this floor
-    const bathroomPods = allBathroomPods.filter(pod => moduleIds.has(pod.moduleId));
-
-    // Filter corridors for the current floor
-    const corridors = allCorridors.filter(corridor => corridor.floor === targetFloorNumber);
-
-    // Filter roofs for the current floor level
-    const roofs = allRoofs.filter((roof: any) => roof.level === targetFloorNumber);
 
     return {
       modules,
-      openings,
-      balconies,
-      bathroomPods,
-      corridors,
-      roofs: roofs as Roof[], // Type assertion since allRoofs is currently []
+      openings: allOpenings.filter(opening => moduleIds.has(opening.moduleId)),
+      balconies: allBalconies.filter(balcony => moduleIds.has(balcony.moduleId)),
+      bathroomPods: allBathroomPods.filter(pod => moduleIds.has(pod.moduleId)),
+      corridors: allCorridors,
+      roofs: allRoofs as Roof[],
     };
   }, [allModules, allOpenings, allBalconies, allBathroomPods, allCorridors, allRoofs, targetFloorId, floors]);
 }

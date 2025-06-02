@@ -1,7 +1,6 @@
-// src/store/floorStore.ts
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { v4 as uuidv4 } from 'uuid';
+import { generateUUID } from '@/utils/uuid';
 import { Floor, GridSettings, PDFData } from '@/types/floor';
 
 interface FloorState {
@@ -38,7 +37,7 @@ export const useFloorStore = create<FloorState>()(
       currentFloorId: null,
 
       addFloor: (name: string, height: number) => {
-        const id = uuidv4();
+        const id = generateUUID();
         const newFloor: Floor = {
           id,
           name,
@@ -49,7 +48,7 @@ export const useFloorStore = create<FloorState>()(
 
         set(state => ({
           floors: [...state.floors, newFloor],
-          currentFloorId: state.currentFloorId || id, // Set as current if it's the first floor
+          currentFloorId: state.currentFloorId || id,
         }));
 
         return id;
@@ -73,12 +72,11 @@ export const useFloorStore = create<FloorState>()(
         const originalFloor = get().getFloorById(id);
         if (!originalFloor) return '';
 
-        const newId = uuidv4();
+        const newId = generateUUID();
         const copiedFloor: Floor = {
           ...originalFloor,
           id: newId,
           name: `${originalFloor.name} Copy`,
-          // Copy PDF reference but don't duplicate the actual file
           pdf: originalFloor.pdf ? { ...originalFloor.pdf } : undefined,
           gridSettings: { ...originalFloor.gridSettings },
         };
@@ -95,7 +93,6 @@ export const useFloorStore = create<FloorState>()(
           const remainingFloors = state.floors.filter(floor => floor.id !== id);
           let newCurrentFloorId = state.currentFloorId;
 
-          // If we're deleting the current floor, switch to another one
           if (state.currentFloorId === id) {
             newCurrentFloorId = remainingFloors.length > 0 ? remainingFloors[0].id : null;
           }
@@ -178,7 +175,6 @@ export const useFloorStore = create<FloorState>()(
         }));
       },
 
-      // Getters
       getCurrentFloor: () => {
         const state = get();
         return state.currentFloorId ? state.floors.find(f => f.id === state.currentFloorId) || null : null;

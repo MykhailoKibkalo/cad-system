@@ -1,4 +1,4 @@
-// src/components/ui/Header.tsx (Updated)
+// src/components/ui/Header.tsx
 'use client';
 
 import React, { useState } from 'react';
@@ -23,9 +23,9 @@ import EditFloorModal from '@/components/ui/EditFloorModal';
 import ConfirmImportModal from '@/components/ui/ConfirmImportModal';
 import { downloadJSON, exportProject, importProject, readJSONFile } from '@/utils/exportImport';
 import { printPDF } from '@/utils/pdfUtils';
-import {useFloorStore} from "@/state/floorStore";
-import {useHasFloorElements} from "@/components/Canvas/hooks/useFloorElements";
-import {PDFSettingsPanel} from "@/components/ui/PdfSettingsMenu";
+import { useFloorStore } from '@/state/floorStore';
+import { useHasFloorElements } from '@/components/Canvas/hooks/useFloorElements';
+import { PDFSettingsPanel } from '@/components/ui/PdfSettingsMenu';
 
 const Container = styled.div`
   display: flex;
@@ -207,7 +207,7 @@ export default function Header() {
   const { setTool } = useToolStore();
 
   const currentFloor = getCurrentFloor();
-  const hasElements = useHasFloorElements(currentFloorId && +currentFloorId || undefined);
+  const hasElements = useHasFloorElements(currentFloorId || undefined);
 
   const [showFloorElementsTable, setShowFloorElementsTable] = useState(false);
   const [editingFloorId, setEditingFloorId] = useState<string | undefined>(undefined);
@@ -290,22 +290,24 @@ export default function Header() {
     if (!file || !currentFloor) return;
 
     try {
+      if (file.type !== 'application/pdf') {
+        alert('Please select a valid PDF file.');
+        return;
+      }
+
       const canvases = await printPDF(file);
-      if (canvases.length === 0) return;
+      if (canvases.length === 0) {
+        alert('The PDF file appears to be empty or corrupted.');
+        return;
+      }
 
-      // Create object URL for the PDF
       const url = URL.createObjectURL(file);
-
-      // Calculate initial dimensions (will be recalculated after calibration)
       const canvas = canvases[0];
-      const widthPx = Math.round(canvas.width);
-      const heightPx = Math.round(canvas.height);
-
-      // Convert to grid units using current grid size
+      const widthPx = Math.round(canvas.width / window.devicePixelRatio);
+      const heightPx = Math.round(canvas.height / window.devicePixelRatio);
       const widthGrid = Math.round(widthPx / gridSizeMm);
       const heightGrid = Math.round(heightPx / gridSizeMm);
 
-      // Store PDF data for current floor
       useFloorStore.getState().setFloorPDF(currentFloor.id, {
         url,
         widthGrid,
@@ -314,11 +316,11 @@ export default function Header() {
         opacity: 1,
       });
 
-      // Clear the input
       event.target.value = '';
     } catch (error) {
       console.error('Failed to load PDF:', error);
-      alert('Failed to load PDF. Please try again.');
+      alert('Failed to load PDF. Please try again with a different file.');
+      event.target.value = '';
     }
   };
 
@@ -341,7 +343,7 @@ export default function Header() {
       .then(data => {
         setImportData(data);
         setShowImportModal(true);
-        event.target.value = ''; // Clear input
+        event.target.value = '';
       })
       .catch(error => {
         console.error('Import failed:', error);
@@ -369,7 +371,6 @@ export default function Header() {
         <MainWrap>
           <Image width={153} height={40} src={logo} alt={'verida'} />
 
-          {/* File Menu */}
           <FileMenuContainer>
             <FileMenuButton>
               <Text size={16}>File</Text>
@@ -404,7 +405,6 @@ export default function Header() {
           </MenuWrap>
 
           <MenuWrap>
-            {/* Import PDF Button - Only show when current floor exists */}
             {currentFloor && !currentFloor.pdf && (
               <>
                 <Button icon={<LuDownload size={20} />}>
@@ -415,7 +415,6 @@ export default function Header() {
               </>
             )}
 
-            {/* PDF Settings Menu - Only show when current floor has PDF */}
             {currentFloor?.pdf && (
               <>
                 <PDFSettingsPanel onDeletePdf={handleDeletePdf} onRecalibrate={handleRecalibrate} />
@@ -423,7 +422,6 @@ export default function Header() {
               </>
             )}
 
-            {/* Floor Elements Button */}
             <FloorElementsButton
               disabled={!hasElements}
               onClick={openFloorElementsPanel}
@@ -439,7 +437,6 @@ export default function Header() {
 
             <Divider orientation="vertical" length={'40px'} />
 
-            {/* Grid Settings - Only show when current floor exists */}
             {currentFloor && (
               <SettingsContainer>
                 <MenuItem>
@@ -507,7 +504,6 @@ export default function Header() {
         </SecondaryWrap>
       </Container>
 
-      {/* Modals */}
       {showFloorElementsTable && <FloorElementsTable onClose={() => setShowFloorElementsTable(false)} />}
 
       {showEditFloorModal && (

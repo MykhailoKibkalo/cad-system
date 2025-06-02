@@ -1,4 +1,4 @@
-// src/components/Canvas/hooks/useFabricCanvas.ts (Fixed)
+// src/components/Canvas/hooks/useFabricCanvas.ts
 import { useEffect, useState } from 'react';
 import { Canvas } from 'fabric';
 
@@ -6,31 +6,43 @@ export function useFabricCanvas(id: string): Canvas | null {
   const [canvas, setCanvas] = useState<Canvas | null>(null);
 
   useEffect(() => {
-    // Check if canvas already exists and dispose it first
-    const existingCanvas = document.getElementById(id) as HTMLCanvasElement;
-    if (existingCanvas && (existingCanvas as any).__fabric) {
-      // If canvas element has fabric instance, dispose it
-      const fabricInstance = (existingCanvas as any).__fabric;
-      if (fabricInstance && typeof fabricInstance.dispose === 'function') {
-        fabricInstance.dispose();
+    // Check if canvas element exists
+    const canvasElement = document.getElementById(id) as HTMLCanvasElement;
+    if (!canvasElement) return;
+
+    // Dispose any existing fabric instance
+    if ((canvasElement as any).__fabric) {
+      const existingInstance = (canvasElement as any).__fabric;
+      if (existingInstance && typeof existingInstance.dispose === 'function') {
+        try {
+          existingInstance.dispose();
+        } catch (error) {
+          console.warn('Error disposing existing canvas:', error);
+        }
       }
+      (canvasElement as any).__fabric = null;
     }
 
     // Create new canvas instance
-    const c = new Canvas(id, { selection: true });
-    setCanvas(c);
+    try {
+      const c = new Canvas(id, { selection: true });
+      setCanvas(c);
 
-    // Cleanup function
-    return () => {
-      if (c) {
-        try {
-          c.dispose();
-        } catch (error) {
-          console.warn('Error disposing canvas:', error);
+      // Cleanup function
+      return () => {
+        if (c) {
+          try {
+            c.dispose();
+          } catch (error) {
+            console.warn('Error disposing canvas:', error);
+          }
         }
-      }
+        setCanvas(null);
+      };
+    } catch (error) {
+      console.error('Error creating canvas:', error);
       setCanvas(null);
-    };
+    }
   }, [id]);
 
   return canvas;
