@@ -273,25 +273,9 @@ export default function Header() {
   };
 
   const handlePdfImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && file.type === 'application/pdf') {
-      const url = URL.createObjectURL(file);
-      useFloorStore.getState().setActivePdfData({
-        url,
-        width: 0,
-        height: 0,
-        x: 0,
-        y: 0,
-        opacity: 1,
-        isLocked: false,
-      });
-      
-      // Immediately update canvas PDF state
-      useCanvasStore.getState().setPdfImported(true);
-      useCanvasStore.getState().setPdfCalibrated(false);
-    }
-    // Reset input for future uploads
-    e.target.value = '';
+    // The actual PDF loading is handled by PdfLoader component
+    // We don't need to do anything here except let the file input trigger
+    // the PdfLoader will handle the import and save to floor store
   };
 
   return (

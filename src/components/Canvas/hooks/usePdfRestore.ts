@@ -4,6 +4,7 @@ import type { Canvas } from 'fabric';
 import * as fabric from 'fabric';
 import { useFloorStore } from '@/state/floorStore';
 import { useCanvasStore } from '@/state/canvasStore';
+import { PdfManager } from '@/utils/pdfUtils';
 
 /**
  * Hook to restore PDF to canvas when switching floors
@@ -22,7 +23,13 @@ export default function usePdfRestore(canvas: Canvas | null) {
       // Small delay to ensure floor sync has cleared the canvas
       setTimeout(() => {
         const gridState = getActiveGridState();
-        if (!gridState?.pdfData) return;
+        
+        // If no PDF data for this floor, clear canvas store
+        if (!gridState?.pdfData) {
+          const canvasStore = useCanvasStore.getState();
+          canvasStore.resetPdfState();
+          return;
+        }
 
         const pdfData = gridState.pdfData;
         
@@ -55,11 +62,33 @@ export default function usePdfRestore(canvas: Canvas | null) {
             // Mark as PDF object
             (img as any).isPdfImage = true;
             
+            // Apply PdfManager configuration for consistent behavior
+            const pdfManager = new PdfManager(canvas);
+            pdfManager.configurePdfObject(img, pdfData.isLocked, pdfData.opacity);
+            
             canvas.add(img);
             canvas.sendObjectToBack(img);
             canvas.requestRenderAll();
             
-            console.log(`📄 Restored PDF for floor: ${selectedFloorId}`);
+            // IMPORTANT: Sync PDF state back to canvas store
+            const canvasStore = useCanvasStore.getState();
+            canvasStore.setPdfImported(true);
+            canvasStore.setPdfOpacity(pdfData.opacity);
+            canvasStore.setPdfLocked(pdfData.isLocked);
+            
+            // Calculate dimensions in grid units
+            const widthMm = Math.round(pdfData.width / scaleFactor);
+            const heightMm = Math.round(pdfData.height / scaleFactor);
+            const widthGrid = Math.round(widthMm / canvasStore.gridSizeMm);
+            const heightGrid = Math.round(heightMm / canvasStore.gridSizeMm);
+            canvasStore.setPdfDimensions(widthGrid, heightGrid);
+            
+            // Set calibrated if we have a scale factor
+            if (pdfData.scaleFactor) {
+              canvasStore.setPdfCalibrated(true);
+            }
+            
+            console.log(`📄 Restored PDF for floor: ${selectedFloorId} with opacity: ${pdfData.opacity}, locked: ${pdfData.isLocked}`);
           }).catch(error => {
             console.warn('Failed to load PDF image:', error);
           });

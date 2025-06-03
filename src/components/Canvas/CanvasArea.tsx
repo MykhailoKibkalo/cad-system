@@ -30,6 +30,7 @@ import useBalconyMovement from "@/components/Canvas/hooks/useBalconyMovement";
 import useFloorSync from "@/components/Canvas/hooks/useFloorSync";
 import useModuleRestore from "@/components/Canvas/hooks/useModuleRestore";
 import usePdfRestore from "@/components/Canvas/hooks/usePdfRestore";
+import usePdfPropertySync from "@/components/Canvas/hooks/usePdfPropertySync";
 import ZoomControl from "@/components/ui/ZoomControl";
 import ControlWrap from "@/components/ui/ControlPanel";
 
@@ -137,6 +138,9 @@ export default function CanvasArea() {
   
   // PDF restoration for floor switching
   usePdfRestore(canvas);
+  
+  // PDF property synchronization
+  usePdfPropertySync();
 
   // 3) Grid та Snapping
   // useGrid(canvas, scaleFactor, gridSizeMm);

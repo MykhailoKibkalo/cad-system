@@ -41,6 +41,10 @@ export default function PdfLoader({ canvas }: PdfLoaderProps) {
         const pages = await printPDF(input.files[0]);
         const scale = 1 / window.devicePixelRatio;
 
+        // We'll store the first page's data URL for floor persistence
+        let pdfDataUrl: string | null = null;
+        let pdfImage: fabric.Image | null = null;
+
         for (const cEl of pages) {
           const img = new fabric.Image(cEl, {
             // Basic Fabric.js properties
@@ -63,6 +67,13 @@ export default function PdfLoader({ canvas }: PdfLoaderProps) {
 
           // Force to back immediately after adding
           canvas.sendObjectToBack(img);
+
+          // For the first page, convert to data URL for persistence
+          if (!pdfImage) {
+            pdfImage = img;
+            // Convert canvas element to data URL for floor storage
+            pdfDataUrl = cEl.toDataURL('image/png');
+          }
         }
 
         // ===== ADDITIONAL SAFETY: Emergency reset to ensure proper state =====
@@ -76,6 +87,20 @@ export default function PdfLoader({ canvas }: PdfLoaderProps) {
         // Calculate dimensions in grid units
         const { widthGrid, heightGrid } = pdfManager.getPdfDimensionsInGrid(scaleFactor, gridSizeMm);
         setPdfDimensions(widthGrid, heightGrid);
+
+        // Save PDF data to floor store
+        if (pdfDataUrl && pdfImage) {
+          setActivePdfData({
+            url: pdfDataUrl,
+            width: Math.round(pdfImage.getScaledWidth()),
+            height: Math.round(pdfImage.getScaledHeight()),
+            x: Math.round(pdfImage.left || 0),
+            y: Math.round(pdfImage.top || 0),
+            opacity: pdfOpacity,
+            isLocked: pdfLocked,
+            scaleFactor: scaleFactor,
+          });
+        }
 
         // Initially not calibrated - user needs to calibrate scale
         setPdfCalibrated(false);
@@ -94,7 +119,7 @@ export default function PdfLoader({ canvas }: PdfLoaderProps) {
     return () => {
       input.removeEventListener('change', handler);
     };
-  }, [canvas, setPdfImported, setPdfDimensions, setPdfCalibrated, scaleFactor, gridSizeMm, pdfLocked, pdfOpacity, resetPdfState]);
+  }, [canvas, setPdfImported, setPdfDimensions, setPdfCalibrated, scaleFactor, gridSizeMm, pdfLocked, pdfOpacity, resetPdfState, setActivePdfData]);
 
   // Handle PDF deletion through state
   useEffect(() => {
@@ -188,6 +213,39 @@ export default function PdfLoader({ canvas }: PdfLoaderProps) {
       setPdfDimensions(widthGrid, heightGrid);
     }
   }, [canvas, scaleFactor, gridSizeMm, setPdfDimensions]);
+
+  // Update floor store when PDF is moved or modified
+  useEffect(() => {
+    if (!canvas) return;
+
+    const updatePdfInFloorStore = (e: any) => {
+      const pdf = e.target;
+      if (!(pdf as any).isPdfImage) return;
+      
+      // Get current PDF data from floor store
+      const currentPdfData = useFloorStore.getState().getActiveGridState()?.pdfData;
+      if (!currentPdfData?.url) return;
+      
+      // Update PDF data in floor store with new position/size
+      setActivePdfData({
+        url: currentPdfData.url, // Keep existing URL
+        width: Math.round(pdf.getScaledWidth()),
+        height: Math.round(pdf.getScaledHeight()),
+        x: Math.round(pdf.left || 0),
+        y: Math.round(pdf.top || 0),
+        opacity: currentPdfData.opacity || 1,
+        isLocked: currentPdfData.isLocked || false,
+        scaleFactor: scaleFactor,
+      });
+    };
+
+    // Only listen for final modifications, not intermediate states
+    canvas.on('object:modified', updatePdfInFloorStore);
+
+    return () => {
+      canvas.off('object:modified', updatePdfInFloorStore);
+    };
+  }, [canvas, scaleFactor, setActivePdfData]);
 
   return null;
 }
