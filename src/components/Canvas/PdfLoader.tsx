@@ -50,6 +50,8 @@ export default function PdfLoader({ canvas }: PdfLoaderProps) {
             // Basic Fabric.js properties
             originX: 'left',
             originY: 'top',
+            left: 0, // Explicit position
+            top: 0,
             scaleX: scale,
             scaleY: scale,
 
@@ -62,6 +64,9 @@ export default function PdfLoader({ canvas }: PdfLoaderProps) {
 
           // ===== IMPROVED: Use PdfManager to properly configure PDF =====
           pdfManager.configurePdfObject(img, pdfLocked, pdfOpacity);
+          
+          // Also mark as PDF image for our tracking
+          (img as any).isPdfImage = true;
 
           canvas.add(img);
 
@@ -90,16 +95,25 @@ export default function PdfLoader({ canvas }: PdfLoaderProps) {
 
         // Save PDF data to floor store
         if (pdfDataUrl && pdfImage) {
-          setActivePdfData({
-            url: pdfDataUrl,
-            width: Math.round(pdfImage.getScaledWidth()),
-            height: Math.round(pdfImage.getScaledHeight()),
-            x: Math.round(pdfImage.left || 0),
-            y: Math.round(pdfImage.top || 0),
-            opacity: pdfOpacity,
-            isLocked: pdfLocked,
-            scaleFactor: scaleFactor,
-          });
+          // Small delay to ensure the image is fully rendered and positioned
+          setTimeout(() => {
+            // Get the actual position after it's been added to canvas
+            const pdfObjects = canvas.getObjects().filter(o => (o as any).isPdfImage);
+            if (pdfObjects.length > 0) {
+              const actualPdf = pdfObjects[0];
+              setActivePdfData({
+                url: pdfDataUrl,
+                width: Math.round(actualPdf.getScaledWidth()),
+                height: Math.round(actualPdf.getScaledHeight()),
+                x: Math.round(actualPdf.left || 0),
+                y: Math.round(actualPdf.top || 0),
+                opacity: pdfOpacity,
+                isLocked: pdfLocked,
+                scaleFactor: scaleFactor,
+              });
+              console.log(`📄 Saved PDF to floor store with position: x=${actualPdf.left}, y=${actualPdf.top}`);
+            }
+          }, 100);
         }
 
         // Initially not calibrated - user needs to calibrate scale
@@ -227,16 +241,17 @@ export default function PdfLoader({ canvas }: PdfLoaderProps) {
       if (!currentPdfData?.url) return;
       
       // Update PDF data in floor store with new position/size
+      // Preserve all existing properties
       setActivePdfData({
-        url: currentPdfData.url, // Keep existing URL
+        ...currentPdfData, // Preserve all existing properties
         width: Math.round(pdf.getScaledWidth()),
         height: Math.round(pdf.getScaledHeight()),
         x: Math.round(pdf.left || 0),
         y: Math.round(pdf.top || 0),
-        opacity: currentPdfData.opacity || 1,
-        isLocked: currentPdfData.isLocked || false,
         scaleFactor: scaleFactor,
       });
+      
+      console.log(`📄 Updated PDF position in floor store: x=${pdf.left}, y=${pdf.top}`);
     };
 
     // Only listen for final modifications, not intermediate states
