@@ -6,6 +6,7 @@ import styled from '@emotion/styled';
 import { useSelectionStore } from '@/state/selectionStore';
 import { useObjectStore } from '@/state/objectStore';
 import { useCanvasStore } from '@/state/canvasStore';
+import { useCurrentFloorElements } from '../Canvas/hooks/useFloorElements';
 import OpeningEditor from './OpeningEditor';
 import { Canvas } from 'fabric';
 import CorridorProperties from '@/components/Properties/CorridorProperties';
@@ -136,17 +137,14 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
   const [adding, setAdding] = useState(false);
   const [editingOpeningId, setEditingOpeningId] = useState<string | null>(null);
 
-  const modules = useObjectStore(s => s.modules);
+  const { modules, openings: openingsAll, bathroomPods: bathroomPodsAll, balconies: balconiesAll } = useCurrentFloorElements();
   const deleteModule = useObjectStore(s => s.deleteModule);
-  const openingsAll = useObjectStore(s => s.openings);
   const deleteOpening = useObjectStore(s => s.deleteOpening);
   const addOpening = useObjectStore(s => s.addOpening);
   const updateModule = useObjectStore(s => s.updateModule);
   const scaleFactor = useCanvasStore(s => s.scaleFactor);
-  const bathroomPodsAll = useObjectStore(s => s.bathroomPods);
   const deleteBathroomPod = useObjectStore(s => s.deleteBathroomPod);
   const addBathroomPod = useObjectStore(s => s.addBathroomPod);
-  const balconiesAll = useObjectStore(s => s.balconies);
   const deleteBalcony = useObjectStore(s => s.deleteBalcony);
   const addBalcony = useObjectStore(s => s.addBalcony);
   const { setTool } = useToolStore();
@@ -157,14 +155,14 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
   const [addingBathroomPod, setAddingBathroomPod] = useState(false);
   const [editingBathroomPodId, setEditingBathroomPodId] = useState<string | null>(null);
 
-  const module = useMemo(() => modules.find(m => m.id === selectedModuleId) ?? null, [modules, selectedModuleId]);
+  const module = useMemo(() => modules.find((m: any) => m.id === selectedModuleId) ?? null, [modules, selectedModuleId]);
   const openings = useMemo(
-    () => openingsAll.filter(o => o.moduleId === selectedModuleId),
+    () => openingsAll.filter((o: any) => o.moduleId === selectedModuleId),
     [openingsAll, selectedModuleId]
   );
 
-  const bathroomPods = bathroomPodsAll.filter(bp => bp.moduleId === selectedModuleId);
-  const balconies = balconiesAll.filter(b => b.moduleId === selectedModuleId);
+  const bathroomPods = bathroomPodsAll.filter((bp: any) => bp.moduleId === selectedModuleId);
+  const balconies = balconiesAll.filter((b: any) => b.moduleId === selectedModuleId);
 
   const [form, setForm] = useState({ name: '', width: '', length: '' });
 
@@ -401,7 +399,7 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
           </Text>
           {openings.length > 0 && (
             <ItemList>
-              {openings.map(o => (
+              {openings.map((o: any) => (
                 <ItemRow key={o.id}>
                   <ItemContent>
                     <ItemIcon>
@@ -453,7 +451,7 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
           </Text>
           {bathroomPods.length > 0 && (
             <ItemList>
-              {bathroomPods.map(bp => (
+              {bathroomPods.map((bp: any) => (
                 <ItemRow key={bp.id}>
                   <ItemContent>
                     <ItemIcon>
@@ -506,7 +504,7 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
           </Text>
           {balconies.length > 0 && (
             <ItemList>
-              {balconies.map(b => (
+              {balconies.map((b: any) => (
                 <ItemRow key={b.id}>
                   <ItemContent>
                     <ItemIcon>

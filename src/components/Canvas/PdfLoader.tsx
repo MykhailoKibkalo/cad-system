@@ -5,6 +5,8 @@ import { useEffect } from 'react';
 import * as fabric from 'fabric';
 import { printPDF, PdfManager } from '@/utils/pdfUtils';
 import { useCanvasStore } from '@/state/canvasStore';
+import { useFloorStore } from '@/state/floorStore';
+import { useCurrentFloorPdfData } from './hooks/useFloorElements';
 
 interface PdfLoaderProps {
   canvas: fabric.Canvas;
@@ -17,10 +19,13 @@ export default function PdfLoader({ canvas }: PdfLoaderProps) {
     setPdfCalibrated,
     scaleFactor,
     gridSizeMm,
-    pdfLocked,
-    pdfOpacity,
     resetPdfState,
   } = useCanvasStore();
+  
+  const pdfData = useCurrentFloorPdfData();
+  const setActivePdfData = useFloorStore(s => s.setActivePdfData);
+  const pdfLocked = pdfData?.isLocked || false;
+  const pdfOpacity = pdfData?.opacity || 1;
 
   useEffect(() => {
     const input = document.getElementById('pdfInput') as HTMLInputElement;
@@ -156,7 +161,7 @@ export default function PdfLoader({ canvas }: PdfLoaderProps) {
     ];
 
     events.forEach((eventName ) => {
-      canvas.on(eventName, enforceStacking);
+      canvas.on(eventName as any, enforceStacking);
     });
 
     // Also enforce on a timer for extra safety (every 100ms)
@@ -168,7 +173,7 @@ export default function PdfLoader({ canvas }: PdfLoaderProps) {
 
     return () => {
       events.forEach(eventName => {
-        canvas.off(eventName, enforceStacking);
+        canvas.off(eventName as any, enforceStacking);
       });
       clearInterval(interval);
     };

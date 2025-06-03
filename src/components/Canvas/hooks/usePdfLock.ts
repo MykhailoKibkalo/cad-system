@@ -83,7 +83,7 @@ export default function usePdfLock(canvas: Canvas | null) {
       if (!pdfLocked) return;
 
       const pointer = canvas.getPointer(opt.e);
-      const target = canvas.findTarget(opt.e, false);
+      const target = canvas.findTarget(opt.e);
 
       if (target && (target as any).isPdfImage) {
         // Prevent event propagation

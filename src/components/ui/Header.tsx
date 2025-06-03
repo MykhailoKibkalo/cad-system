@@ -176,7 +176,7 @@ export default function Header() {
   const hasElements = useHasFloorElements();
   
   // Add floor store
-  const { getSelectedFloor, setSidebarOpen, hasActivePdf, setActivePdfUrl, getActiveGridState, updateActiveGridState } = useFloorStore();
+  const { getSelectedFloor, setSidebarOpen, hasActivePdf, getActiveGridState, updateActiveGridState } = useFloorStore();
 
   const gridSizeMm = useCanvasStore(s => s.gridSizeMm);
   const setGridSize = useCanvasStore(s => s.setGridSize);
@@ -256,7 +256,7 @@ export default function Header() {
 
   const handleDeletePdf = () => {
     // Remove PDF from active floor
-    setActivePdfUrl(undefined);
+    useFloorStore.getState().setActivePdfData(null);
     // Reset global PDF state
     resetPdfState();
   };
@@ -276,7 +276,15 @@ export default function Header() {
     const file = e.target.files?.[0];
     if (file && file.type === 'application/pdf') {
       const url = URL.createObjectURL(file);
-      setActivePdfUrl(url);
+      useFloorStore.getState().setActivePdfData({
+        url,
+        width: 0,
+        height: 0,
+        x: 0,
+        y: 0,
+        opacity: 1,
+        isLocked: false,
+      });
       
       // Immediately update canvas PDF state
       useCanvasStore.getState().setPdfImported(true);

@@ -27,6 +27,9 @@ import useIgnoreModulesFindTarget from '@/components/Canvas/hooks/useIgnoreModul
 import useBalconyTool from "@/components/Canvas/hooks/useBalconyTool";
 import useRenderBalconies from "@/components/Canvas/hooks/useRenderBalconies";
 import useBalconyMovement from "@/components/Canvas/hooks/useBalconyMovement";
+import useFloorSync from "@/components/Canvas/hooks/useFloorSync";
+import useModuleRestore from "@/components/Canvas/hooks/useModuleRestore";
+import usePdfRestore from "@/components/Canvas/hooks/usePdfRestore";
 import ZoomControl from "@/components/ui/ZoomControl";
 import ControlWrap from "@/components/ui/ControlPanel";
 
@@ -125,6 +128,15 @@ export default function CanvasArea() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, [canvas]);
+
+  // Floor synchronization - must be called early to handle floor switching
+  useFloorSync(canvas);
+  
+  // Module restoration for floor switching - must be after floor sync
+  useModuleRestore(canvas);
+  
+  // PDF restoration for floor switching
+  usePdfRestore(canvas);
 
   // 3) Grid та Snapping
   // useGrid(canvas, scaleFactor, gridSizeMm);

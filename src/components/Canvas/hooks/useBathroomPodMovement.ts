@@ -3,11 +3,11 @@ import { useEffect } from 'react';
 import type { Canvas } from 'fabric';
 import { useObjectStore } from '@/state/objectStore';
 import { useCanvasStore } from '@/state/canvasStore';
+import { useCurrentFloorElements } from './useFloorElements';
 
 export default function useBathroomPodMovement(canvas: Canvas | null) {
   const updateBathroomPod = useObjectStore(s => s.updateBathroomPod);
-  const bathroomPods = useObjectStore(s => s.bathroomPods);
-  const modules = useObjectStore(s => s.modules);
+  const { bathroomPods, modules } = useCurrentFloorElements();
   const scaleFactor = useCanvasStore(s => s.scaleFactor);
 
   useEffect(() => {

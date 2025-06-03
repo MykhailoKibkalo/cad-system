@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import styled from '@emotion/styled';
 import { useSelectionStore } from '@/state/selectionStore';
 import { useObjectStore } from '@/state/objectStore';
+import { useCurrentFloorElements } from '../Canvas/hooks/useFloorElements';
 import type { Canvas } from 'fabric';
 import { Panel } from '@/components/ui/Panel';
 import { Text } from '@/components/ui/Text';
@@ -77,22 +78,25 @@ const SuccessMessage = styled.div`
 
 export default function BathroomPodProperties({ canvas }: { canvas: Canvas }) {
   const podId = useSelectionStore(s => s.selectedBathroomPodId)!;
-  const pods = useObjectStore(s => s.bathroomPods);
-  const modules = useObjectStore(s => s.modules);
+  const { bathroomPods: pods, modules } = useCurrentFloorElements();
   const updatePod = useObjectStore(s => s.updateBathroomPod);
   const deletePod = useObjectStore(s => s.deleteBathroomPod);
   const setSelPod = useSelectionStore(s => s.setSelectedBathroomPodId);
 
-  const pod = useMemo(() => pods.find(p => p.id === podId)!, [pods, podId]);
+  const pod = useMemo(() => pods.find(p => p.id === podId), [pods, podId]);
   const module = useMemo(() => modules.find(m => m.id === pod?.moduleId), [modules, pod]);
 
+  if (!pod) {
+    return null;
+  }
+
   const [form, setForm] = useState({
-    name: pod.name,
-    width: Math.round(pod.width).toString(),
-    length: Math.round(pod.length).toString(),
-    x_offset: Math.round(pod.x_offset).toString(),
-    y_offset: Math.round(pod.y_offset).toString(),
-    type: pod.type ?? 'F',
+    name: pod?.name || '',
+    width: pod ? Math.round(pod.width).toString() : '0',
+    length: pod ? Math.round(pod.length).toString() : '0',
+    x_offset: pod ? Math.round(pod.x_offset).toString() : '0',
+    y_offset: pod ? Math.round(pod.y_offset).toString() : '0',
+    type: pod?.type ?? 'F',
   });
 
   // Validation state
@@ -104,14 +108,16 @@ export default function BathroomPodProperties({ canvas }: { canvas: Canvas }) {
   }>({});
 
   useEffect(() => {
-    setForm({
-      name: pod.name,
-      width: Math.round(pod.width).toString(),
-      length: Math.round(pod.length).toString(),
-      x_offset: Math.round(pod.x_offset).toString(),
-      y_offset: Math.round(pod.y_offset).toString(),
-      type: pod.type ?? 'F',
-    });
+    if (pod) {
+      setForm({
+        name: pod.name,
+        width: Math.round(pod.width).toString(),
+        length: Math.round(pod.length).toString(),
+        x_offset: Math.round(pod.x_offset).toString(),
+        y_offset: Math.round(pod.y_offset).toString(),
+        type: pod.type ?? 'F',
+      });
+    }
   }, [pod]);
 
   // Real-time validation

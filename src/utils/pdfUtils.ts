@@ -83,7 +83,7 @@ export class PdfManager {
       const objects = this.canvas.getObjects();
       const currentIndex = objects.indexOf(pdfObj);
       if (currentIndex > 0) {
-        this.canvas.moveTo(pdfObj, 0);
+        this.canvas.moveObjectTo(pdfObj, 0);
       }
     });
   }

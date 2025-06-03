@@ -1,20 +1,44 @@
 // src/state/floorStore.ts
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
+import { Module, Opening, Corridor, Balcony, BathroomPod } from '@/types/geometry';
+
+// PDF data with complete state per floor
+export interface PdfData {
+  url: string;
+  width: number;
+  height: number;
+  x: number;
+  y: number;
+  opacity: number;
+  isLocked: boolean;
+  scaleFactor?: number;
+}
+
+// Canvas state per floor  
+export interface CanvasState {
+  zoomLevel: number;
+  panX: number;
+  panY: number;
+  gridSizeMm: number;
+  snapMode: 'off' | 'grid' | 'element';
+  elementGapMm: number;
+}
 
 export interface GridState {
   gridWidthM: number;
   gridHeightM: number;
-  modules: any[]; // Module objects for this floor
-  corridors: any[]; // Corridor objects for this floor
-  openings: any[]; // Opening objects for this floor
-  balconies: any[]; // Balcony objects for this floor
-  bathroomPods: any[]; // BathroomPod objects for this floor
-  pdfCalibrated: boolean;
-  pdfOpacity: number;
-  pdfWidthGrid: number;
-  pdfHeightGrid: number;
-  pdfObjects: any[]; // Fabric.js PDF object properties (position, scale, etc.)
+  modules: Module[];
+  corridors: Corridor[];
+  openings: Opening[];
+  balconies: Balcony[];
+  bathroomPods: BathroomPod[];
+  
+  // PDF state per floor
+  pdfData: PdfData | null;
+  
+  // Canvas state per floor
+  canvasState: CanvasState;
 }
 
 export interface Floor {
@@ -31,7 +55,7 @@ interface FloorState {
   selectedFloorId: string | null;
   isSidebarOpen: boolean;
   
-  // Actions
+  // Floor management
   addFloor: (name: string, height: number, pdfUrl?: string) => void;
   updateFloor: (id: string, updates: Partial<Floor>) => void;
   deleteFloor: (id: string) => void;
@@ -39,15 +63,40 @@ interface FloorState {
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
   getSelectedFloor: () => Floor | undefined;
-  updateFloorGridState: (id: string, gridState: Partial<GridState>) => void;
-  updateFloorElements: (id: string, elements: any[]) => void;
   
-  // Grid state getters/setters for active floor
+  // Grid state management
   getActiveGridState: () => GridState | null;
   updateActiveGridState: (updates: Partial<GridState>) => void;
-  getActivePdfUrl: () => string | undefined;
-  setActivePdfUrl: (url: string | undefined) => void;
+  
+  // Object management for active floor
+  addModule: (module: Module) => void;
+  updateModule: (id: string, updates: Partial<Module>) => void;
+  deleteModule: (id: string) => void;
+  
+  addOpening: (opening: Opening) => void;
+  updateOpening: (id: string, updates: Partial<Opening>) => void;
+  deleteOpening: (id: string) => void;
+  
+  addCorridor: (corridor: Corridor) => void;
+  updateCorridor: (id: string, updates: Partial<Corridor>) => void;
+  deleteCorridor: (id: string) => void;
+  
+  addBalcony: (balcony: Balcony) => void;
+  updateBalcony: (id: string, updates: Partial<Balcony>) => void;
+  deleteBalcony: (id: string) => void;
+  
+  addBathroomPod: (pod: BathroomPod) => void;
+  updateBathroomPod: (id: string, updates: Partial<BathroomPod>) => void;
+  deleteBathroomPod: (id: string) => void;
+  
+  // PDF management for active floor
+  getActivePdfData: () => PdfData | null;
+  setActivePdfData: (pdfData: PdfData | null) => void;
   hasActivePdf: () => boolean;
+  
+  // Canvas state management for active floor
+  getActiveCanvasState: () => CanvasState | null;
+  updateActiveCanvasState: (updates: Partial<CanvasState>) => void;
 }
 
 // Default floor
@@ -67,11 +116,19 @@ const createGridState = (): GridState => ({
   openings: [],
   balconies: [],
   bathroomPods: [],
-  pdfCalibrated: false,
-  pdfOpacity: 1,
-  pdfWidthGrid: 0,
-  pdfHeightGrid: 0,
-  pdfObjects: [],
+  
+  // No PDF imported initially
+  pdfData: null,
+  
+  // Default canvas state
+  canvasState: {
+    zoomLevel: 1,
+    panX: 0,
+    panY: 0,
+    gridSizeMm: 100,
+    snapMode: 'off',
+    elementGapMm: 50,
+  },
 });
 
 export const useFloorStore = create<FloorState>((set, get) => ({
@@ -79,6 +136,7 @@ export const useFloorStore = create<FloorState>((set, get) => ({
   selectedFloorId: null,
   isSidebarOpen: false,
 
+  // Floor management
   addFloor: (name, height, pdfUrl) => {
     const newFloor: Floor = {
       id: uuidv4(),
@@ -108,7 +166,6 @@ export const useFloorStore = create<FloorState>((set, get) => ({
       const newFloors = state.floors.filter(floor => floor.id !== id);
       let newSelectedId = state.selectedFloorId;
       
-      // If we deleted the selected floor, select the first one
       if (state.selectedFloorId === id) {
         newSelectedId = newFloors.length > 0 ? newFloors[0].id : null;
       }
@@ -137,27 +194,7 @@ export const useFloorStore = create<FloorState>((set, get) => ({
     return state.floors.find(floor => floor.id === state.selectedFloorId);
   },
 
-  updateFloorGridState: (id, gridState) => {
-    set(state => ({
-      floors: state.floors.map(floor =>
-        floor.id === id
-          ? { ...floor, gridState: { ...floor.gridState, ...gridState } }
-          : floor
-      ),
-    }));
-  },
-
-  updateFloorElements: (id, elements) => {
-    set(state => ({
-      floors: state.floors.map(floor =>
-        floor.id === id
-          ? { ...floor, elementsTableData: elements }
-          : floor
-      ),
-    }));
-  },
-
-  // Grid state getters/setters for active floor
+  // Grid state management
   getActiveGridState: () => {
     const state = get();
     const floor = state.floors.find(f => f.id === state.selectedFloorId);
@@ -177,20 +214,326 @@ export const useFloorStore = create<FloorState>((set, get) => ({
     });
   },
 
-  getActivePdfUrl: () => {
-    const state = get();
-    const floor = state.floors.find(f => f.id === state.selectedFloorId);
-    return floor ? floor.pdfUrl : undefined;
-  },
-
-  setActivePdfUrl: (url) => {
+  // Object management for active floor
+  addModule: (module) => {
     const state = get();
     if (!state.selectedFloorId) return;
     
     set({
       floors: state.floors.map(floor =>
         floor.id === state.selectedFloorId
-          ? { ...floor, pdfUrl: url }
+          ? { 
+              ...floor, 
+              gridState: { 
+                ...floor.gridState, 
+                modules: [...floor.gridState.modules, module] 
+              } 
+            }
+          : floor
+      ),
+    });
+  },
+
+  updateModule: (id, updates) => {
+    const state = get();
+    if (!state.selectedFloorId) return;
+    
+    set({
+      floors: state.floors.map(floor =>
+        floor.id === state.selectedFloorId
+          ? { 
+              ...floor, 
+              gridState: { 
+                ...floor.gridState, 
+                modules: floor.gridState.modules.map(m => 
+                  m.id === id ? { ...m, ...updates } : m
+                )
+              } 
+            }
+          : floor
+      ),
+    });
+  },
+
+  deleteModule: (id) => {
+    const state = get();
+    if (!state.selectedFloorId) return;
+    
+    set({
+      floors: state.floors.map(floor =>
+        floor.id === state.selectedFloorId
+          ? { 
+              ...floor, 
+              gridState: { 
+                ...floor.gridState, 
+                modules: floor.gridState.modules.filter(m => m.id !== id),
+                openings: floor.gridState.openings.filter(o => o.moduleId !== id),
+                balconies: floor.gridState.balconies.filter(b => b.moduleId !== id),
+                bathroomPods: floor.gridState.bathroomPods.filter(bp => bp.moduleId !== id),
+              } 
+            }
+          : floor
+      ),
+    });
+  },
+
+  addOpening: (opening) => {
+    const state = get();
+    if (!state.selectedFloorId) return;
+    
+    set({
+      floors: state.floors.map(floor =>
+        floor.id === state.selectedFloorId
+          ? { 
+              ...floor, 
+              gridState: { 
+                ...floor.gridState, 
+                openings: [...floor.gridState.openings, opening] 
+              } 
+            }
+          : floor
+      ),
+    });
+  },
+
+  updateOpening: (id, updates) => {
+    const state = get();
+    if (!state.selectedFloorId) return;
+    
+    set({
+      floors: state.floors.map(floor =>
+        floor.id === state.selectedFloorId
+          ? { 
+              ...floor, 
+              gridState: { 
+                ...floor.gridState, 
+                openings: floor.gridState.openings.map(o => 
+                  o.id === id ? { ...o, ...updates } : o
+                )
+              } 
+            }
+          : floor
+      ),
+    });
+  },
+
+  deleteOpening: (id) => {
+    const state = get();
+    if (!state.selectedFloorId) return;
+    
+    set({
+      floors: state.floors.map(floor =>
+        floor.id === state.selectedFloorId
+          ? { 
+              ...floor, 
+              gridState: { 
+                ...floor.gridState, 
+                openings: floor.gridState.openings.filter(o => o.id !== id)
+              } 
+            }
+          : floor
+      ),
+    });
+  },
+
+  addCorridor: (corridor) => {
+    const state = get();
+    if (!state.selectedFloorId) return;
+    
+    set({
+      floors: state.floors.map(floor =>
+        floor.id === state.selectedFloorId
+          ? { 
+              ...floor, 
+              gridState: { 
+                ...floor.gridState, 
+                corridors: [...floor.gridState.corridors, corridor] 
+              } 
+            }
+          : floor
+      ),
+    });
+  },
+
+  updateCorridor: (id, updates) => {
+    const state = get();
+    if (!state.selectedFloorId) return;
+    
+    set({
+      floors: state.floors.map(floor =>
+        floor.id === state.selectedFloorId
+          ? { 
+              ...floor, 
+              gridState: { 
+                ...floor.gridState, 
+                corridors: floor.gridState.corridors.map(c => 
+                  c.id === id ? { ...c, ...updates } : c
+                )
+              } 
+            }
+          : floor
+      ),
+    });
+  },
+
+  deleteCorridor: (id) => {
+    const state = get();
+    if (!state.selectedFloorId) return;
+    
+    set({
+      floors: state.floors.map(floor =>
+        floor.id === state.selectedFloorId
+          ? { 
+              ...floor, 
+              gridState: { 
+                ...floor.gridState, 
+                corridors: floor.gridState.corridors.filter(c => c.id !== id)
+              } 
+            }
+          : floor
+      ),
+    });
+  },
+
+  addBalcony: (balcony) => {
+    const state = get();
+    if (!state.selectedFloorId) return;
+    
+    set({
+      floors: state.floors.map(floor =>
+        floor.id === state.selectedFloorId
+          ? { 
+              ...floor, 
+              gridState: { 
+                ...floor.gridState, 
+                balconies: [...floor.gridState.balconies, balcony] 
+              } 
+            }
+          : floor
+      ),
+    });
+  },
+
+  updateBalcony: (id, updates) => {
+    const state = get();
+    if (!state.selectedFloorId) return;
+    
+    set({
+      floors: state.floors.map(floor =>
+        floor.id === state.selectedFloorId
+          ? { 
+              ...floor, 
+              gridState: { 
+                ...floor.gridState, 
+                balconies: floor.gridState.balconies.map(b => 
+                  b.id === id ? { ...b, ...updates } : b
+                )
+              } 
+            }
+          : floor
+      ),
+    });
+  },
+
+  deleteBalcony: (id) => {
+    const state = get();
+    if (!state.selectedFloorId) return;
+    
+    set({
+      floors: state.floors.map(floor =>
+        floor.id === state.selectedFloorId
+          ? { 
+              ...floor, 
+              gridState: { 
+                ...floor.gridState, 
+                balconies: floor.gridState.balconies.filter(b => b.id !== id)
+              } 
+            }
+          : floor
+      ),
+    });
+  },
+
+  addBathroomPod: (pod) => {
+    const state = get();
+    if (!state.selectedFloorId) return;
+    
+    set({
+      floors: state.floors.map(floor =>
+        floor.id === state.selectedFloorId
+          ? { 
+              ...floor, 
+              gridState: { 
+                ...floor.gridState, 
+                bathroomPods: [...floor.gridState.bathroomPods, pod] 
+              } 
+            }
+          : floor
+      ),
+    });
+  },
+
+  updateBathroomPod: (id, updates) => {
+    const state = get();
+    if (!state.selectedFloorId) return;
+    
+    set({
+      floors: state.floors.map(floor =>
+        floor.id === state.selectedFloorId
+          ? { 
+              ...floor, 
+              gridState: { 
+                ...floor.gridState, 
+                bathroomPods: floor.gridState.bathroomPods.map(bp => 
+                  bp.id === id ? { ...bp, ...updates } : bp
+                )
+              } 
+            }
+          : floor
+      ),
+    });
+  },
+
+  deleteBathroomPod: (id) => {
+    const state = get();
+    if (!state.selectedFloorId) return;
+    
+    set({
+      floors: state.floors.map(floor =>
+        floor.id === state.selectedFloorId
+          ? { 
+              ...floor, 
+              gridState: { 
+                ...floor.gridState, 
+                bathroomPods: floor.gridState.bathroomPods.filter(bp => bp.id !== id)
+              } 
+            }
+          : floor
+      ),
+    });
+  },
+
+  // PDF management for active floor
+  getActivePdfData: () => {
+    const state = get();
+    const floor = state.floors.find(f => f.id === state.selectedFloorId);
+    return floor ? floor.gridState.pdfData : null;
+  },
+
+  setActivePdfData: (pdfData) => {
+    const state = get();
+    if (!state.selectedFloorId) return;
+    
+    set({
+      floors: state.floors.map(floor =>
+        floor.id === state.selectedFloorId
+          ? { 
+              ...floor, 
+              gridState: { 
+                ...floor.gridState, 
+                pdfData: pdfData 
+              } 
+            }
           : floor
       ),
     });
@@ -199,7 +542,33 @@ export const useFloorStore = create<FloorState>((set, get) => ({
   hasActivePdf: () => {
     const state = get();
     const floor = state.floors.find(f => f.id === state.selectedFloorId);
-    return !!(floor && floor.pdfUrl);
+    return !!(floor && floor.gridState.pdfData);
+  },
+
+  // Canvas state management for active floor
+  getActiveCanvasState: () => {
+    const state = get();
+    const floor = state.floors.find(f => f.id === state.selectedFloorId);
+    return floor ? floor.gridState.canvasState : null;
+  },
+
+  updateActiveCanvasState: (updates) => {
+    const state = get();
+    if (!state.selectedFloorId) return;
+    
+    set({
+      floors: state.floors.map(floor =>
+        floor.id === state.selectedFloorId
+          ? { 
+              ...floor, 
+              gridState: { 
+                ...floor.gridState, 
+                canvasState: { ...floor.gridState.canvasState, ...updates } 
+              } 
+            }
+          : floor
+      ),
+    });
   },
 }));
 

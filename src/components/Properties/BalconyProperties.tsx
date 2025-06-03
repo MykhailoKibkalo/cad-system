@@ -6,6 +6,7 @@ import type { Canvas } from 'fabric';
 import { useSelectionStore } from '@/state/selectionStore';
 import { useObjectStore } from '@/state/objectStore';
 import { useCanvasStore } from '@/state/canvasStore';
+import { useCurrentFloorElements } from '../Canvas/hooks/useFloorElements';
 import { Panel } from '@/components/ui/Panel';
 import { Text } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
@@ -77,22 +78,23 @@ const SuccessMessage = styled.div`
 
 export default function BalconyProperties({ canvas }: { canvas: Canvas }) {
   const balconyId = useSelectionStore(s => s.selectedBalconyId)!;
-  const balconies = useObjectStore(s => s.balconies);
-  const modules = useObjectStore(s => s.modules);
+  const { balconies, modules } = useCurrentFloorElements();
   const updateBalcony = useObjectStore(s => s.updateBalcony);
   const deleteBalcony = useObjectStore(s => s.deleteBalcony);
   const setSelectedBalconyId = useSelectionStore(s => s.setSelectedBalconyId);
   const { snapMode, gridSizeMm } = useCanvasStore();
 
-  const balcony = useMemo(() => balconies.find(b => b.id === balconyId)!, [balconies, balconyId]);
+  const balcony = useMemo(() => balconies.find(b => b.id === balconyId), [balconies, balconyId]);
   const module = useMemo(() => modules.find(m => m.id === balcony?.moduleId), [modules, balcony]);
 
+
+
   const [form, setForm] = useState({
-    name: balcony.name,
-    width: Math.round(balcony.width).toString(),
-    length: Math.round(balcony.length).toString(),
-    distanceAlongWall: Math.round(balcony.distanceAlongWall).toString(),
-    wallSide: balcony.wallSide as 1 | 2 | 3 | 4,
+    name: balcony?.name || '',
+    width: balcony ? Math.round(balcony.width).toString() : '0',
+    length: balcony ? Math.round(balcony.length).toString() : '0',
+    distanceAlongWall: balcony ? Math.round(balcony.distanceAlongWall).toString() : '0',
+    wallSide: (balcony?.wallSide as 1 | 2 | 3 | 4) || 1,
   });
 
   // Validation state
@@ -103,14 +105,18 @@ export default function BalconyProperties({ canvas }: { canvas: Canvas }) {
   }>({});
 
   useEffect(() => {
-    setForm({
-      name: balcony.name,
-      width: Math.round(balcony.width).toString(),
-      length: Math.round(balcony.length).toString(),
-      distanceAlongWall: Math.round(balcony.distanceAlongWall).toString(),
-      wallSide: balcony.wallSide,
-    });
+    if (balcony) {
+      setForm({
+        name: balcony.name,
+        width: Math.round(balcony.width).toString(),
+        length: Math.round(balcony.length).toString(),
+        distanceAlongWall: Math.round(balcony.distanceAlongWall).toString(),
+        wallSide: balcony.wallSide,
+      });
+    }
   }, [balcony]);
+
+
 
   // Calculate constraints based on wall side and module dimensions
   const constraints = useMemo(() => {
@@ -191,6 +197,10 @@ export default function BalconyProperties({ canvas }: { canvas: Canvas }) {
 
     setValidationErrors(errors);
   }, [form.width, form.length, form.distanceAlongWall, constraints, snapMode, gridSizeMm]);
+
+  if (!balcony) {
+    return null;
+  }
 
   const onChange = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value;

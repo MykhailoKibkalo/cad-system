@@ -2,12 +2,11 @@
 import { useEffect } from 'react';
 import type { Canvas } from 'fabric';
 import * as fabric from 'fabric';
-import { useObjectStore } from '@/state/objectStore';
+import { useCurrentFloorElements } from './useFloorElements';
 import { useCanvasStore } from '@/state/canvasStore';
 
 export default function useRenderBalconies(canvas: Canvas | null) {
-  const balconies = useObjectStore(s => s.balconies);
-  const modules = useObjectStore(s => s.modules);
+  const { balconies, modules } = useCurrentFloorElements();
   const scale = useCanvasStore(s => s.scaleFactor);
 
   useEffect(() => {

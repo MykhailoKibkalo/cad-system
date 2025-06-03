@@ -4,6 +4,7 @@
 import React, { useMemo, useState } from 'react';
 import styled from '@emotion/styled';
 import { useCanvasStore } from '@/state/canvasStore';
+import { useFloorStore } from '@/state/floorStore';
 import { Text } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/InputWithAffix';
@@ -173,8 +174,8 @@ type SortField = string;
 type SortDirection = 'asc' | 'desc';
 
 export default function FloorElementsTable({ onClose }: FloorElementsTableProps) {
-  const { currentFloor } = useCanvasStore();
-  const { modules, openings, balconies, bathroomPods, corridors, roofs } = useFloorElements(currentFloor);
+  const currentFloor = useFloorStore(s => s.selectedFloorId);
+  const { modules, openings, balconies, bathroomPods, corridors, roofs } = useFloorElements(currentFloor || undefined);
 
   // Search states for each table
   const [searchTerms, setSearchTerms] = useState({

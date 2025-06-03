@@ -1,15 +1,14 @@
 // src/components/Canvas/hooks/useRenderOpenings.ts
 import {useEffect} from 'react';
 import {Canvas, Rect} from 'fabric';
-import {useObjectStore} from '@/state/objectStore';
+import {useCurrentFloorElements} from './useFloorElements';
 import {useCanvasStore} from '@/state/canvasStore';
 
 /**
  * На плані (top-view) малюємо opening як тонку смугу на межі модуля.
  */
 export default function useRenderOpenings(canvas: Canvas | null) {
-  const openings = useObjectStore(s => s.openings);
-  const modules = useObjectStore(s => s.modules);
+  const { openings, modules } = useCurrentFloorElements();
   const scale = useCanvasStore(s => s.scaleFactor);
 
   useEffect(() => {

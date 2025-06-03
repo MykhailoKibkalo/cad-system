@@ -2,13 +2,12 @@
 import { useEffect } from 'react';
 import type { Canvas } from 'fabric';
 import * as fabric from 'fabric';
-import { useObjectStore } from '@/state/objectStore';
+import { useCurrentFloorCorridors } from './useFloorElements';
 import { useCanvasStore } from '@/state/canvasStore';
 
 export default function useRenderCorridors(canvas: Canvas | null) {
-  const corridors = useObjectStore(s => s.corridors);
+  const corridors = useCurrentFloorCorridors();
   const scaleFactor = useCanvasStore(s => s.scaleFactor);
-  const floor = useCanvasStore(s => s.currentFloor);
 
   useEffect(() => {
     if (!canvas) return;
@@ -18,7 +17,7 @@ export default function useRenderCorridors(canvas: Canvas | null) {
     });
 
     corridors.forEach(c => {
-      if (c.floor !== floor) return;
+      // No need to filter by floor since corridors are already floor-specific
 
       // Ensure all calculations result in integers
       const left = Math.round(c.x1 * scaleFactor);
@@ -49,5 +48,5 @@ export default function useRenderCorridors(canvas: Canvas | null) {
     });
 
     canvas.requestRenderAll();
-  }, [canvas, corridors, scaleFactor, floor]);
+  }, [canvas, corridors, scaleFactor]);
 }

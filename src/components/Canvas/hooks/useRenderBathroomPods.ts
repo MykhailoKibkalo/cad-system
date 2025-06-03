@@ -2,12 +2,11 @@
 import { useEffect } from 'react';
 import type { Canvas } from 'fabric';
 import * as fabric from 'fabric';
-import { useObjectStore } from '@/state/objectStore';
+import { useCurrentFloorElements } from './useFloorElements';
 import { useCanvasStore } from '@/state/canvasStore';
 
 export default function useRenderBathroomPods(canvas: Canvas | null) {
-  const bathroomPods = useObjectStore(s => s.bathroomPods);
-  const modules = useObjectStore(s => s.modules);
+  const { bathroomPods, modules } = useCurrentFloorElements();
   const scaleFactor = useCanvasStore(s => s.scaleFactor);
 
   useEffect(() => {

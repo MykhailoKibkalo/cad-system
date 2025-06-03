@@ -3,10 +3,10 @@ import { useEffect } from 'react';
 import type { Canvas } from 'fabric';
 import { useObjectStore } from '@/state/objectStore';
 import { useCanvasStore } from '@/state/canvasStore';
+import { useCurrentFloorElements } from './useFloorElements';
 
 export default function useBalconyMovement(canvas: Canvas | null) {
-  const balconies = useObjectStore(s => s.balconies);
-  const modules = useObjectStore(s => s.modules);
+  const { balconies, modules } = useCurrentFloorElements();
   const updateBalcony = useObjectStore(s => s.updateBalcony);
   const scale = useCanvasStore(s => s.scaleFactor);
   const snapMode = useCanvasStore(s => s.snapMode);

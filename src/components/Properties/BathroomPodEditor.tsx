@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styled from '@emotion/styled';
 import { Canvas, Rect, Text as FabricText } from 'fabric';
 import { useObjectStore } from '@/state/objectStore';
+import { useCurrentFloorElements } from '../Canvas/hooks/useFloorElements';
 import { Module } from '@/types/geometry';
 import { Text } from '@/components/ui/Text';
 import { HiMiniXMark } from 'react-icons/hi2';
@@ -160,11 +161,10 @@ interface BathroomPodEditorProps {
 }
 
 export default function BathroomPodEditor({ moduleId, onClose, podId }: BathroomPodEditorProps) {
-  const modules = useObjectStore(s => s.modules);
+  const { modules, bathroomPods } = useCurrentFloorElements();
   const addBathroomPod = useObjectStore(s => s.addBathroomPod);
   const updateBathroomPod = useObjectStore(s => s.updateBathroomPod);
   const deleteBathroomPod = useObjectStore(s => s.deleteBathroomPod);
-  const bathroomPods = useObjectStore(s => s.bathroomPods);
 
   const module = useMemo<Module>(() => {
     const m = modules.find(m => m.id === moduleId);

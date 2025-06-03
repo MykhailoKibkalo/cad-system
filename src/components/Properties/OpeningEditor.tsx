@@ -6,6 +6,7 @@ import { Canvas, Rect, Text as FabricText } from 'fabric';
 import { useObjectStore } from '@/state/objectStore';
 import { useCanvasStore } from '@/state/canvasStore';
 import { useTemplateStore } from '@/state/templateStore';
+import { useCurrentFloorElements } from '../Canvas/hooks/useFloorElements';
 import { Module } from '@/types/geometry';
 import { Text } from '@/components/ui/Text';
 import { HiMiniXMark } from 'react-icons/hi2';
@@ -170,11 +171,10 @@ interface OpeningEditorProps {
 }
 
 export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningEditorProps) {
-  const modules = useObjectStore(s => s.modules);
+  const { modules, openings } = useCurrentFloorElements();
   const addOpening = useObjectStore(s => s.addOpening);
   const updateOpening = useObjectStore(s => s.updateOpening);
   const deleteOpening = useObjectStore(s => s.deleteOpening);
-  const openings = useObjectStore(s => s.openings);
   const { floorHeightMm } = useCanvasStore();
   const { openingTemplates, addOpeningTemplate } = useTemplateStore();
 

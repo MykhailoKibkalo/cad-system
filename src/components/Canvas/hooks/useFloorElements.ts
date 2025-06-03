@@ -1,9 +1,8 @@
-// src/hooks/useFloorElements.ts
-import { useMemo } from 'react';
-import { useObjectStore } from '@/state/objectStore';
-import { useCanvasStore } from '@/state/canvasStore';
+// src/components/Canvas/hooks/useFloorElements.ts
+// Reactive hooks for floor-specific data access
 import { useFloorStore } from '@/state/floorStore';
-import { Balcony, BathroomPod, Corridor, Module, Opening, Roof } from '@/types/geometry';
+import { Module, Opening, Corridor, Balcony, BathroomPod } from '@/types/geometry';
+import type { PdfData, CanvasState } from '@/state/floorStore';
 
 interface FloorElementsData {
   modules: Module[];
@@ -11,72 +10,132 @@ interface FloorElementsData {
   balconies: Balcony[];
   bathroomPods: BathroomPod[];
   corridors: Corridor[];
-  roofs: Roof[];
+  roofs: []; // Keep for compatibility
 }
 
+/**
+ * Hook that provides reactive access to all elements for the current floor
+ * This ensures components re-render when floor data changes
+ */
+export function useCurrentFloorElements() {
+  const gridState = useFloorStore(s => s.getActiveGridState());
+  
+  return {
+    modules: gridState?.modules || [],
+    openings: gridState?.openings || [],
+    corridors: gridState?.corridors || [],
+    balconies: gridState?.balconies || [],
+    bathroomPods: gridState?.bathroomPods || [],
+  };
+}
+
+/**
+ * Legacy hook for compatibility - now uses reactive floor data
+ */
 export function useFloorElements(floorId?: string): FloorElementsData {
-  const {
-    modules: allModules,
-    openings: allOpenings,
-    balconies: allBalconies,
-    bathroomPods: allBathroomPods,
-    corridors: allCorridors,
-    roofs: allRoofs,
-  } = useObjectStore();
+  const selectedFloorId = useFloorStore(s => s.selectedFloorId);
+  const floors = useFloorStore(s => s.floors);
+  
+  // Get target floor data
+  const targetFloorId = floorId ?? selectedFloorId;
+  const targetFloor = floors.find(f => f.id === targetFloorId);
+  const gridState = targetFloor?.gridState;
 
-  const selectedFloor = useFloorStore(s => s.getSelectedFloor());
-  const targetFloorId = floorId ?? selectedFloor?.id;
+  return {
+    modules: gridState?.modules || [],
+    openings: gridState?.openings || [],
+    balconies: gridState?.balconies || [],
+    bathroomPods: gridState?.bathroomPods || [],
+    corridors: gridState?.corridors || [],
+    roofs: [], // Keep for compatibility
+  };
+}
 
-  return useMemo(() => {
-    // For now, show all modules regardless of floor until we implement floor-specific module filtering
-    // TODO: Implement proper floor filtering for modules based on the new floor system
-    const modules = allModules;
+/**
+ * Hook that provides reactive access to modules for the current floor
+ */
+export function useCurrentFloorModules(): Module[] {
+  const gridState = useFloorStore(s => s.getActiveGridState());
+  return gridState?.modules || [];
+}
 
-    // Get module IDs for filtering related elements
-    const moduleIds = new Set(modules.map(m => m.id));
+/**
+ * Hook that provides reactive access to openings for the current floor
+ */
+export function useCurrentFloorOpenings(): Opening[] {
+  const gridState = useFloorStore(s => s.getActiveGridState());
+  return gridState?.openings || [];
+}
 
-    // Filter openings that belong to modules on this floor
-    const openings = allOpenings.filter(opening => moduleIds.has(opening.moduleId));
+/**
+ * Hook that provides reactive access to corridors for the current floor
+ */
+export function useCurrentFloorCorridors(): Corridor[] {
+  const gridState = useFloorStore(s => s.getActiveGridState());
+  return gridState?.corridors || [];
+}
 
-    // Filter balconies that belong to modules on this floor
-    const balconies = allBalconies.filter(balcony => moduleIds.has(balcony.moduleId));
+/**
+ * Hook that provides reactive access to balconies for the current floor
+ */
+export function useCurrentFloorBalconies(): Balcony[] {
+  const gridState = useFloorStore(s => s.getActiveGridState());
+  return gridState?.balconies || [];
+}
 
-    // Filter bathroom pods that belong to modules on this floor
-    const bathroomPods = allBathroomPods.filter(pod => moduleIds.has(pod.moduleId));
+/**
+ * Hook that provides reactive access to bathroom pods for the current floor
+ */
+export function useCurrentFloorBathroomPods(): BathroomPod[] {
+  const gridState = useFloorStore(s => s.getActiveGridState());
+  return gridState?.bathroomPods || [];
+}
 
-    // Filter corridors for the current floor
-    // Handle both old numeric floors and new string floor IDs
-    const corridors = allCorridors.filter(corridor => {
-      const corridorFloor = typeof corridor.floor === 'string' ? corridor.floor : corridor.floor.toString();
-      return targetFloorId && corridorFloor === targetFloorId;
-    });
+/**
+ * Hook that provides reactive access to PDF data for the current floor
+ */
+export function useCurrentFloorPdfData(): PdfData | null {
+  const gridState = useFloorStore(s => s.getActiveGridState());
+  return gridState?.pdfData || null;
+}
 
-    // Filter roofs for the current floor level (keep as numeric for now)
-    const roofs = allRoofs.filter((roof: any) => roof.level === selectedFloor?.height);
+/**
+ * Hook that provides reactive access to canvas state for the current floor
+ */
+export function useCurrentFloorCanvasState(): CanvasState | null {
+  const gridState = useFloorStore(s => s.getActiveGridState());
+  return gridState?.canvasState || null;
+}
 
-    return {
-      modules,
-      openings,
-      balconies,
-      bathroomPods,
-      corridors,
-      roofs: roofs as Roof[], // Type assertion since allRoofs is currently []
-    };
-  }, [allModules, allOpenings, allBalconies, allBathroomPods, allCorridors, allRoofs, targetFloorId]);
+/**
+ * Hook that provides reactive access to grid settings for the current floor
+ */
+export function useCurrentFloorGridSettings() {
+  const gridState = useFloorStore(s => s.getActiveGridState());
+  return {
+    gridWidthM: gridState?.gridWidthM || 100,
+    gridHeightM: gridState?.gridHeightM || 100,
+  };
+}
+
+/**
+ * Hook that provides the current selected floor info
+ */
+export function useCurrentFloor() {
+  const selectedFloorId = useFloorStore(s => s.selectedFloorId);
+  const floors = useFloorStore(s => s.floors);
+  return floors.find(f => f.id === selectedFloorId) || null;
 }
 
 // Helper function to check if there are any elements on the current floor
 export function useHasFloorElements(floorId?: string): boolean {
   const elements = useFloorElements(floorId);
 
-  return useMemo(() => {
-    return (
-      elements.modules.length > 0 ||
-      elements.openings.length > 0 ||
-      elements.balconies.length > 0 ||
-      elements.bathroomPods.length > 0 ||
-      elements.corridors.length > 0 ||
-      elements.roofs.length > 0
-    );
-  }, [elements]);
+  return (
+    elements.modules.length > 0 ||
+    elements.openings.length > 0 ||
+    elements.balconies.length > 0 ||
+    elements.bathroomPods.length > 0 ||
+    elements.corridors.length > 0
+  );
 }

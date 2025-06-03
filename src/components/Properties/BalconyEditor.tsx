@@ -6,6 +6,7 @@ import styled from '@emotion/styled';
 import type { Balcony, Module } from '@/types/geometry';
 import { useObjectStore } from '@/state/objectStore';
 import { useCanvasStore } from '@/state/canvasStore';
+import { useCurrentFloorElements } from '../Canvas/hooks/useFloorElements';
 import { Text } from '@/components/ui/Text';
 import { HiMiniXMark } from 'react-icons/hi2';
 import { Divider } from '@/components/ui/Divider';
@@ -122,7 +123,7 @@ const SuccessMessage = styled.div`
 export default function BalconyEditor({ module, balconyId, onSave, onCancel }: Props) {
   const addBalcony = useObjectStore(s => s.addBalcony);
   const updateBalcony = useObjectStore(s => s.updateBalcony);
-  const balconies = useObjectStore(s => s.balconies);
+  const { balconies } = useCurrentFloorElements();
   const { snapMode, gridSizeMm } = useCanvasStore();
 
   const existing = useMemo(() => {

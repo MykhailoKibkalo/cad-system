@@ -1,6 +1,7 @@
 // src/components/Canvas/hooks/usePanZoom.ts
 import { useEffect } from 'react';
 import type { Canvas } from 'fabric';
+import { Point } from 'fabric';
 import { useCanvasStore } from '@/state/canvasStore';
 
 export default function usePanZoom(canvas: Canvas | null) {
@@ -78,7 +79,7 @@ export default function usePanZoom(canvas: Canvas | null) {
     // Apply pan constraints
     const vpt = canvas.viewportTransform!;
     const constrained = constrainPan(vpt, zoomLevel, canvas.getWidth(), canvas.getHeight());
-    canvas.setViewportTransform(constrained);
+    canvas.setViewportTransform(constrained as [number, number, number, number, number, number]);
     
     canvas.requestRenderAll();
     {
@@ -128,12 +129,12 @@ export default function usePanZoom(canvas: Canvas | null) {
       const mouseY = e.clientY - rect.top;
       
       // Zoom to mouse position
-      canvas.zoomToPoint({ x: mouseX, y: mouseY }, next);
+      canvas.zoomToPoint(new Point(mouseX, mouseY), next);
       
       // Apply pan constraints after zoom
       const vpt = canvas.viewportTransform!;
       const constrained = constrainPan(vpt, next, canvas.getWidth(), canvas.getHeight());
-      canvas.setViewportTransform(constrained);
+      canvas.setViewportTransform(constrained as [number, number, number, number, number, number]);
       
       canvas.requestRenderAll();
       setZoom(parseFloat(next.toFixed(2)));
@@ -163,7 +164,7 @@ export default function usePanZoom(canvas: Canvas | null) {
       // Apply pan constraints
       const currentZoom = canvas.getZoom();
       const constrained = constrainPan(vpt, currentZoom, canvas.getWidth(), canvas.getHeight());
-      canvas.setViewportTransform(constrained);
+      canvas.setViewportTransform(constrained as [number, number, number, number, number, number]);
       
       lastX = Math.round(e.clientX);
       lastY = Math.round(e.clientY);

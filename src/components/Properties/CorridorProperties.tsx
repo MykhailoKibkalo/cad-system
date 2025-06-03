@@ -75,15 +75,19 @@ export default function CorridorProperties({ canvas }: { canvas: Canvas }) {
   const scale = useCanvasStore(s => s.scaleFactor);
   const setSelCorridor = useSelectionStore(s => s.setSelectedCorridorId);
 
-  const corridor: Corridor = useMemo(() => corridors.find(c => c.id === corridorId)!, [corridors, corridorId]);
+  const corridor: Corridor | undefined = useMemo(() => corridors.find(c => c.id === corridorId), [corridors, corridorId]);
 
   const [form, setForm] = useState({
-    x1: Math.round(corridor.x1).toString(),
-    y1: Math.round(corridor.y1).toString(),
-    x2: Math.round(corridor.x2).toString(),
-    y2: Math.round(corridor.y2).toString(),
-    floor: corridor.floor.toString(),
+    x1: corridor ? Math.round(corridor.x1).toString() : '0',
+    y1: corridor ? Math.round(corridor.y1).toString() : '0',
+    x2: corridor ? Math.round(corridor.x2).toString() : '0',
+    y2: corridor ? Math.round(corridor.y2).toString() : '0',
+    floor: corridor ? corridor.floor.toString() : '1',
   });
+
+  if (!corridor) {
+    return null;
+  }
 
   useEffect(() => {
     setForm({
