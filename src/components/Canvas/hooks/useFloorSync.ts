@@ -44,6 +44,25 @@ export default function useFloorSync(canvas: Canvas | null) {
     if (previousFloorIdRef.current !== selectedFloorId) {
       console.log(`🏢 Floor changed from ${previousFloorIdRef.current} to ${selectedFloorId}`);
       
+      // Debug: Check current floor data before switching
+      const floorStore = useFloorStore.getState();
+      const currentFloor = floorStore.floors.find(f => f.id === previousFloorIdRef.current);
+      const targetFloor = floorStore.floors.find(f => f.id === selectedFloorId);
+      
+      console.log(`🏢 Current floor (${previousFloorIdRef.current}) data:`, {
+        exists: !!currentFloor,
+        groups: currentFloor?.gridState?.groups?.length || 0,
+        modules: currentFloor?.gridState?.modules?.length || 0,
+        groupDetails: currentFloor?.gridState?.groups || []
+      });
+      
+      console.log(`🏢 Target floor (${selectedFloorId}) data:`, {
+        exists: !!targetFloor,
+        groups: targetFloor?.gridState?.groups?.length || 0,
+        modules: targetFloor?.gridState?.modules?.length || 0,
+        groupDetails: targetFloor?.gridState?.groups || []
+      });
+      
       // 1. Save current canvas state to the previous floor
       if (previousFloorIdRef.current) {
         const vpt = canvas.viewportTransform || [1, 0, 0, 1, 0, 0];
@@ -64,13 +83,24 @@ export default function useFloorSync(canvas: Canvas | null) {
             canvasState: currentCanvasState
           });
         }
+        
+        console.log(`🏢 Saved canvas state for floor ${previousFloorIdRef.current}`);
       }
       
-      // 2. Clear the entire canvas
+      // 2. Clear the entire canvas (this will trigger useRenderGroups to restore groups)
+      console.log(`🏢 Clearing canvas - current objects:`, canvas.getObjects().length);
       const objects = canvas.getObjects();
       objects.forEach(obj => {
+        console.log(`🏢 Removing object:`, {
+          type: obj.type,
+          isModule: (obj as any).isModule,
+          isCorridor: (obj as any).isCorridor,
+          isElementGroup: (obj as any).isElementGroup,
+          groupId: (obj as any).groupId
+        });
         canvas.remove(obj);
       });
+      console.log(`🏢 Canvas cleared - remaining objects:`, canvas.getObjects().length);
 
       // 3. Restore canvas state for new floor
       const newCanvasState = getActiveCanvasState();

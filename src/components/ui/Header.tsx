@@ -9,7 +9,7 @@ import { useFloorStore } from '@/state/floorStore';
 import Image from 'next/image';
 import logo from '../../assets/images/logo.png';
 import { Button } from '@/components/ui/Button';
-import { LuDownload, LuLayers, LuSettings2, LuTable } from 'react-icons/lu';
+import { LuDownload, LuGroup, LuLayers, LuSettings2, LuTable } from 'react-icons/lu';
 import { Divider } from '@/components/ui/Divider';
 import { RiHomeLine } from 'react-icons/ri';
 import { Text } from '@/components/ui/Text';
@@ -20,8 +20,11 @@ import { BsGrid3X3 } from 'react-icons/bs';
 import { TbBoxAlignLeft, TbBoxAlignTopLeft } from 'react-icons/tb';
 import { CgArrowAlignH } from 'react-icons/cg';
 import { InputWithAffix } from '@/components/ui/InputWithAffix';
-import {useHasFloorElements} from "@/components/Canvas/hooks/useFloorElements";
-import FloorElementsTable from "@/components/ui/FloorElementsTable";
+import { useHasFloorElements } from '@/components/Canvas/hooks/useFloorElements';
+import FloorElementsTable from '@/components/ui/FloorElementsTable';
+import { useObjectStore } from '@/state/objectStore';
+import GroupsSidebar from '@/components/Groups/GroupsSidebar';
+import { useCanvasRefStore } from '@/state/canvasRefStore';
 
 const Container = styled.div`
   display: flex;
@@ -158,6 +161,25 @@ const FloorElementsButton = styled.div<{ disabled: boolean }>`
   }
 `;
 
+const GroupsButton = styled.div<{ disabled: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: ${props => (props.disabled ? 'not-allowed' : 'pointer')};
+  border-radius: 6px;
+  transition: all 0.2s;
+  opacity: ${props => (props.disabled ? 0.5 : 1)};
+
+  &:hover {
+    background: ${props => (props.disabled ? 'transparent' : '#f8fafc')};
+  }
+
+  svg {
+    color: ${props => (props.disabled ? '#9ca3af' : '#374151')};
+  }
+`;
+
 export default function Header() {
   const {
     floorName,
@@ -173,19 +195,23 @@ export default function Header() {
 
   const { setTool } = useToolStore();
   const [showFloorElementsTable, setShowFloorElementsTable] = useState(false);
+  const [showGroupsSidebar, setShowGroupsSidebar] = useState(false);
   const hasElements = useHasFloorElements();
-  
+  const groups = useObjectStore(s => s.groups);
+  const hasGroups = groups && groups.length > 0;
+  const canvas = useCanvasRefStore(s => s.canvas);
+
   // Add floor store
   const { getSelectedFloor, setSidebarOpen, hasActivePdf, getActiveGridState, updateActiveGridState } = useFloorStore();
 
   const gridSizeMm = useCanvasStore(s => s.gridSizeMm);
   const setGridSize = useCanvasStore(s => s.setGridSize);
-  
+
   // Get grid dimensions from active floor or fallback to canvas store
   const activeGridState = getActiveGridState();
   const gridWidthM = activeGridState?.gridWidthM || useCanvasStore(s => s.gridWidthM);
   const gridHeightM = activeGridState?.gridHeightM || useCanvasStore(s => s.gridHeightM);
-  
+
   const setGridDimensions = (width: number, height: number) => {
     // Update both floor store and canvas store
     updateActiveGridState({ gridWidthM: width, gridHeightM: height });
@@ -226,7 +252,7 @@ export default function Header() {
     let value = e.target.value;
     // Remove any decimal points and non-numeric characters
     value = value.replace(/[^\d]/g, '');
-    
+
     const v = parseInt(value, 10);
     if (!isNaN(v) && v >= 1 && v <= 1000) {
       setGridDimensions(v, gridHeightM);
@@ -242,7 +268,7 @@ export default function Header() {
     let value = e.target.value;
     // Remove any decimal points and non-numeric characters
     value = value.replace(/[^\d]/g, '');
-    
+
     const v = parseInt(value, 10);
     if (!isNaN(v) && v >= 1 && v <= 1000) {
       setGridDimensions(gridWidthM, v);
@@ -272,6 +298,12 @@ export default function Header() {
     }
   };
 
+  const openGroupsPanel = () => {
+    if (groups && groups.length > 0) {
+      setShowGroupsSidebar(true);
+    }
+  };
+
   const handlePdfImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     // The actual PDF loading is handled by PdfLoader component
     // We don't need to do anything here except let the file input trigger
@@ -285,12 +317,7 @@ export default function Header() {
           <Image width={153} height={40} src={logo} alt={'verida'} />
           <Button icon={<LuDownload size={20} />}>
             <Label htmlFor="pdfInput">Import PDF</Label>
-            <Input 
-              id="pdfInput" 
-              type="file" 
-              accept="application/pdf" 
-              onChange={handlePdfImport}
-            />
+            <Input id="pdfInput" type="file" accept="application/pdf" onChange={handlePdfImport} />
           </Button>
         </MainWrap>
         <SecondaryWrap>
@@ -303,7 +330,8 @@ export default function Header() {
             <MenuItem onClick={() => setSidebarOpen(true)} style={{ cursor: 'pointer' }}>
               <LuLayers size={24} />
               <Text size={16}>
-                Floor: {getSelectedFloor()?.name || floorName} ({Math.round(getSelectedFloor()?.height || floorHeightMm)} mm)
+                Floor: {getSelectedFloor()?.name || floorName} (
+                {Math.round(getSelectedFloor()?.height || floorHeightMm)} mm)
               </Text>
             </MenuItem>
           </MenuWrap>
@@ -326,6 +354,17 @@ export default function Header() {
               <LuTable size={24} />
               <Text size={16}>View Floor Elements</Text>
             </FloorElementsButton>
+
+            {/* Groups Button - Only show when groups exist */}
+            {hasGroups && (
+              <>
+                <Divider orientation="vertical" length={'40px'} />
+                <GroupsButton disabled={false} onClick={openGroupsPanel} title={`View ${groups.length} group(s)`}>
+                  <LuGroup size={24} />
+                  <Text size={16}>Groups ({groups.length})</Text>
+                </GroupsButton>
+              </>
+            )}
 
             <Divider orientation="vertical" length={'40px'} />
 

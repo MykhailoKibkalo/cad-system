@@ -33,6 +33,10 @@ import usePdfRestore from "@/components/Canvas/hooks/usePdfRestore";
 import usePdfPropertySync from "@/components/Canvas/hooks/usePdfPropertySync";
 import ZoomControl from "@/components/ui/ZoomControl";
 import ControlWrap from "@/components/ui/ControlPanel";
+import { useCanvasRefStore } from '@/state/canvasRefStore';
+import useGrouping from './hooks/useGrouping';
+import useRenderGroups from './hooks/useRenderGroups';
+import CanvasContextMenu from './CanvasContextMenu';
 
 const CanvasContainer = styled.div<{ gridSizePx?: number; offsetX?: number; offsetY?: number }>`
   flex: 1;
@@ -83,16 +87,21 @@ export default function CanvasArea() {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvas = useFabricCanvas('fabricCanvas');
   const { scaleFactor, gridSizeMm, zoomLevel, gridWidthM, gridHeightM } = useCanvasStore();
+  const setCanvasRef = useCanvasRefStore(s => s.setCanvas);
 
   const setCenter = useCanvasStore(s => s.setCenterCanvas);
 
-  // Expose canvas globally for useFloorSync hook
+  // Expose canvas globally for useFloorSync hook and store in canvas ref store
   useEffect(() => {
     if (canvas) {
       (window as any).__fabricCanvas = canvas;
+      setCanvasRef(canvas);
       console.log('🎨 Canvas exposed globally for floor sync');
     }
-  }, [canvas]);
+    return () => {
+      setCanvasRef(null);
+    };
+  }, [canvas, setCanvasRef]);
 
   // Sync floor data - enhanced version
   // Remove useCanvasClear - it's now handled by the enhanced useFloorSync
@@ -173,6 +182,10 @@ export default function CanvasArea() {
   useRenderBalconies(canvas)
   useBalconyMovement(canvas)
 
+  // Group management
+  useGrouping(canvas)
+  useRenderGroups(canvas)
+
   // Розмір клітини в px
   const baseGridPx = gridSizeMm * scaleFactor;
   const gridSizePx = baseGridPx * zoomLevel;
@@ -201,7 +214,7 @@ export default function CanvasArea() {
           zoom={zoomLevel}
         />
       </CanvasContainer>
-      {/*{canvas && <CanvasContextMenu canvas={canvas} />}*/}
+      {canvas && <CanvasContextMenu canvas={canvas} />}
       {canvas && <PdfLoader canvas={canvas} />}
       {canvas && <PropertyPanel canvas={canvas} />}
       <ZoomControl/>

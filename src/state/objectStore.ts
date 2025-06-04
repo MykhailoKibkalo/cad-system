@@ -1,7 +1,7 @@
 // src/state/objectStore.ts
 // Compatibility layer - delegates all operations to floorStore
 import { create } from 'zustand';
-import { Balcony, BathroomPod, Corridor, Module, Opening } from '@/types/geometry';
+import { Balcony, BathroomPod, Corridor, Module, Opening, ModuleGroup } from '@/types/geometry';
 import { useFloorStore } from './floorStore';
 
 interface ObjState {
@@ -11,6 +11,7 @@ interface ObjState {
   corridors: Corridor[];
   balconies: Balcony[];
   bathroomPods: BathroomPod[];
+  groups: ModuleGroup[];
   roofs: [];
   
   // Object management methods that delegate to floorStore
@@ -33,6 +34,11 @@ interface ObjState {
   addBathroomPod: (bp: BathroomPod) => void;
   updateBathroomPod: (id: string, props: Partial<BathroomPod>) => void;
   deleteBathroomPod: (id: string) => void;
+  
+  addGroup: (g: ModuleGroup) => void;
+  updateGroup: (id: string, props: Partial<ModuleGroup>) => void;
+  deleteGroup: (id: string) => void;
+  getGroupContainingModule: (moduleId: string) => ModuleGroup | null;
 }
 
 export const useObjectStore = create<ObjState>((set, get) => ({
@@ -60,6 +66,26 @@ export const useObjectStore = create<ObjState>((set, get) => ({
   get bathroomPods() {
     const gridState = useFloorStore.getState().getActiveGridState();
     return gridState?.bathroomPods || [];
+  },
+  
+  get groups() {
+    try {
+      const floorState = useFloorStore.getState();
+      const selectedFloorId = floorState.selectedFloorId;
+      const gridState = floorState.getActiveGridState();
+      
+      console.log('🔍 ObjectStore.groups getter called:', {
+        selectedFloorId,
+        gridStateExists: !!gridState,
+        groupsCount: gridState?.groups?.length || 0,
+        groups: gridState?.groups || []
+      });
+      
+      return gridState?.groups || [];
+    } catch (error) {
+      console.error('🔍 ObjectStore.groups getter error:', error);
+      return [];
+    }
   },
   
   roofs: [],
@@ -143,5 +169,29 @@ export const useObjectStore = create<ObjState>((set, get) => ({
   deleteBathroomPod: (id) => {
     useFloorStore.getState().deleteBathroomPod(id);
     set({});
+  },
+  
+  // Group methods - delegate to floorStore
+  addGroup: (group) => {
+    useFloorStore.getState().addGroup(group);
+    set({});
+  },
+  
+  updateGroup: (id, updates) => {
+    useFloorStore.getState().updateGroup(id, updates);
+    set({});
+  },
+  
+  deleteGroup: (id) => {
+    useFloorStore.getState().deleteGroup(id);
+    set({});
+  },
+  
+  getGroupContainingModule: (moduleId) => {
+    try {
+      return useFloorStore.getState().getGroupContainingModule(moduleId);
+    } catch (error) {
+      return null;
+    }
   },
 }));

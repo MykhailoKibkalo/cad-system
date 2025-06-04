@@ -175,7 +175,22 @@ type SortDirection = 'asc' | 'desc';
 
 export default function FloorElementsTable({ onClose }: FloorElementsTableProps) {
   const currentFloor = useFloorStore(s => s.selectedFloorId);
-  const { modules, openings, balconies, bathroomPods, corridors, roofs } = useFloorElements(currentFloor || undefined);
+  const rawElements = useFloorElements(currentFloor || undefined);
+  const groups = useFloorStore(s => s.getActiveGridState()?.groups || []);
+  
+  // Filter out individual elements that are part of groups to avoid duplication
+  const filteredElements = useMemo(() => {
+    return {
+      modules: rawElements.modules.filter(m => !m.isGrouped),
+      openings: rawElements.openings, // Openings are never grouped individually
+      balconies: rawElements.balconies.filter(b => !b.isGrouped),
+      bathroomPods: rawElements.bathroomPods.filter(bp => !bp.isGrouped),
+      corridors: rawElements.corridors.filter(c => !c.isGrouped),
+      roofs: rawElements.roofs
+    };
+  }, [rawElements]);
+  
+  const { modules, openings, balconies, bathroomPods, corridors, roofs } = filteredElements;
 
   // Search states for each table
   const [searchTerms, setSearchTerms] = useState({
@@ -185,6 +200,7 @@ export default function FloorElementsTable({ onClose }: FloorElementsTableProps)
     bathroomPods: '',
     corridors: '',
     roofs: '',
+    groups: '',
   });
 
   // Sort states for each table
@@ -421,6 +437,60 @@ export default function FloorElementsTable({ onClose }: FloorElementsTableProps)
         </Header>
 
         <Content>
+          {/* Groups Table */}
+          {renderTable(
+            'groups',
+            'Groups',
+            groups,
+            [
+              { key: 'name', label: 'Group Name' },
+              { key: 'moduleCount', label: 'Modules' },
+              { key: 'corridorCount', label: 'Corridors' },
+              { key: 'balconyCount', label: 'Balconies' },
+              { key: 'bathroomPodCount', label: 'Bathroom Pods' },
+              { key: 'totalElements', label: 'Total Elements' },
+              { key: 'elementDetails', label: 'Elements', sortable: false },
+              { key: 'createdAt', label: 'Created', sortable: false },
+            ],
+            (item: any, key) => {
+              if (key === 'moduleCount') return item.elements?.modules?.length || item.moduleIds?.length || 0;
+              if (key === 'corridorCount') return item.elements?.corridors?.length || 0;
+              if (key === 'balconyCount') return item.elements?.balconies?.length || 0;
+              if (key === 'bathroomPodCount') return item.elements?.bathroomPods?.length || 0;
+              if (key === 'totalElements') {
+                const modules = item.elements?.modules?.length || item.moduleIds?.length || 0;
+                const corridors = item.elements?.corridors?.length || 0;
+                const balconies = item.elements?.balconies?.length || 0;
+                const bathroomPods = item.elements?.bathroomPods?.length || 0;
+                return modules + corridors + balconies + bathroomPods;
+              }
+              if (key === 'elementDetails') {
+                const details = [];
+                if (item.elements?.modules?.length || item.moduleIds?.length) {
+                  const moduleIds = item.elements?.modules || item.moduleIds || [];
+                  const moduleNames = moduleIds.map((id: string) => {
+                    const module = rawElements.modules.find(m => m.id === id);
+                    return module ? module.name : id;
+                  }).join(', ');
+                  details.push(`Modules: ${moduleNames}`);
+                }
+                if (item.elements?.corridors?.length) {
+                  details.push(`Corridors: ${item.elements.corridors.join(', ')}`);
+                }
+                if (item.elements?.balconies?.length) {
+                  details.push(`Balconies: ${item.elements.balconies.join(', ')}`);
+                }
+                if (item.elements?.bathroomPods?.length) {
+                  details.push(`Bathroom Pods: ${item.elements.bathroomPods.join(', ')}`);
+                }
+                return details.join(' | ') || 'No elements';
+              }
+              if (key === 'createdAt') return new Date(item.createdAt).toLocaleString();
+              const value = (item as any)[key];
+              return typeof value === 'number' ? Math.round(value) : value;
+            }
+          )}
+
           {/* Modules Table */}
           {renderTable(
             'modules',

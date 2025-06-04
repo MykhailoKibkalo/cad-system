@@ -28,9 +28,17 @@ export default function useModuleRestore(canvas: Canvas | null) {
 
         // Check if there are modules to restore but no module objects on canvas
         const existingModules = canvas.getObjects().filter(o => (o as any).isModule);
-        if (gridState.modules.length > 0 && existingModules.length === 0) {
-          // Restore modules to canvas
+        const existingGroups = canvas.getObjects().filter(o => (o as any).isModuleGroup);
+        
+        // Also check if we need to render non-grouped modules
+        const nonGroupedModules = gridState.modules.filter(m => !m.isGrouped);
+        
+        if (nonGroupedModules.length > 0 && existingModules.length === 0 && existingGroups.length === 0) {
+          // Restore modules to canvas (skip grouped modules)
           gridState.modules.forEach(module => {
+            // Skip modules that are part of a group
+            if (module.isGrouped) return;
+            
             const rect = new fabric.Rect({
               left: Math.round(module.x0 * scaleFactor),
               top: Math.round(module.y0 * scaleFactor),

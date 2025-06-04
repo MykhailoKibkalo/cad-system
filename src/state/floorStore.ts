@@ -1,7 +1,7 @@
 // src/state/floorStore.ts
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
-import { Module, Opening, Corridor, Balcony, BathroomPod } from '@/types/geometry';
+import { Module, Opening, Corridor, Balcony, BathroomPod, ModuleGroup } from '@/types/geometry';
 
 // PDF data with complete state per floor
 export interface PdfData {
@@ -33,6 +33,7 @@ export interface GridState {
   openings: Opening[];
   balconies: Balcony[];
   bathroomPods: BathroomPod[];
+  groups: ModuleGroup[];
   
   // PDF state per floor
   pdfData: PdfData | null;
@@ -89,6 +90,12 @@ interface FloorState {
   updateBathroomPod: (id: string, updates: Partial<BathroomPod>) => void;
   deleteBathroomPod: (id: string) => void;
   
+  // Group management for active floor
+  addGroup: (group: ModuleGroup) => void;
+  updateGroup: (id: string, updates: Partial<ModuleGroup>) => void;
+  deleteGroup: (id: string) => void;
+  getGroupContainingModule: (moduleId: string) => ModuleGroup | null;
+  
   // PDF management for active floor
   getActivePdfData: () => PdfData | null;
   setActivePdfData: (pdfData: PdfData | null) => void;
@@ -116,6 +123,7 @@ const createGridState = (): GridState => ({
   openings: [],
   balconies: [],
   bathroomPods: [],
+  groups: [],
   
   // No PDF imported initially
   pdfData: null,
@@ -511,6 +519,76 @@ export const useFloorStore = create<FloorState>((set, get) => ({
           : floor
       ),
     });
+  },
+
+  // Group management for active floor
+  addGroup: (group) => {
+    const state = get();
+    if (!state.selectedFloorId) return;
+    
+    set({
+      floors: state.floors.map(floor =>
+        floor.id === state.selectedFloorId
+          ? { 
+              ...floor, 
+              gridState: { 
+                ...floor.gridState, 
+                groups: [...floor.gridState.groups, group] 
+              } 
+            }
+          : floor
+      ),
+    });
+  },
+
+  updateGroup: (id, updates) => {
+    const state = get();
+    if (!state.selectedFloorId) return;
+    
+    set({
+      floors: state.floors.map(floor =>
+        floor.id === state.selectedFloorId
+          ? { 
+              ...floor, 
+              gridState: { 
+                ...floor.gridState, 
+                groups: floor.gridState.groups.map(g => 
+                  g.id === id ? { ...g, ...updates } : g
+                )
+              } 
+            }
+          : floor
+      ),
+    });
+  },
+
+  deleteGroup: (id) => {
+    const state = get();
+    if (!state.selectedFloorId) return;
+    
+    set({
+      floors: state.floors.map(floor =>
+        floor.id === state.selectedFloorId
+          ? { 
+              ...floor, 
+              gridState: { 
+                ...floor.gridState, 
+                groups: floor.gridState.groups.filter(g => g.id !== id)
+              } 
+            }
+          : floor
+      ),
+    });
+  },
+
+  getGroupContainingModule: (moduleId) => {
+    const state = get();
+    const floor = state.floors.find(f => f.id === state.selectedFloorId);
+    if (!floor) return null;
+    
+    return floor.gridState.groups.find(group => 
+      group.moduleIds.includes(moduleId)
+    ) || null;
   },
 
   // PDF management for active floor

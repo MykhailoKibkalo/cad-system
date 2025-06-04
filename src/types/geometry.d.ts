@@ -11,6 +11,8 @@ export interface Module {
   rotation: number;
   stackedFloors: number;
   showBorder?: boolean; // нове
+  isGrouped?: boolean; // Track if module is part of a group
+  groupId?: string; // Track which group this belongs to
 }
 
 export interface Opening {
@@ -31,6 +33,8 @@ export interface Balcony {
   length: number;
   distanceAlongWall: number;
   wallSide: 1 | 2 | 3 | 4;
+  isGrouped?: boolean;
+  groupId?: string;
 }
 
 export interface BathroomPod {
@@ -42,6 +46,8 @@ export interface BathroomPod {
   x_offset: number;
   y_offset: number;
   type?: string;
+  isGrouped?: boolean;
+  groupId?: string;
 }
 
 export interface Corridor {
@@ -51,6 +57,8 @@ export interface Corridor {
   x2: number;
   y2: number;
   floor: number;
+  isGrouped?: boolean;
+  groupId?: string;
 }
 
 export interface Roof {
@@ -65,3 +73,22 @@ export interface Roof {
   y2: number;
   parapetHeight?: number;
 }
+
+export interface ElementGroup {
+  id: string;
+  name: string;
+  elements: {
+    modules: string[];
+    corridors: string[];
+    balconies: string[];
+    bathroomPods: string[];
+  };
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  createdAt: number;
+}
+
+// Legacy alias for backward compatibility
+export type ModuleGroup = ElementGroup;
