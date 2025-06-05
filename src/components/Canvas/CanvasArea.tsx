@@ -38,6 +38,7 @@ import { useCanvasRefStore } from '@/state/canvasRefStore';
 import useGrouping from './hooks/useGrouping';
 import useRenderGroups from './hooks/useRenderGroups';
 import useGroupMovement from './hooks/useGroupMovement';
+import useCanvasCleanup from './hooks/useCanvasCleanup';
 import CanvasContextMenu from './CanvasContextMenu';
 
 const CanvasContainer = styled.div<{ gridSizePx?: number; offsetX?: number; offsetY?: number }>`
@@ -191,6 +192,9 @@ export default function CanvasArea() {
   useGrouping(canvas)
   useRenderGroups(canvas)
   useGroupMovement(canvas)
+  
+  // Canvas cleanup to remove ghost objects
+  useCanvasCleanup(canvas)
 
   // Розмір клітини в px
   const baseGridPx = gridSizeMm * scaleFactor;

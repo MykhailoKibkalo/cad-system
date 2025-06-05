@@ -148,13 +148,9 @@ export default function useRenderGroups(canvas: Canvas | null) {
             groupObjects.push(canvasObj);
             console.log('🎨 Found existing corridor for grouping:', corridorId);
           } else {
-            // Create missing corridor (simplified for now)
-            const corridor = corridors.find(c => c.id === corridorId);
-            if (corridor) {
-              console.log('🎨 Creating missing corridor for group:', corridorId);
-              // TODO: Implement corridor creation logic
-              console.log('🎨 Corridor creation not implemented yet');
-            }
+            // Skip creating corridors here - they should already exist from useRenderCorridors
+            console.log('🎨 Corridor not found for group, skipping:', corridorId);
+            // Corridors should be rendered by useRenderCorridors before groups are created
           }
         });
         

@@ -431,9 +431,27 @@ export default function useGrouping(canvas: Canvas | null) {
         }
       });
 
-      // Remove group from canvas
+      // Remove group from canvas - but first ensure all internal objects are destroyed
       console.log('🔥 Removing group from canvas');
+      
+      // Destroy the group to ensure no ghost objects remain
+      const objectsInGroup = group.getObjects();
+      console.log('🔥 Destroying group objects:', objectsInGroup.length);
+      
+      // Remove all objects from the group first
+      group.removeAll();
+      
+      // Then remove the group itself
       canvas.remove(group);
+      
+      // Force cleanup of any remaining objects
+      canvas.getObjects().forEach(obj => {
+        // Remove any objects that shouldn't exist
+        if ((obj as any).group === group) {
+          console.log('🔥 Removing orphaned group object');
+          canvas.remove(obj);
+        }
+      });
 
       // Remove group from store
       console.log('🔥 Removing group from store:', groupData.id);

@@ -59,18 +59,20 @@ export default function useBathroomPodMovement(canvas: Canvas | null) {
       const mod = modules.find(m => m.id === bp?.moduleId);
       if (!bp || !mod) return;
 
-      // bounding box для врахування масштабів і поворотів - ensure integers
-      const b = obj.getBoundingRect(true);
-      const x1 = Math.round((Math.round(b.left) - Math.round(mod.x0! * scaleFactor)) / scaleFactor);
-      const y1 = Math.round((Math.round(b.top) - Math.round(mod.y0! * scaleFactor)) / scaleFactor);
-      const w = Math.round(Math.round(b.width) / scaleFactor);
-      const h = Math.round(Math.round(b.height) / scaleFactor);
+      // Only update position during movement, not dimensions
+      // Calculate position relative to parent module
+      const objLeft = Math.round(obj.left || 0);
+      const objTop = Math.round(obj.top || 0);
+      const moduleLeft = Math.round(mod.x0! * scaleFactor);
+      const moduleTop = Math.round(mod.y0! * scaleFactor);
+      
+      const x1 = Math.round((objLeft - moduleLeft) / scaleFactor);
+      const y1 = Math.round((objTop - moduleTop) / scaleFactor);
 
       updateBathroomPod(bpId, {
         x_offset: Math.round(x1),
         y_offset: Math.round(y1),
-        width: Math.round(w),
-        length: Math.round(h),
+        // Don't update width/length during movement - only during resize
       });
     };
 

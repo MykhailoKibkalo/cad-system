@@ -6,6 +6,7 @@ import styled from '@emotion/styled';
 import { useSelectionStore } from '@/state/selectionStore';
 import { useObjectStore } from '@/state/objectStore';
 import { useCanvasStore } from '@/state/canvasStore';
+import { useCurrentFloorElements } from '../Canvas/hooks/useFloorElements';
 import type { Canvas } from 'fabric';
 import { Corridor } from '@/types/geometry';
 import { Panel } from '@/components/ui/Panel';
@@ -69,7 +70,7 @@ const HalfButton = styled(Button)`
 
 export default function CorridorProperties({ canvas }: { canvas: Canvas }) {
   const corridorId = useSelectionStore(s => s.selectedCorridorId)!;
-  const corridors = useObjectStore(s => s.corridors);
+  const { corridors } = useCurrentFloorElements();
   const updateCorridor = useObjectStore(s => s.updateCorridor);
   const deleteCorridor = useObjectStore(s => s.deleteCorridor);
   const scale = useCanvasStore(s => s.scaleFactor);

@@ -134,6 +134,7 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
   const selectedBathroomPodId = useSelectionStore(s => s.selectedBathroomPodId);
   const selectedCorridorId = useSelectionStore(s => s.selectedCorridorId);
   const selectedBalconyId = useSelectionStore(s => s.selectedBalconyId);
+
   const [adding, setAdding] = useState(false);
   const [editingOpeningId, setEditingOpeningId] = useState<string | null>(null);
 
@@ -267,20 +268,22 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
     canvas?.requestRenderAll();
   };
 
-  // Check for group selection first
-  const selectedGroup = canvas?.getActiveObject?.();
-  if (selectedGroup && (selectedGroup as any).type === 'group' && canvas) {
-    return <GroupProperties canvas={canvas} />;
+  // Check for corridor selection FIRST - before other checks
+  if (selectedCorridorId && canvas) {
+    return <CorridorProperties canvas={canvas} />;
   }
 
-  // Check for balcony selection - this should come before checking other selections
+  // Check for group selection
+  const selectedGroup = canvas?.getActiveObject?.();
+
+  // Check for balcony selection
   if (selectedBalconyId && canvas) {
     return <BalconyProperties canvas={canvas} />;
   }
 
-  // Check for corridor selection
-  if (selectedCorridorId && canvas) {
-    return <CorridorProperties canvas={canvas} />;
+  // Check for group selection
+  if (selectedGroup && (selectedGroup as any).type === 'group' && canvas) {
+    return <GroupProperties canvas={canvas} />;
   }
 
   // Check for bathroom pod selection
@@ -314,7 +317,12 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
     );
   }
 
-  // If no module is selected, don't show the panel
+  // If no element is selected at all, don't show the panel
+  if (!selectedModuleId && !selectedCorridorId && !selectedBalconyId && !selectedBathroomPodId) {
+    return null;
+  }
+
+  // If a non-module is selected, we've already handled it above, so return null
   if (!module) return null;
 
   return (

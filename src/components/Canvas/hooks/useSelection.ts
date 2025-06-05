@@ -19,7 +19,6 @@ export default function useSelection(canvas: Canvas | null) {
       // Handle both single and multi-selection
       const objs: FabricObject[] = opt.selected ?? (opt.target ? [opt.target] : []);
       
-      console.log('🎯 Selection event triggered with objects:', objs.length);
       
       if (objs.length === 0) {
         // Clear all selections
@@ -37,14 +36,6 @@ export default function useSelection(canvas: Canvas | null) {
       const selectedElements: Array<{id: string, type: 'module' | 'corridor' | 'balcony' | 'bathroomPod'}> = [];
       
       objs.forEach((obj: any, index: number) => {
-        console.log(`🎯 Object ${index}:`, {
-          type: obj.type,
-          isModule: obj.isModule,
-          isOpening: obj.isOpening,
-          isCorridor: obj.isCorridor,
-          isBathroomPod: obj.isBathroomPod,
-          isBalcony: obj.isBalcony
-        });
         
         if (obj.isModule) {
           selectedElements.push({ id: obj.isModule, type: 'module' });
@@ -58,7 +49,6 @@ export default function useSelection(canvas: Canvas | null) {
         // Note: We don't include openings in grouping
       });
       
-      console.log('🎯 Collected elements:', selectedElements);
       
       // Update the multi-selection array for grouping
       setSelectedElements(selectedElements);
@@ -67,6 +57,14 @@ export default function useSelection(canvas: Canvas | null) {
       if (objs.length === 1) {
         const obj = objs[0] as any;
         
+        // Always clear all selections first to ensure clean state
+        setSelModule(null);
+        setSelOpening(null);
+        setSelCorridor(null);
+        setSelBathroomPod(null);
+        setSelBalcony(null);
+        
+        // Then set the appropriate selection
         if (obj.isOpening) {
           setSelOpening(obj.isOpening as string);
         } else if (obj.isModule) {
@@ -77,13 +75,6 @@ export default function useSelection(canvas: Canvas | null) {
           setSelBathroomPod(obj.isBathroomPod as string);
         } else if (obj.isBalcony) {
           setSelBalcony(obj.isBalcony as string);
-        } else {
-          // Clear single selections for unknown objects
-          setSelModule(null);
-          setSelOpening(null);
-          setSelCorridor(null);
-          setSelBathroomPod(null);
-          setSelBalcony(null);
         }
       } else {
         // Multi-selection: clear single selections
@@ -105,14 +96,11 @@ export default function useSelection(canvas: Canvas | null) {
       setSelectedElements([]);
     };
 
-    console.log('🎯 Attaching selection listeners to canvas');
-    
     canvas.on('selection:created', onSelected);
     canvas.on('selection:updated', onSelected);
     canvas.on('selection:cleared', onCleared);
 
     return () => {
-      console.log('🎯 Removing selection listeners from canvas');
       canvas.off('selection:created', onSelected);
       canvas.off('selection:updated', onSelected);
       canvas.off('selection:cleared', onCleared);
