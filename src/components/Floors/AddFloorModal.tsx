@@ -4,6 +4,7 @@ import styled from '@emotion/styled';
 import { colors } from '@/styles/theme';
 import { useFloorStore } from '@/state/floorStore';
 import { LuX, LuUpload } from 'react-icons/lu';
+import {Button} from "@/components/ui/Button";
 
 const ModalOverlay = styled.div`
   position: fixed;
@@ -140,38 +141,38 @@ const ModalFooter = styled.div`
   border-top: 1px solid ${colors.gray};
 `;
 
-const Button = styled.button`
-  padding: 10px 20px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: none;
-  
-  &.primary {
-    background: #2196f3;
-    color: white;
-    
-    &:hover {
-      background: #1976d2;
-    }
-    
-    &:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-    }
-  }
-  
-  &.secondary {
-    background: ${colors.gray};
-    color: ${colors.black};
-    
-    &:hover {
-      background: #e0e0e0;
-    }
-  }
-`;
+// const Button = styled.button`
+//   padding: 10px 20px;
+//   border-radius: 6px;
+//   font-size: 14px;
+//   font-weight: 500;
+//   cursor: pointer;
+//   transition: all 0.2s;
+//   border: none;
+//
+//   &.primary {
+//     background: #2196f3;
+//     color: white;
+//
+//     &:hover {
+//       background: #1976d2;
+//     }
+//
+//     &:disabled {
+//       background: #ccc;
+//       cursor: not-allowed;
+//     }
+//   }
+//
+//   &.secondary {
+//     background: ${colors.gray};
+//     color: ${colors.black};
+//
+//     &:hover {
+//       background: #e0e0e0;
+//     }
+//   }
+// `;
 
 interface AddFloorModalProps {
   onClose: () => void;
@@ -260,31 +261,31 @@ const AddFloorModal: React.FC<AddFloorModalProps> = ({ onClose }) => {
             {errors.height && <ErrorMessage>{errors.height}</ErrorMessage>}
           </FormGroup>
 
-          <FormGroup>
-            <Label>Floor Plan PDF (Optional)</Label>
-            <FileUpload onClick={() => document.getElementById('pdf-upload')?.click()}>
-              <FileInput
-                id="pdf-upload"
-                type="file"
-                accept="application/pdf"
-                onChange={handleFileChange}
-              />
-              <UploadIcon>
-                <LuUpload size={24} />
-              </UploadIcon>
-              <UploadText>
-                Click to upload PDF or drag and drop
-              </UploadText>
-              {pdfFile && <FileName>{pdfFile.name}</FileName>}
-            </FileUpload>
-          </FormGroup>
+          {/*<FormGroup>*/}
+          {/*  <Label>Floor Plan PDF (Optional)</Label>*/}
+          {/*  <FileUpload onClick={() => document.getElementById('pdf-upload')?.click()}>*/}
+          {/*    <FileInput*/}
+          {/*      id="pdf-upload"*/}
+          {/*      type="file"*/}
+          {/*      accept="application/pdf"*/}
+          {/*      onChange={handleFileChange}*/}
+          {/*    />*/}
+          {/*    <UploadIcon>*/}
+          {/*      <LuUpload size={24} />*/}
+          {/*    </UploadIcon>*/}
+          {/*    <UploadText>*/}
+          {/*      Click to upload PDF or drag and drop*/}
+          {/*    </UploadText>*/}
+          {/*    {pdfFile && <FileName>{pdfFile.name}</FileName>}*/}
+          {/*  </FileUpload>*/}
+          {/*</FormGroup>*/}
         </ModalBody>
 
         <ModalFooter>
-          <Button className="secondary" onClick={onClose}>
+          <Button variant='danger' onClick={onClose}>
             Cancel
           </Button>
-          <Button className="primary" onClick={handleSave}>
+          <Button variant="primary" onClick={handleSave}>
             Save Floor
           </Button>
         </ModalFooter>

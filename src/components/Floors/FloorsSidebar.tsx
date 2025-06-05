@@ -3,9 +3,10 @@ import React, { useState } from 'react';
 import styled from '@emotion/styled';
 import { colors } from '@/styles/theme';
 import { useFloorStore } from '@/state/floorStore';
-import { LuX, LuLayers, LuPencil, LuTrash2, LuPlus } from 'react-icons/lu';
+import { LuLayers, LuPencil, LuPlus, LuTrash2, LuX } from 'react-icons/lu';
 import AddFloorModal from './AddFloorModal';
 import EditFloorModal from './EditFloorModal';
+import { Button } from '@/components/ui/Button';
 
 const SidebarContainer = styled.div<{ isOpen: boolean }>`
   position: fixed;
@@ -46,7 +47,7 @@ const CloseButton = styled.button`
   justify-content: center;
   border-radius: 4px;
   transition: background 0.2s;
-  
+
   &:hover {
     background: ${colors.gray};
   }
@@ -68,10 +69,10 @@ const FloorItem = styled.div<{ isActive: boolean }>`
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
-  
+
   &:hover {
     background: ${props => (props.isActive ? '#e3f2fd' : '#f5f5f5')};
-    
+
     .actions {
       opacity: 1;
     }
@@ -116,38 +117,25 @@ const ActionButton = styled.button`
   border-radius: 4px;
   transition: background 0.2s;
   color: #666;
-  
+
   &:hover {
     background: ${colors.gray};
     color: ${colors.black};
   }
-  
+
   &.delete:hover {
     background: #ffebee;
     color: #c62828;
   }
 `;
 
-const AddFloorButton = styled.button`
+const AddFloorButton = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
   width: calc(100% - 32px);
   margin: 16px;
-  padding: 12px 24px;
-  background: #2196f3;
-  color: white;
   border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s;
-  
-  &:hover {
-    background: #1976d2;
-  }
 `;
 
 const Backdrop = styled.div<{ isOpen: boolean }>`
@@ -162,14 +150,7 @@ const Backdrop = styled.div<{ isOpen: boolean }>`
 `;
 
 const FloorsSidebar: React.FC = () => {
-  const {
-    floors,
-    selectedFloorId,
-    isSidebarOpen,
-    selectFloor,
-    deleteFloor,
-    setSidebarOpen,
-  } = useFloorStore();
+  const { floors, selectedFloorId, isSidebarOpen, selectFloor, deleteFloor, setSidebarOpen } = useFloorStore();
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingFloorId, setEditingFloorId] = useState<string | null>(null);
@@ -205,7 +186,10 @@ const FloorsSidebar: React.FC = () => {
 
   return (
     <>
-      <Backdrop isOpen={isSidebarOpen && typeof window !== 'undefined' && window.innerWidth < 768} onClick={handleBackdropClick} />
+      <Backdrop
+        isOpen={isSidebarOpen && typeof window !== 'undefined' && window.innerWidth < 768}
+        onClick={handleBackdropClick}
+      />
       <SidebarContainer isOpen={isSidebarOpen}>
         <SidebarHeader>
           <Title>Floors</Title>
@@ -229,13 +213,10 @@ const FloorsSidebar: React.FC = () => {
                 <FloorHeight>({floor.height} mm)</FloorHeight>
               </FloorInfo>
               <FloorActions className="actions">
-                <ActionButton onClick={(e) => handleEditClick(e, floor.id)}>
+                <ActionButton onClick={e => handleEditClick(e, floor.id)}>
                   <LuPencil size={16} />
                 </ActionButton>
-                <ActionButton
-                  className="delete"
-                  onClick={(e) => handleDeleteClick(e, floor.id)}
-                >
+                <ActionButton className="delete" onClick={e => handleDeleteClick(e, floor.id)}>
                   <LuTrash2 size={16} />
                 </ActionButton>
               </FloorActions>
@@ -243,22 +224,17 @@ const FloorsSidebar: React.FC = () => {
           ))}
         </FloorsList>
 
-        <AddFloorButton onClick={() => setShowAddModal(true)}>
-          <LuPlus size={20} />
-          Add New Floor
+        <AddFloorButton>
+
+          <Button variant="primary" icon={<LuPlus size={20} />} style={{flex:1}} onClick={() => setShowAddModal(true)}>
+            Add New Floor
+          </Button>
         </AddFloorButton>
       </SidebarContainer>
 
-      {showAddModal && (
-        <AddFloorModal onClose={() => setShowAddModal(false)} />
-      )}
+      {showAddModal && <AddFloorModal onClose={() => setShowAddModal(false)} />}
 
-      {editingFloorId && (
-        <EditFloorModal
-          floorId={editingFloorId}
-          onClose={() => setEditingFloorId(null)}
-        />
-      )}
+      {editingFloorId && <EditFloorModal floorId={editingFloorId} onClose={() => setEditingFloorId(null)} />}
     </>
   );
 };

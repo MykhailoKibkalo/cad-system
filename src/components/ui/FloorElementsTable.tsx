@@ -168,13 +168,39 @@ const PaginationControls = styled.div`
   gap: 8px;
 `;
 
+// Tab Navigation Styles
+const TabNav = styled.div`
+  display: flex;
+  border-bottom: 1px solid #e5e7eb;
+  background: white;
+  padding: 0 24px;
+`;
+
+const Tab = styled.button<{ isActive: boolean }>`
+  padding: 12px 16px;
+  border: none;
+  background: none;
+  color: ${props => props.isActive ? '#3b82f6' : '#6b7280'};
+  font-weight: ${props => props.isActive ? 600 : 400};
+  font-size: 14px;
+  cursor: pointer;
+  border-bottom: 2px solid ${props => props.isActive ? '#3b82f6' : 'transparent'};
+  transition: all 0.2s ease;
+
+  &:hover {
+    color: #3b82f6;
+  }
+`;
+
 const ITEMS_PER_PAGE = 50;
 
 type SortField = string;
 type SortDirection = 'asc' | 'desc';
+type TabType = 'all' | 'groups' | 'modules' | 'openings' | 'balconies' | 'bathroomPods' | 'corridors' | 'roofs';
 
 export default function FloorElementsTable({ onClose }: FloorElementsTableProps) {
   const currentFloor = useFloorStore(s => s.selectedFloorId);
+  const selectedFloor = useFloorStore(s => s.getSelectedFloor());
   const rawElements = useFloorElements(currentFloor || undefined);
   const groups = useFloorStore(s => s.getActiveGridState()?.groups || []);
   
@@ -193,7 +219,17 @@ export default function FloorElementsTable({ onClose }: FloorElementsTableProps)
   
   const { modules, openings, balconies, bathroomPods, corridors, roofs } = filteredElements;
 
-  // Search states for each table
+  // Tab state
+  const [activeTab, setActiveTab] = useState<TabType>('all');
+
+  // Calculate total elements for All tab
+  const totalElements = modules.length + openings.length + balconies.length + 
+                       bathroomPods.length + corridors.length + roofs.length + groups.length;
+
+  // Unified search state
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Search states for individual tables (kept for backward compatibility)
   const [searchTerms, setSearchTerms] = useState({
     modules: '',
     openings: '',
@@ -279,10 +315,12 @@ export default function FloorElementsTable({ onClose }: FloorElementsTableProps)
     title: string,
     data: T[],
     columns: { key: string; label: string; sortable?: boolean }[],
-    renderCell?: (item: T, key: string) => React.ReactNode
+    renderCell?: (item: T, key: string) => React.ReactNode,
+    customSearchTerm?: string,
+    showSearch?: boolean
   ) => {
-    const searchTerm = searchTerms[tableKey as keyof typeof searchTerms];
-    const filteredData = filterData(data, searchTerm);
+    const searchTermToUse = customSearchTerm !== undefined ? customSearchTerm : searchTerms[tableKey as keyof typeof searchTerms];
+    const filteredData = filterData(data, searchTermToUse);
     const sortedData = sortData(filteredData, tableKey);
     const { paginatedData, totalPages, currentPage } = paginateData(sortedData, tableKey);
 
@@ -292,14 +330,22 @@ export default function FloorElementsTable({ onClose }: FloorElementsTableProps)
           <Text size={20} weight={700}>
             {title} ({filteredData.length})
           </Text>
-          <SearchContainer>
-            <Input
-              placeholder={`Search ${title.toLowerCase()}...`}
-              value={searchTerm}
-              onChange={e => handleSearch(tableKey as keyof typeof searchTerms, e.target.value)}
-              prefix={<LuSearch size={16} />}
-            />
-          </SearchContainer>
+          {showSearch !== false && (
+            <SearchContainer>
+              <Input
+                placeholder={customSearchTerm !== undefined ? getSearchPlaceholder() : `Search ${title.toLowerCase()}...`}
+                value={customSearchTerm !== undefined ? searchTerm : searchTermToUse}
+                onChange={e => {
+                  if (customSearchTerm !== undefined) {
+                    setSearchTerm(e.target.value);
+                  } else {
+                    handleSearch(tableKey as keyof typeof searchTerms, e.target.value);
+                  }
+                }}
+                prefix={<LuSearch size={16} />}
+              />
+            </SearchContainer>
+          )}
         </TableHeader>
 
         <TableContainer>
@@ -425,213 +471,331 @@ export default function FloorElementsTable({ onClose }: FloorElementsTableProps)
     }));
   }, [corridors]);
 
+  // Helper function to get search placeholder based on active tab
+  const getSearchPlaceholder = () => {
+    switch (activeTab) {
+      case 'all': return 'Search all elements...';
+      case 'groups': return 'Search groups...';
+      case 'modules': return 'Search modules...';
+      case 'openings': return 'Search openings...';
+      case 'balconies': return 'Search balconies...';
+      case 'bathroomPods': return 'Search bathroom pods...';
+      case 'corridors': return 'Search corridors...';
+      case 'roofs': return 'Search roofs...';
+      default: return 'Search...';
+    }
+  };
+
+  // Helper function to filter data based on active tab
+  const getActiveTabData = () => {
+    switch (activeTab) {
+      case 'groups': return [{ type: 'groups', data: groups }];
+      case 'modules': return [{ type: 'modules', data: modules }];
+      case 'openings': return [{ type: 'openings', data: enhancedOpenings }];
+      case 'balconies': return [{ type: 'balconies', data: enhancedBalconies }];
+      case 'bathroomPods': return [{ type: 'bathroomPods', data: enhancedBathroomPods }];
+      case 'corridors': return [{ type: 'corridors', data: enhancedCorridors }];
+      case 'roofs': return [{ type: 'roofs', data: roofs }];
+      case 'all':
+      default:
+        return [
+          { type: 'groups', data: groups },
+          { type: 'modules', data: modules },
+          { type: 'openings', data: enhancedOpenings },
+          { type: 'balconies', data: enhancedBalconies },
+          { type: 'bathroomPods', data: enhancedBathroomPods },
+          { type: 'corridors', data: enhancedCorridors },
+          { type: 'roofs', data: roofs }
+        ];
+    }
+  };
+
   return (
     <Overlay onClick={onClose}>
       <Modal onClick={e => e.stopPropagation()}>
         <Header>
           <Text size={24} weight={700}>
-            Floor Elements - Level {currentFloor}
+            Floor Elements - {selectedFloor?.name || 'Unknown Floor'}
           </Text>
           <Button variant="ghost" onClick={onClose}>
             <HiMiniXMark size={24} />
           </Button>
         </Header>
 
+        <TabNav>
+          <Tab 
+            isActive={activeTab === 'all'} 
+            onClick={() => setActiveTab('all')}
+          >
+            All ({totalElements})
+          </Tab>
+          {groups.length > 0 && (
+            <Tab 
+              isActive={activeTab === 'groups'} 
+              onClick={() => setActiveTab('groups')}
+            >
+              Groups ({groups.length})
+            </Tab>
+          )}
+          {modules.length > 0 && (
+            <Tab 
+              isActive={activeTab === 'modules'} 
+              onClick={() => setActiveTab('modules')}
+            >
+              Modules ({modules.length})
+            </Tab>
+          )}
+          {openings.length > 0 && (
+            <Tab 
+              isActive={activeTab === 'openings'} 
+              onClick={() => setActiveTab('openings')}
+            >
+              Openings ({openings.length})
+            </Tab>
+          )}
+          {balconies.length > 0 && (
+            <Tab 
+              isActive={activeTab === 'balconies'} 
+              onClick={() => setActiveTab('balconies')}
+            >
+              Balconies ({balconies.length})
+            </Tab>
+          )}
+          {bathroomPods.length > 0 && (
+            <Tab 
+              isActive={activeTab === 'bathroomPods'} 
+              onClick={() => setActiveTab('bathroomPods')}
+            >
+              Bathroom pods ({bathroomPods.length})
+            </Tab>
+          )}
+          {corridors.length > 0 && (
+            <Tab 
+              isActive={activeTab === 'corridors'} 
+              onClick={() => setActiveTab('corridors')}
+            >
+              Corridors ({corridors.length})
+            </Tab>
+          )}
+        </TabNav>
+
         <Content>
-          {/* Groups Table */}
-          {renderTable(
-            'groups',
-            'Groups',
-            groups,
-            [
-              { key: 'name', label: 'Group Name' },
-              { key: 'moduleCount', label: 'Modules' },
-              { key: 'corridorCount', label: 'Corridors' },
-              { key: 'balconyCount', label: 'Balconies' },
-              { key: 'bathroomPodCount', label: 'Bathroom Pods' },
-              { key: 'totalElements', label: 'Total Elements' },
-              { key: 'elementDetails', label: 'Elements', sortable: false },
-              { key: 'createdAt', label: 'Created', sortable: false },
-            ],
-            (item: any, key) => {
-              if (key === 'moduleCount') return item.elements?.modules?.length || item.moduleIds?.length || 0;
-              if (key === 'corridorCount') return item.elements?.corridors?.length || 0;
-              if (key === 'balconyCount') return item.elements?.balconies?.length || 0;
-              if (key === 'bathroomPodCount') return item.elements?.bathroomPods?.length || 0;
-              if (key === 'totalElements') {
-                const modules = item.elements?.modules?.length || item.moduleIds?.length || 0;
-                const corridors = item.elements?.corridors?.length || 0;
-                const balconies = item.elements?.balconies?.length || 0;
-                const bathroomPods = item.elements?.bathroomPods?.length || 0;
-                return modules + corridors + balconies + bathroomPods;
-              }
-              if (key === 'elementDetails') {
-                const details = [];
-                if (item.elements?.modules?.length || item.moduleIds?.length) {
-                  const moduleIds = item.elements?.modules || item.moduleIds || [];
-                  const moduleNames = moduleIds.map((id: string) => {
-                    const module = rawElements.modules.find(m => m.id === id);
-                    return module ? module.name : id;
-                  }).join(', ');
-                  details.push(`Modules: ${moduleNames}`);
-                }
-                if (item.elements?.corridors?.length) {
-                  details.push(`Corridors: ${item.elements.corridors.join(', ')}`);
-                }
-                if (item.elements?.balconies?.length) {
-                  details.push(`Balconies: ${item.elements.balconies.join(', ')}`);
-                }
-                if (item.elements?.bathroomPods?.length) {
-                  details.push(`Bathroom Pods: ${item.elements.bathroomPods.join(', ')}`);
-                }
-                return details.join(' | ') || 'No elements';
-              }
-              if (key === 'createdAt') return new Date(item.createdAt).toLocaleString();
-              const value = (item as any)[key];
-              return typeof value === 'number' ? Math.round(value) : value;
-            }
-          )}
+          {getActiveTabData().map(({ type, data }) => {
+            if (data.length === 0) return null;
+            
+            switch (type) {
+              case 'groups':
+                return renderTable(
+                  'groups',
+                  'Groups',
+                  data,
+                  [
+                    { key: 'name', label: 'Group Name' },
+                    { key: 'moduleCount', label: 'Modules' },
+                    { key: 'corridorCount', label: 'Corridors' },
+                    { key: 'balconyCount', label: 'Balconies' },
+                    { key: 'bathroomPodCount', label: 'Bathroom Pods' },
+                    { key: 'totalElements', label: 'Total Elements' },
+                    { key: 'elementDetails', label: 'Elements', sortable: false },
+                    { key: 'createdAt', label: 'Created', sortable: false },
+                  ],
+                  (item: any, key) => {
+                    if (key === 'moduleCount') return item.elements?.modules?.length || item.moduleIds?.length || 0;
+                    if (key === 'corridorCount') return item.elements?.corridors?.length || 0;
+                    if (key === 'balconyCount') return item.elements?.balconies?.length || 0;
+                    if (key === 'bathroomPodCount') return item.elements?.bathroomPods?.length || 0;
+                    if (key === 'totalElements') {
+                      const modules = item.elements?.modules?.length || item.moduleIds?.length || 0;
+                      const corridors = item.elements?.corridors?.length || 0;
+                      const balconies = item.elements?.balconies?.length || 0;
+                      const bathroomPods = item.elements?.bathroomPods?.length || 0;
+                      return modules + corridors + balconies + bathroomPods;
+                    }
+                    if (key === 'elementDetails') {
+                      const details = [];
+                      if (item.elements?.modules?.length || item.moduleIds?.length) {
+                        const moduleIds = item.elements?.modules || item.moduleIds || [];
+                        const moduleNames = moduleIds.map((id: string) => {
+                          const module = rawElements.modules.find(m => m.id === id);
+                          return module ? module.name : id;
+                        }).join(', ');
+                        details.push(`Modules: ${moduleNames}`);
+                      }
+                      if (item.elements?.corridors?.length) {
+                        details.push(`Corridors: ${item.elements.corridors.join(', ')}`);
+                      }
+                      if (item.elements?.balconies?.length) {
+                        details.push(`Balconies: ${item.elements.balconies.join(', ')}`);
+                      }
+                      if (item.elements?.bathroomPods?.length) {
+                        details.push(`Bathroom Pods: ${item.elements.bathroomPods.join(', ')}`);
+                      }
+                      return details.join(' | ') || 'No elements';
+                    }
+                    if (key === 'createdAt') return new Date(item.createdAt).toLocaleString();
+                    const value = (item as any)[key];
+                    return typeof value === 'number' ? Math.round(value) : value;
+                  },
+                  searchTerm,
+                  activeTab === 'all'
+                );
 
-          {/* Modules Table */}
-          {renderTable(
-            'modules',
-            'Modules',
-            modules,
-            [
-              { key: 'name', label: 'Name' },
-              { key: 'groupStatus', label: 'Group Status', sortable: false },
-              { key: 'width', label: 'Width (mm)' },
-              { key: 'length', label: 'Length (mm)' },
-              { key: 'height', label: 'Height (mm)' },
-              { key: 'x0', label: 'x0' },
-              { key: 'y0', label: 'y0' },
-              { key: 'zOffset', label: 'z_offset' },
-              { key: 'rotation', label: 'Rotation (°)' },
-              { key: 'stackedFloors', label: 'Floors stacked' },
-            ],
-            (item, key) => {
-              if (key === 'groupStatus') {
-                const module = item as any;
-                if (module.isGrouped && module.groupId) {
-                  const group = groups.find(g => g.id === module.groupId);
-                  return group ? `Grouped (${group.name})` : 'Grouped (Unknown)';
-                }
-                return 'Individual';
-              }
-              const value = (item as any)[key];
-              // Format numeric values as integers
-              return typeof value === 'number' ? Math.round(value) : value;
-            }
-          )}
+              case 'modules':
+                return renderTable(
+                  'modules',
+                  'Modules',
+                  data,
+                  [
+                    { key: 'name', label: 'Name' },
+                    { key: 'groupStatus', label: 'Group Status', sortable: false },
+                    { key: 'width', label: 'Width (mm)' },
+                    { key: 'length', label: 'Length (mm)' },
+                    { key: 'height', label: 'Height (mm)' },
+                    { key: 'x0', label: 'x0' },
+                    { key: 'y0', label: 'y0' },
+                    { key: 'zOffset', label: 'z_offset' },
+                    { key: 'rotation', label: 'Rotation (°)' },
+                    { key: 'stackedFloors', label: 'Floors stacked' },
+                  ],
+                  (item, key) => {
+                    if (key === 'groupStatus') {
+                      const module = item as any;
+                      if (module.isGrouped && module.groupId) {
+                        const group = groups.find(g => g.id === module.groupId);
+                        return group ? `Grouped (${group.name})` : 'Grouped (Unknown)';
+                      }
+                      return 'Individual';
+                    }
+                    const value = (item as any)[key];
+                    return typeof value === 'number' ? Math.round(value) : value;
+                  },
+                  searchTerm,
+                  activeTab === 'all'
+                );
 
-          {/* Openings Table */}
-          {renderTable(
-            'openings',
-            'Openings',
-            enhancedOpenings,
-            [
-              { key: 'moduleName', label: 'Module Name' },
-              { key: 'wallSide', label: 'Wall Side [1–4]' },
-              { key: 'width', label: 'Width (mm)' },
-              { key: 'height', label: 'Height (mm)' },
-              { key: 'distanceAlongWall', label: 'Distance along wall (mm)' },
-              { key: 'yOffset', label: 'y_offset (mm)' },
-            ],
-            (item, key) => {
-              const value = (item as any)[key];
-              return typeof value === 'number' ? Math.round(value) : value;
-            }
-          )}
+              case 'openings':
+                return renderTable(
+                  'openings',
+                  'Openings',
+                  data,
+                  [
+                    { key: 'moduleName', label: 'Module Name' },
+                    { key: 'wallSide', label: 'Wall Side [1–4]' },
+                    { key: 'width', label: 'Width (mm)' },
+                    { key: 'height', label: 'Height (mm)' },
+                    { key: 'distanceAlongWall', label: 'Distance along wall (mm)' },
+                    { key: 'yOffset', label: 'y_offset (mm)' },
+                  ],
+                  (item, key) => {
+                    const value = (item as any)[key];
+                    return typeof value === 'number' ? Math.round(value) : value;
+                  },
+                  searchTerm,
+                  activeTab === 'all'
+                );
 
-          {/* Balconies Table */}
-          {renderTable(
-            'balconies',
-            'Balconies',
-            enhancedBalconies,
-            [
-              { key: 'name', label: 'Identifier (BC…)' },
-              { key: 'moduleName', label: 'Module Name' },
-              { key: 'wallSide', label: 'Wall Side [1–4]' },
-              { key: 'width', label: 'Width (mm)' },
-              { key: 'length', label: 'Length (mm)' },
-              { key: 'distanceAlongWall', label: 'Distance along wall (mm)' },
-            ],
-            (item, key) => {
-              const value = (item as any)[key];
-              return typeof value === 'number' ? Math.round(value) : value;
-            }
-          )}
+              case 'balconies':
+                return renderTable(
+                  'balconies',
+                  'Balconies',
+                  data,
+                  [
+                    { key: 'name', label: 'Identifier (BC…)' },
+                    { key: 'moduleName', label: 'Module Name' },
+                    { key: 'wallSide', label: 'Wall Side [1–4]' },
+                    { key: 'width', label: 'Width (mm)' },
+                    { key: 'length', label: 'Length (mm)' },
+                    { key: 'distanceAlongWall', label: 'Distance along wall (mm)' },
+                  ],
+                  (item, key) => {
+                    const value = (item as any)[key];
+                    return typeof value === 'number' ? Math.round(value) : value;
+                  },
+                  searchTerm,
+                  activeTab === 'all'
+                );
 
-          {/* Bathroom Pods Table */}
-          {renderTable(
-            'bathroomPods',
-            'Bathroom Pods',
-            enhancedBathroomPods,
-            [
-              { key: 'name', label: 'Identifier (BPx…)' },
-              { key: 'moduleName', label: 'Module Name' },
-              { key: 'width', label: 'Width (mm)' },
-              { key: 'length', label: 'Length (mm)' },
-              { key: 'x_offset', label: 'x_offset (mm)' },
-              { key: 'y_offset', label: 'y_offset (mm)' },
-            ],
-            (item, key) => {
-              const value = (item as any)[key];
-              return typeof value === 'number' ? Math.round(value) : value;
-            }
-          )}
+              case 'bathroomPods':
+                return renderTable(
+                  'bathroomPods',
+                  'Bathroom Pods',
+                  data,
+                  [
+                    { key: 'name', label: 'Identifier (BPx…)' },
+                    { key: 'moduleName', label: 'Module Name' },
+                    { key: 'width', label: 'Width (mm)' },
+                    { key: 'length', label: 'Length (mm)' },
+                    { key: 'x_offset', label: 'x_offset (mm)' },
+                    { key: 'y_offset', label: 'y_offset (mm)' },
+                  ],
+                  (item, key) => {
+                    const value = (item as any)[key];
+                    return typeof value === 'number' ? Math.round(value) : value;
+                  },
+                  searchTerm,
+                  activeTab === 'all'
+                );
 
-          {/* Corridors Table */}
-          {renderTable(
-            'corridors',
-            'Corridors',
-            enhancedCorridors,
-            [
-              { key: 'id', label: 'Name' },
-              { key: 'groupStatus', label: 'Group Status', sortable: false },
-              { key: 'direction', label: 'Direction (H/V)' },
-              { key: 'floor', label: 'Floor #' },
-              { key: 'x1', label: 'x1' },
-              { key: 'y1', label: 'y1' },
-              { key: 'x2', label: 'x2' },
-              { key: 'y2', label: 'y2' },
-            ],
-            (item, key) => {
-              if (key === 'groupStatus') {
-                const corridor = item as any;
-                if (corridor.isGrouped && corridor.groupId) {
-                  const group = groups.find(g => g.id === corridor.groupId);
-                  return group ? `Grouped (${group.name})` : 'Grouped (Unknown)';
-                }
-                return 'Individual';
-              }
-              const value = (item as any)[key];
-              return typeof value === 'number' ? Math.round(value) : value;
-            }
-          )}
+              case 'corridors':
+                return renderTable(
+                  'corridors',
+                  'Corridors',
+                  data,
+                  [
+                    { key: 'id', label: 'Name' },
+                    { key: 'groupStatus', label: 'Group Status', sortable: false },
+                    { key: 'direction', label: 'Direction (H/V)' },
+                    { key: 'floor', label: 'Floor #' },
+                    { key: 'x1', label: 'x1' },
+                    { key: 'y1', label: 'y1' },
+                    { key: 'x2', label: 'x2' },
+                    { key: 'y2', label: 'y2' },
+                  ],
+                  (item, key) => {
+                    if (key === 'groupStatus') {
+                      const corridor = item as any;
+                      if (corridor.isGrouped && corridor.groupId) {
+                        const group = groups.find(g => g.id === corridor.groupId);
+                        return group ? `Grouped (${group.name})` : 'Grouped (Unknown)';
+                      }
+                      return 'Individual';
+                    }
+                    const value = (item as any)[key];
+                    return typeof value === 'number' ? Math.round(value) : value;
+                  },
+                  searchTerm,
+                  activeTab === 'all'
+                );
 
-          {/* Roofs Table */}
-          {renderTable(
-            'roofs',
-            'Roofs',
-            roofs,
-            [
-              { key: 'name', label: 'Name' },
-              { key: 'direction', label: 'Direction' },
-              { key: 'type', label: 'Roof Type (Flat/Mono/Gable)' },
-              { key: 'angle', label: 'Angle (°)' },
-              { key: 'level', label: 'Level' },
-              { key: 'x1', label: 'x1' },
-              { key: 'y1', label: 'y1' },
-              { key: 'x2', label: 'x2' },
-              { key: 'y2', label: 'y2' },
-              { key: 'parapetHeight', label: 'Parapet Height' },
-            ],
-            (item, key) => {
-              const value = item[key];
-              return typeof value === 'number' ? Math.round(value) : value;
+              case 'roofs':
+                return renderTable(
+                  'roofs',
+                  'Roofs',
+                  data,
+                  [
+                    { key: 'name', label: 'Name' },
+                    { key: 'direction', label: 'Direction' },
+                    { key: 'type', label: 'Roof Type (Flat/Mono/Gable)' },
+                    { key: 'angle', label: 'Angle (°)' },
+                    { key: 'level', label: 'Level' },
+                    { key: 'x1', label: 'x1' },
+                    { key: 'y1', label: 'y1' },
+                    { key: 'x2', label: 'x2' },
+                    { key: 'y2', label: 'y2' },
+                    { key: 'parapetHeight', label: 'Parapet Height' },
+                  ],
+                  (item, key) => {
+                    const value = item[key];
+                    return typeof value === 'number' ? Math.round(value) : value;
+                  },
+                  searchTerm,
+                  activeTab === 'all'
+                );
+
+              default:
+                return null;
             }
-          )}
+          })}
         </Content>
       </Modal>
     </Overlay>

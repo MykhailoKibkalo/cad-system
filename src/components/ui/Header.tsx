@@ -92,7 +92,7 @@ const SettingsPopup = styled.div`
   position: absolute;
   top: calc(100% - 10px);
   right: 0;
-  min-width: 400px;
+  min-width: 440px;
   background: ${colors.white};
   border: 1px solid ${colors.gray};
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
@@ -122,7 +122,7 @@ const GridSizeRow = styled.div`
 `;
 
 const GridSizeInputWrap = styled.div`
-  width: 80px;
+  width: 112px;
 `;
 
 const GridSizeSeparator = styled.span`
@@ -373,13 +373,47 @@ export default function Header() {
               <MenuItem>
                 <LuSettings2 size={24} />
               </MenuItem>
+
               <SettingsPopup>
+                <SettingsItem>
+                  <MenuItem>
+                    <BsGrid3X3 size={24} />
+                    <Text size={16}>Grid Size</Text>
+                  </MenuItem>
+                  <GridSizeRow>
+                    <GridSizeInputWrap>
+                      <InputWithAffix
+                          min="1"
+                          max="1000"
+                          step="1"
+                          value={gridWidthM}
+                          onChange={onChangeGridWidth}
+                          onBlur={onGridWidthBlur}
+                          type="number"
+                          suffix={'m'}
+                      />
+                    </GridSizeInputWrap>
+                    <GridSizeSeparator>×</GridSizeSeparator>
+                    <GridSizeInputWrap>
+                      <InputWithAffix
+                          min="1"
+                          max="1000"
+                          step="1"
+                          value={gridHeightM}
+                          onChange={onChangeGridHeight}
+                          onBlur={onGridHeightBlur}
+                          type="number"
+                          suffix={'m'}
+                      />
+                    </GridSizeInputWrap>
+                  </GridSizeRow>
+                </SettingsItem>
                 <SettingsItem>
                   <MenuItem>
                     <BsGrid3X3 size={24} />
                     <Text size={16}>Grid Cell Size</Text>
                   </MenuItem>
-                  <InputWrap>
+                  <GridSizeInputWrap>
                     <InputWithAffix
                       min="1"
                       step="1"
@@ -389,42 +423,10 @@ export default function Header() {
                       type="number"
                       suffix={'mm'}
                     />
-                  </InputWrap>
+                  </GridSizeInputWrap>
                 </SettingsItem>
 
-                <SettingsItem>
-                  <MenuItem>
-                    <BsGrid3X3 size={24} />
-                    <Text size={16}>Grid Size (m)</Text>
-                  </MenuItem>
-                  <GridSizeRow>
-                    <GridSizeInputWrap>
-                      <InputWithAffix
-                        min="1"
-                        max="1000"
-                        step="1"
-                        value={gridWidthM}
-                        onChange={onChangeGridWidth}
-                        onBlur={onGridWidthBlur}
-                        type="number"
-                        suffix={'m'}
-                      />
-                    </GridSizeInputWrap>
-                    <GridSizeSeparator>×</GridSizeSeparator>
-                    <GridSizeInputWrap>
-                      <InputWithAffix
-                        min="1"
-                        max="1000"
-                        step="1"
-                        value={gridHeightM}
-                        onChange={onChangeGridHeight}
-                        onBlur={onGridHeightBlur}
-                        type="number"
-                        suffix={'m'}
-                      />
-                    </GridSizeInputWrap>
-                  </GridSizeRow>
-                </SettingsItem>
+
 
                 <SettingsItem>
                   <MenuItem>

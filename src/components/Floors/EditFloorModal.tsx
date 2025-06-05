@@ -4,6 +4,7 @@ import styled from '@emotion/styled';
 import { colors } from '@/styles/theme';
 import { useFloorStore } from '@/state/floorStore';
 import { LuX, LuUpload } from 'react-icons/lu';
+import {Button} from "@/components/ui/Button";
 
 const ModalOverlay = styled.div`
   position: fixed;
@@ -146,38 +147,38 @@ const ModalFooter = styled.div`
   border-top: 1px solid ${colors.gray};
 `;
 
-const Button = styled.button`
-  padding: 10px 20px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: none;
-  
-  &.primary {
-    background: #2196f3;
-    color: white;
-    
-    &:hover {
-      background: #1976d2;
-    }
-    
-    &:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-    }
-  }
-  
-  &.secondary {
-    background: ${colors.lightGray};
-    color: ${colors.black};
-    
-    &:hover {
-      background: #e0e0e0;
-    }
-  }
-`;
+// const Button = styled.button`
+//   padding: 10px 20px;
+//   border-radius: 6px;
+//   font-size: 14px;
+//   font-weight: 500;
+//   cursor: pointer;
+//   transition: all 0.2s;
+//   border: none;
+//
+//   &.primary {
+//     background: #2196f3;
+//     color: white;
+//
+//     &:hover {
+//       background: #1976d2;
+//     }
+//
+//     &:disabled {
+//       background: #ccc;
+//       cursor: not-allowed;
+//     }
+//   }
+//
+//   &.secondary {
+//     background: ${colors.lightGray};
+//     color: ${colors.black};
+//
+//     &:hover {
+//       background: #e0e0e0;
+//     }
+//   }
+// `;
 
 interface EditFloorModalProps {
   floorId: string;
@@ -187,7 +188,7 @@ interface EditFloorModalProps {
 const EditFloorModal: React.FC<EditFloorModalProps> = ({ floorId, onClose }) => {
   const { floors, updateFloor } = useFloorStore();
   const floor = floors.find(f => f.id === floorId);
-  
+
   const [name, setName] = useState(floor?.name || '');
   const [height, setHeight] = useState(floor?.height.toString() || '3100');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
@@ -214,36 +215,36 @@ const EditFloorModal: React.FC<EditFloorModalProps> = ({ floorId, onClose }) => 
 
   const validate = () => {
     const newErrors: { name?: string; height?: string } = {};
-    
+
     if (!name.trim()) {
       newErrors.name = 'Floor name is required';
     }
-    
+
     const heightNum = parseInt(height);
     if (isNaN(heightNum)) {
       newErrors.height = 'Height must be a number';
     } else if (heightNum < 1000 || heightNum > 5000) {
       newErrors.height = 'Height must be between 1000 and 5000 mm';
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSave = async () => {
     if (!validate()) return;
-    
+
     const updates: Partial<typeof floor> = {
       name: name.trim(),
       height: parseInt(height),
     };
-    
+
     if (pdfFile) {
       // In a real app, you'd upload to a server or convert to base64
       // For now, we'll create a local URL
       updates.pdfUrl = URL.createObjectURL(pdfFile);
     }
-    
+
     updateFloor(floorId, updates);
     onClose();
   };
@@ -263,7 +264,7 @@ const EditFloorModal: React.FC<EditFloorModalProps> = ({ floorId, onClose }) => 
             <LuX size={20} />
           </CloseButton>
         </ModalHeader>
-        
+
         <ModalBody>
           <FormGroup>
             <Label>Floor Name *</Label>
@@ -276,7 +277,7 @@ const EditFloorModal: React.FC<EditFloorModalProps> = ({ floorId, onClose }) => 
             />
             {errors.name && <ErrorMessage>{errors.name}</ErrorMessage>}
           </FormGroup>
-          
+
           <FormGroup>
             <Label>Floor Height (mm) *</Label>
             <Input
@@ -290,51 +291,51 @@ const EditFloorModal: React.FC<EditFloorModalProps> = ({ floorId, onClose }) => 
             />
             {errors.height && <ErrorMessage>{errors.height}</ErrorMessage>}
           </FormGroup>
-          
-          <FormGroup>
-            <Label>Floor Plan PDF</Label>
-            <FileUpload onClick={() => document.getElementById('pdf-upload-edit')?.click()}>
-              <FileInput
-                id="pdf-upload-edit"
-                type="file"
-                accept="application/pdf"
-                onChange={handleFileChange}
-              />
-              <UploadIcon>
-                <LuUpload size={24} />
-              </UploadIcon>
-              <UploadText>
-                Click to upload new PDF or drag and drop
-              </UploadText>
-              {pdfFile && <FileName>New: {pdfFile.name}</FileName>}
-              {floor.pdfUrl && !pdfFile && (
-                <CurrentPdfNote>
-                  Current PDF is attached
-                  <button 
-                    type="button"
-                    onClick={handleRemovePdf}
-                    style={{ 
-                      marginLeft: '8px', 
-                      background: 'none', 
-                      border: 'none', 
-                      color: '#f44336', 
-                      cursor: 'pointer',
-                      fontSize: '12px'
-                    }}
-                  >
-                    (Remove)
-                  </button>
-                </CurrentPdfNote>
-              )}
-            </FileUpload>
-          </FormGroup>
+
+          {/*<FormGroup>*/}
+          {/*  <Label>Floor Plan PDF</Label>*/}
+          {/*  <FileUpload onClick={() => document.getElementById('pdf-upload-edit')?.click()}>*/}
+          {/*    <FileInput*/}
+          {/*      id="pdf-upload-edit"*/}
+          {/*      type="file"*/}
+          {/*      accept="application/pdf"*/}
+          {/*      onChange={handleFileChange}*/}
+          {/*    />*/}
+          {/*    <UploadIcon>*/}
+          {/*      <LuUpload size={24} />*/}
+          {/*    </UploadIcon>*/}
+          {/*    <UploadText>*/}
+          {/*      Click to upload new PDF or drag and drop*/}
+          {/*    </UploadText>*/}
+          {/*    {pdfFile && <FileName>New: {pdfFile.name}</FileName>}*/}
+          {/*    {floor.pdfUrl && !pdfFile && (*/}
+          {/*      <CurrentPdfNote>*/}
+          {/*        Current PDF is attached*/}
+          {/*        <button */}
+          {/*          type="button"*/}
+          {/*          onClick={handleRemovePdf}*/}
+          {/*          style={{ */}
+          {/*            marginLeft: '8px', */}
+          {/*            background: 'none', */}
+          {/*            border: 'none', */}
+          {/*            color: '#f44336', */}
+          {/*            cursor: 'pointer',*/}
+          {/*            fontSize: '12px'*/}
+          {/*          }}*/}
+          {/*        >*/}
+          {/*          (Remove)*/}
+          {/*        </button>*/}
+          {/*      </CurrentPdfNote>*/}
+          {/*    )}*/}
+          {/*  </FileUpload>*/}
+          {/*</FormGroup>*/}
         </ModalBody>
-        
+
         <ModalFooter>
-          <Button className="secondary" onClick={onClose}>
+          <Button variant='danger' onClick={onClose}>
             Cancel
           </Button>
-          <Button className="primary" onClick={handleSave}>
+          <Button variant='primary' onClick={handleSave}>
             Apply Changes
           </Button>
         </ModalFooter>

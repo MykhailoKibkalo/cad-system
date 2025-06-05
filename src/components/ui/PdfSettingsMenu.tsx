@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { InputWithAffix } from '@/components/ui/InputWithAffix';
 import { LuFileX, LuLock, LuLockOpen, LuSettings } from 'react-icons/lu';
 import { Divider } from '@/components/ui/Divider';
+import {MdOpacity} from "react-icons/md";
 
 const Container = styled.div`
   position: relative;
@@ -47,11 +48,15 @@ const Popup = styled.div`
   border: 1px solid ${colors.gray};
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   border-radius: 8px;
-  padding: 16px;
+  //padding: 16px;
   visibility: hidden;
   opacity: 0;
   transition: all 0.2s;
   z-index: 10000;
+`;
+
+const PaddingWrap = styled.div`
+    padding: 24px 16px;
 `;
 
 const Section = styled.div`
@@ -76,8 +81,8 @@ const InfoGrid = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
-  padding: 12px;
-  background: #f8fafc;
+  //padding: 12px;
+  //background: #f8fafc;
   border-radius: 6px;
 `;
 
@@ -171,6 +176,7 @@ export const PdfSettingsMenu: React.FC<PdfSettingsMenuProps> = ({ onDeletePdf, o
 
       <Popup onClick={e => e.stopPropagation()}>
         {/* Lock/Unlock Section */}
+        <PaddingWrap>
         <Section>
           <Row>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -186,22 +192,62 @@ export const PdfSettingsMenu: React.FC<PdfSettingsMenuProps> = ({ onDeletePdf, o
           </Text>
         </Section>
 
+        <Section>
+          <Row>
+
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <MdOpacity size={20} />
+
+          <Text size={16} weight={600}>
+            Opacity
+          </Text>
+          </div>
+            <div style={{ minWidth: '60px' }}>
+              <InputWithAffix
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={Math.round(pdfOpacity * 100)}
+                  onChange={handleOpacityInputChange}
+                  suffix="%"
+                  inputWidth="50px"
+              />
+            </div>
+          </Row>
+          <SliderContainer>
+            <SliderRow>
+              <Slider
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={Math.round(pdfOpacity * 100)}
+                  onChange={handleOpacityChange}
+              />
+
+            </SliderRow>
+          </SliderContainer>
+        </Section>
+
+        </PaddingWrap>
+
         <Divider orientation="horizontal" />
 
         {/* PDF Properties Section */}
+      <PaddingWrap>
         <Section>
           <Text size={16} weight={600}>
             Properties
           </Text>
           <InfoGrid>
-            <InfoItem>
-              <InfoLabel>Width (grid units)</InfoLabel>
-              <InfoValue>{pdfWidthGrid}</InfoValue>
-            </InfoItem>
-            <InfoItem>
-              <InfoLabel>Height (grid units)</InfoLabel>
-              <InfoValue>{pdfHeightGrid}</InfoValue>
-            </InfoItem>
+            {/*<InfoItem>*/}
+            {/*  <InfoLabel>Width (grid units)</InfoLabel>*/}
+            {/*  <InfoValue>{pdfWidthGrid}</InfoValue>*/}
+            {/*</InfoItem>*/}
+            {/*<InfoItem>*/}
+            {/*  <InfoLabel>Height (grid units)</InfoLabel>*/}
+            {/*  <InfoValue>{pdfHeightGrid}</InfoValue>*/}
+            {/*</InfoItem>*/}
             <InfoItem>
               <InfoLabel>Grid size</InfoLabel>
               <InfoValue>{Math.round(gridSizeMm)} mm</InfoValue>
@@ -214,40 +260,13 @@ export const PdfSettingsMenu: React.FC<PdfSettingsMenuProps> = ({ onDeletePdf, o
             </InfoItem>
           </InfoGrid>
         </Section>
+      </PaddingWrap>
 
         <Divider orientation="horizontal" />
 
-        {/* Opacity Control Section */}
-        <Section>
-          <Text size={16} weight={600}>
-            Opacity
-          </Text>
-          <SliderContainer>
-            <SliderRow>
-              <Slider
-                type="range"
-                min="0"
-                max="100"
-                value={Math.round(pdfOpacity * 100)}
-                onChange={handleOpacityChange}
-              />
-              <div style={{ minWidth: '60px' }}>
-                <InputWithAffix
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={Math.round(pdfOpacity * 100)}
-                  onChange={handleOpacityInputChange}
-                  suffix="%"
-                  inputWidth="50px"
-                />
-              </div>
-            </SliderRow>
-          </SliderContainer>
-        </Section>
 
-        <Divider orientation="horizontal" />
 
+        <PaddingWrap>
         {/* Action Buttons Section */}
         <Section>
           <div style={{ display: 'flex', gap: '8px' }}>
@@ -261,6 +280,7 @@ export const PdfSettingsMenu: React.FC<PdfSettingsMenuProps> = ({ onDeletePdf, o
             )}
           </div>
         </Section>
+        </PaddingWrap>
       </Popup>
     </Container>
   );
