@@ -1,12 +1,59 @@
 // src/components/Canvas/hooks/usePanZoom.ts
 import { useEffect } from 'react';
 import type { Canvas } from 'fabric';
-import { useCanvasStore } from '../../../state/canvasStore';
+import { Point } from 'fabric';
+import { useCanvasStore } from '@/state/canvasStore';
 
 export default function usePanZoom(canvas: Canvas | null) {
   const zoomLevel = useCanvasStore(s => s.zoomLevel);
   const setZoom = useCanvasStore(s => s.setZoomLevel);
   const handMode = useCanvasStore(s => s.handMode);
+  const gridWidthM = useCanvasStore(s => s.gridWidthM);
+  const gridHeightM = useCanvasStore(s => s.gridHeightM);
+  const scaleFactor = useCanvasStore(s => s.scaleFactor);
+
+  // Helper function to constrain pan within grid bounds
+  const constrainPan = (vpt: number[], zoom: number, canvasWidth: number, canvasHeight: number) => {
+    // Grid dimensions in pixels (1m = 1000mm)
+    const gridWidthPx = gridWidthM * 1000 * scaleFactor;
+    const gridHeightPx = gridHeightM * 1000 * scaleFactor;
+    
+    // Calculate the visible area size
+    const visibleWidth = canvasWidth / zoom;
+    const visibleHeight = canvasHeight / zoom;
+    
+    // Calculate pan limits
+    let minX = 0;
+    let maxX = 0;
+    let minY = 0;
+    let maxY = 0;
+    
+    if (gridWidthPx * zoom > canvasWidth) {
+      // Grid is larger than viewport - limit panning
+      maxX = 0;
+      minX = -(gridWidthPx * zoom - canvasWidth);
+    } else {
+      // Grid fits in viewport - center it
+      const centerX = (canvasWidth - gridWidthPx * zoom) / 2;
+      minX = maxX = centerX;
+    }
+    
+    if (gridHeightPx * zoom > canvasHeight) {
+      // Grid is larger than viewport - limit panning
+      maxY = 0;
+      minY = -(gridHeightPx * zoom - canvasHeight);
+    } else {
+      // Grid fits in viewport - center it
+      const centerY = (canvasHeight - gridHeightPx * zoom) / 2;
+      minY = maxY = centerY;
+    }
+    
+    // Apply constraints
+    vpt[4] = Math.max(minX, Math.min(maxX, vpt[4]));
+    vpt[5] = Math.max(minY, Math.min(maxY, vpt[5]));
+    
+    return vpt;
+  };
 
   // 1) Курсор та селектор vs пан
   useEffect(() => {
@@ -28,22 +75,31 @@ export default function usePanZoom(canvas: Canvas | null) {
     // Центруємо zoom у центр полотна
     const center = canvas.getCenterPoint();
     canvas.zoomToPoint(center, zoomLevel);
+    
+    // Apply pan constraints
+    const vpt = canvas.viewportTransform!;
+    const constrained = constrainPan(vpt, zoomLevel, canvas.getWidth(), canvas.getHeight());
+    canvas.setViewportTransform(constrained as [number, number, number, number, number, number]);
+    
     canvas.requestRenderAll();
     {
       const [, , , , tx, ty] = canvas.viewportTransform!;
-      useCanvasStore.getState().setPan(tx, ty);
+      // Ensure integer pan values
+      useCanvasStore.getState().setPan(Math.round(tx), Math.round(ty));
     }
-  }, [canvas, zoomLevel]);
+  }, [canvas, zoomLevel, gridWidthM, gridHeightM, scaleFactor]);
 
   useEffect(() => {
     if (!canvas) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Space') {
+        e.preventDefault();
         useCanvasStore.getState().setHandMode(true);
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.code === 'Space') {
+        e.preventDefault();
         useCanvasStore.getState().setHandMode(false);
       }
     };
@@ -64,7 +120,23 @@ export default function usePanZoom(canvas: Canvas | null) {
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const factor = e.deltaY > 0 ? 0.9 : 1.1;
-      const next = Math.min(Math.max(canvas.getZoom() * factor, 0.25), 4);
+      const currentZoom = canvas.getZoom();
+      const next = Math.min(Math.max(currentZoom * factor, 0.05), 5);
+      
+      // Get mouse position relative to canvas
+      const rect = canvas.upperCanvasEl.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      
+      // Zoom to mouse position
+      canvas.zoomToPoint(new Point(mouseX, mouseY), next);
+      
+      // Apply pan constraints after zoom
+      const vpt = canvas.viewportTransform!;
+      const constrained = constrainPan(vpt, next, canvas.getWidth(), canvas.getHeight());
+      canvas.setViewportTransform(constrained as [number, number, number, number, number, number]);
+      
+      canvas.requestRenderAll();
       setZoom(parseFloat(next.toFixed(2)));
     };
     el.addEventListener('wheel', onWheel, { passive: false });
@@ -77,20 +149,28 @@ export default function usePanZoom(canvas: Canvas | null) {
     const onDown = (e: MouseEvent) => {
       if (!handMode) return;
       dragging = true;
-      lastX = e.clientX;
-      lastY = e.clientY;
+      lastX = Math.round(e.clientX);
+      lastY = Math.round(e.clientY);
       el.style.cursor = 'grabbing';
     };
     // mousemove → пан
     const onMove = (e: MouseEvent) => {
       if (!dragging) return;
       const vpt = canvas.viewportTransform!;
-      vpt[4] += e.clientX - lastX;
-      vpt[5] += e.clientY - lastY;
-      lastX = e.clientX;
-      lastY = e.clientY;
+      // Ensure integer pan movements
+      vpt[4] += Math.round(e.clientX - lastX);
+      vpt[5] += Math.round(e.clientY - lastY);
+      
+      // Apply pan constraints
+      const currentZoom = canvas.getZoom();
+      const constrained = constrainPan(vpt, currentZoom, canvas.getWidth(), canvas.getHeight());
+      canvas.setViewportTransform(constrained as [number, number, number, number, number, number]);
+      
+      lastX = Math.round(e.clientX);
+      lastY = Math.round(e.clientY);
       canvas.requestRenderAll();
-      useCanvasStore.getState().setPan(vpt[4], vpt[5]);
+      // Ensure integer pan values in store
+      useCanvasStore.getState().setPan(Math.round(constrained[4]), Math.round(constrained[5]));
     };
     // mouseup → кінець пану
     const onUp = () => {
@@ -109,5 +189,5 @@ export default function usePanZoom(canvas: Canvas | null) {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, [canvas, handMode, setZoom]);
+  }, [canvas, handMode, setZoom, gridWidthM, gridHeightM, scaleFactor]);
 }

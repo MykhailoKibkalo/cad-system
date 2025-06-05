@@ -1,10 +1,10 @@
 // src/components/Canvas/hooks/useOpeningTool.ts
 import { useEffect, useRef } from 'react';
 import { Canvas, Rect } from 'fabric';
-import { useToolStore } from '../../../state/toolStore';
-import { useObjectStore } from '../../../state/objectStore';
-import { useCanvasStore } from '../../../state/canvasStore';
-import { Opening } from '../../../types/geometry';
+import { useToolStore } from '@/state/toolStore';
+import { useObjectStore } from '@/state/objectStore';
+import { useCanvasStore } from '@/state/canvasStore';
+import { Opening } from '@/types/geometry';
 
 export default function useOpeningTool(canvas: Canvas | null) {
   const tool = useToolStore(s => s.tool);
@@ -33,18 +33,18 @@ export default function useOpeningTool(canvas: Canvas | null) {
       moduleHitRef.current = hit;
       parentModuleRef.current = (hit as any).isModule;
 
-      let x = p.x,
-        y = p.y;
+      let x = Math.round(p.x),
+        y = Math.round(p.y);
       if (snapMode === 'grid') {
-        const g = gridMm * scale;
-        x = Math.round(x / g) * g;
-        y = Math.round(y / g) * g;
+        const g = Math.round(gridMm * scale);
+        x = Math.round(Math.round(x / g) * g);
+        y = Math.round(Math.round(y / g) * g);
       }
       startRef.current = { x, y };
 
       const r = new Rect({
-        left: x,
-        top: y,
+        left: Math.round(x),
+        top: Math.round(y),
         width: 0,
         height: 0,
         fill: 'rgba(255,165,0,0.3)',
@@ -60,12 +60,12 @@ export default function useOpeningTool(canvas: Canvas | null) {
     const onMouseMove = (opt: any) => {
       if (tool !== 'opening' || !startRef.current || !rectRef.current) return;
       const p = canvas.getPointer(opt.e);
-      let x2 = p.x,
-        y2 = p.y;
+      let x2 = Math.round(p.x),
+        y2 = Math.round(p.y);
       if (snapMode === 'grid') {
-        const g = gridMm * scale;
-        x2 = Math.round(x2 / g) * g;
-        y2 = Math.round(y2 / g) * g;
+        const g = Math.round(gridMm * scale);
+        x2 = Math.round(Math.round(x2 / g) * g);
+        y2 = Math.round(Math.round(y2 / g) * g);
       }
       const { x: x1, y: y1 } = startRef.current;
       const w = x2 - x1,
@@ -73,8 +73,8 @@ export default function useOpeningTool(canvas: Canvas | null) {
       rectRef.current.set({
         left: w < 0 ? x2 : x1,
         top: h < 0 ? y2 : y1,
-        width: Math.abs(w),
-        height: Math.abs(h),
+        width: Math.round(Math.abs(w)),
+        height: Math.round(Math.abs(h)),
       });
       canvas.requestRenderAll();
     };
@@ -82,8 +82,8 @@ export default function useOpeningTool(canvas: Canvas | null) {
     const onMouseUp = () => {
       if (tool !== 'opening' || !startRef.current || !rectRef.current || !moduleHitRef.current) return;
       const rect = rectRef.current;
-      const w = rect.width!,
-        h = rect.height!;
+      const w = Math.round(rect.width!),
+        h = Math.round(rect.height!);
       if (w > 0 && h > 0 && parentModuleRef.current) {
         rect.set({ selectable: true, evented: true, hasControls: true });
         rect.setCoords();
@@ -92,19 +92,19 @@ export default function useOpeningTool(canvas: Canvas | null) {
         const id = Date.now().toString();
         (rect as any).isOpening = id;
 
-        // Вираховуємо параметри opening відносно hit-модуля
+        // Вираховуємо параметри opening відносно hit-модуля - ensure integers
         const hit = moduleHitRef.current;
-        const moduleLeft = hit.left! as number;
-        const moduleTop = hit.top! as number;
+        const moduleLeft = Math.round(hit.left! as number);
+        const moduleTop = Math.round(hit.top! as number);
 
         const opening: Opening = {
           id,
           moduleId: parentModuleRef.current,
           wallSide: 1, // залишаємо заглушку, пізніше детектор стіни
-          width: w / scale,
-          height: h / scale,
-          distance: (rect.left! - moduleLeft) / scale,
-          yOffset: (rect.top! - moduleTop) / scale,
+          width: Math.round(w / scale),
+          height: Math.round(h / scale),
+          distanceAlongWall: Math.round((Math.round(rect.left!) - moduleLeft) / scale),
+          yOffset: Math.round((Math.round(rect.top!) - moduleTop) / scale),
         };
         addOpening(opening);
         canvas.requestRenderAll();

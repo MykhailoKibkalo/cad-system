@@ -2,18 +2,17 @@
 import { useEffect } from 'react';
 import type { Canvas } from 'fabric';
 import * as fabric from 'fabric';
-import { useObjectStore } from '@/state/objectStore';
+import { useCurrentFloorElements } from './useFloorElements';
 import { useCanvasStore } from '@/state/canvasStore';
 
 export default function useRenderBathroomPods(canvas: Canvas | null) {
-  const bathroomPods = useObjectStore(s => s.bathroomPods);
-  const modules      = useObjectStore(s => s.modules);
-  const scaleFactor  = useCanvasStore(s => s.scaleFactor);
+  const { bathroomPods, modules } = useCurrentFloorElements();
+  const scaleFactor = useCanvasStore(s => s.scaleFactor);
 
   useEffect(() => {
     if (!canvas) return;
 
-    // видаляємо старі об’єкти pods
+    // видаляємо старі об'єкти pods
     canvas.getObjects().forEach(o => {
       if ((o as any).isBathroomPod) {
         canvas.remove(o);
@@ -25,16 +24,17 @@ export default function useRenderBathroomPods(canvas: Canvas | null) {
       const mod = modules.find(m => m.id === bp.moduleId);
       if (!mod) return;
 
-      const left  = mod.x0! * scaleFactor + bp.x_offset * scaleFactor;
-      const top   = mod.y0! * scaleFactor + bp.y_offset * scaleFactor;
-      const width = bp.width  * scaleFactor;
-      const height= bp.length * scaleFactor;
+      // Ensure all calculations result in integers
+      const left = Math.round(Math.round(mod.x0! * scaleFactor) + Math.round(bp.x_offset * scaleFactor));
+      const top = Math.round(Math.round(mod.y0! * scaleFactor) + Math.round(bp.y_offset * scaleFactor));
+      const width = Math.round(bp.width * scaleFactor);
+      const height = Math.round(bp.length * scaleFactor);
 
       const rect = new fabric.Rect({
-        left,
-        top,
-        width,
-        height,
+        left: Math.round(left),
+        top: Math.round(top),
+        width: Math.round(width),
+        height: Math.round(height),
         fill: 'rgba(0,150,200,0.3)',
         stroke: '#0096c8',
         strokeWidth: 1,

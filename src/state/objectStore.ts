@@ -1,75 +1,197 @@
 // src/state/objectStore.ts
+// Compatibility layer - delegates all operations to floorStore
 import { create } from 'zustand';
-import { Balcony, BathroomPod, Corridor, Module, Opening } from '@/types/geometry';
+import { Balcony, BathroomPod, Corridor, Module, Opening, ModuleGroup } from '@/types/geometry';
+import { useFloorStore } from './floorStore';
 
 interface ObjState {
+  // Getters that delegate to active floor
   modules: Module[];
   openings: Opening[];
   corridors: Corridor[];
-  addModule: (m: Module) => void;
-  addOpening: (o: Opening) => void;
-  updateModule: (id: string, updates: Partial<Module>) => void;
-  deleteModule: (id: string) => void;
-  updateOpening: (id: string, props: Partial<Opening>) => void;
-  deleteOpening: (id: string) => void;
-  addCorridor: (c: Corridor) => void; // ← добавили
-  updateCorridor: (id: string, props: Partial<Corridor>) => void;
-  deleteCorridor: (id: string) => void;
   balconies: Balcony[];
   bathroomPods: BathroomPod[];
+  groups: ModuleGroup[];
   roofs: [];
+  
+  // Object management methods that delegate to floorStore
+  addModule: (m: Module) => void;
+  updateModule: (id: string, updates: Partial<Module>) => void;
+  deleteModule: (id: string) => void;
+  
+  addOpening: (o: Opening) => void;
+  updateOpening: (id: string, props: Partial<Opening>) => void;
+  deleteOpening: (id: string) => void;
+  
+  addCorridor: (c: Corridor) => void;
+  updateCorridor: (id: string, props: Partial<Corridor>) => void;
+  deleteCorridor: (id: string) => void;
+  
+  addBalcony: (b: Balcony) => void;
+  updateBalcony: (id: string, props: Partial<Balcony>) => void;
+  deleteBalcony: (id: string) => void;
+  
   addBathroomPod: (bp: BathroomPod) => void;
   updateBathroomPod: (id: string, props: Partial<BathroomPod>) => void;
   deleteBathroomPod: (id: string) => void;
-
-  addBalcony(b: Balcony): void;
-
-  updateBalcony(id: string, props: Partial<Balcony>): void;
-
-  deleteBalcony(id: string): void;
+  
+  addGroup: (g: ModuleGroup) => void;
+  updateGroup: (id: string, props: Partial<ModuleGroup>) => void;
+  deleteGroup: (id: string) => void;
+  getGroupContainingModule: (moduleId: string) => ModuleGroup | null;
 }
 
-export const useObjectStore = create<ObjState>(set => ({
-  modules: [],
-  openings: [],
-  corridors: [],
-  balconies: [],
-  bathroomPods: [],
+export const useObjectStore = create<ObjState>((set, get) => ({
+  // Getters that delegate to active floor in floorStore
+  get modules() {
+    const gridState = useFloorStore.getState().getActiveGridState();
+    return gridState?.modules || [];
+  },
+  
+  get openings() {
+    const gridState = useFloorStore.getState().getActiveGridState();
+    return gridState?.openings || [];
+  },
+  
+  get corridors() {
+    const gridState = useFloorStore.getState().getActiveGridState();
+    return gridState?.corridors || [];
+  },
+  
+  get balconies() {
+    const gridState = useFloorStore.getState().getActiveGridState();
+    return gridState?.balconies || [];
+  },
+  
+  get bathroomPods() {
+    const gridState = useFloorStore.getState().getActiveGridState();
+    return gridState?.bathroomPods || [];
+  },
+  
+  get groups() {
+    try {
+      const floorState = useFloorStore.getState();
+      const selectedFloorId = floorState.selectedFloorId;
+      const gridState = floorState.getActiveGridState();
+      
+      console.log('🔍 ObjectStore.groups getter called:', {
+        selectedFloorId,
+        gridStateExists: !!gridState,
+        groupsCount: gridState?.groups?.length || 0,
+        groups: gridState?.groups || []
+      });
+      
+      return gridState?.groups || [];
+    } catch (error) {
+      console.error('🔍 ObjectStore.groups getter error:', error);
+      return [];
+    }
+  },
+  
   roofs: [],
-  addModule: m => set(state => ({ modules: [...state.modules, m] })),
-  addOpening: o => set(state => ({ openings: [...state.openings, o] })),
-  updateModule: (id, updates) =>
-    set(s => ({
-      modules: s.modules.map(m => (m.id === id ? { ...m, ...updates } : m)),
-    })),
-  deleteModule: id =>
-    set(s => ({
-      modules: s.modules.filter(m => m.id !== id),
-      // каскадно прибираємо openings, що належали цьому модулю
-      openings: s.openings.filter(o => o.moduleId !== id),
-    })),
-  updateOpening: (id, props) =>
-    set(s => ({
-      openings: s.openings.map(o => (o.id === id ? { ...o, ...props } : o)),
-    })),
-  deleteOpening: id => set(s => ({ openings: s.openings.filter(o => o.id !== id) })),
-  addCorridor: c => set(s => ({ corridors: [...s.corridors, c] })),
-  updateCorridor: (id, props) =>
-    set(s => ({
-      corridors: s.corridors.map(c => (c.id === id ? { ...c, ...props } : c)),
-    })),
-  deleteCorridor: id => set(s => ({ corridors: s.corridors.filter(c => c.id !== id) })),
-  addBathroomPod: b => set(state => ({ bathroomPods: [...state.bathroomPods, b] })),
-  updateBathroomPod: (id, updates) =>
-    set(s => ({
-      bathroomPods: s.bathroomPods.map(b => (b.id === id ? { ...b, ...updates } : b)),
-    })),
-  deleteBathroomPod: id => set(s => ({ bathroomPods: s.bathroomPods.filter(b => b.id !== id) })),
-
-  addBalcony: b => set(state => ({ balconies: [...state.balconies, b] })),
-  updateBalcony: (id, updates) =>
-    set(s => ({
-      balconies: s.balconies.map(b => (b.id === id ? { ...b, ...updates } : b)),
-    })),
-  deleteBalcony: id => set(s => ({ balconies: s.balconies.filter(b => b.id !== id) })),
+  
+  // Module methods - delegate to floorStore
+  addModule: (module) => {
+    useFloorStore.getState().addModule(module);
+    // Trigger re-render of components using objectStore
+    set({});
+  },
+  
+  updateModule: (id, updates) => {
+    useFloorStore.getState().updateModule(id, updates);
+    set({});
+  },
+  
+  deleteModule: (id) => {
+    useFloorStore.getState().deleteModule(id);
+    set({});
+  },
+  
+  // Opening methods - delegate to floorStore
+  addOpening: (opening) => {
+    useFloorStore.getState().addOpening(opening);
+    set({});
+  },
+  
+  updateOpening: (id, updates) => {
+    useFloorStore.getState().updateOpening(id, updates);
+    set({});
+  },
+  
+  deleteOpening: (id) => {
+    useFloorStore.getState().deleteOpening(id);
+    set({});
+  },
+  
+  // Corridor methods - delegate to floorStore
+  addCorridor: (corridor) => {
+    useFloorStore.getState().addCorridor(corridor);
+    set({});
+  },
+  
+  updateCorridor: (id, updates) => {
+    useFloorStore.getState().updateCorridor(id, updates);
+    set({});
+  },
+  
+  deleteCorridor: (id) => {
+    useFloorStore.getState().deleteCorridor(id);
+    set({});
+  },
+  
+  // Balcony methods - delegate to floorStore
+  addBalcony: (balcony) => {
+    useFloorStore.getState().addBalcony(balcony);
+    set({});
+  },
+  
+  updateBalcony: (id, updates) => {
+    useFloorStore.getState().updateBalcony(id, updates);
+    set({});
+  },
+  
+  deleteBalcony: (id) => {
+    useFloorStore.getState().deleteBalcony(id);
+    set({});
+  },
+  
+  // Bathroom Pod methods - delegate to floorStore
+  addBathroomPod: (pod) => {
+    useFloorStore.getState().addBathroomPod(pod);
+    set({});
+  },
+  
+  updateBathroomPod: (id, updates) => {
+    useFloorStore.getState().updateBathroomPod(id, updates);
+    set({});
+  },
+  
+  deleteBathroomPod: (id) => {
+    useFloorStore.getState().deleteBathroomPod(id);
+    set({});
+  },
+  
+  // Group methods - delegate to floorStore
+  addGroup: (group) => {
+    useFloorStore.getState().addGroup(group);
+    set({});
+  },
+  
+  updateGroup: (id, updates) => {
+    useFloorStore.getState().updateGroup(id, updates);
+    set({});
+  },
+  
+  deleteGroup: (id) => {
+    useFloorStore.getState().deleteGroup(id);
+    set({});
+  },
+  
+  getGroupContainingModule: (moduleId) => {
+    try {
+      return useFloorStore.getState().getGroupContainingModule(moduleId);
+    } catch (error) {
+      return null;
+    }
+  },
 }));

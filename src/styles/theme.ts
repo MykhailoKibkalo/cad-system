@@ -5,7 +5,6 @@ export const colors = {
   gridLine: '#ddd',
   white: '#ffffff',
   gray: '#E7E7E7',
+  lightGray: '#f9fafb',
   black: '#000000',
-
-
 };

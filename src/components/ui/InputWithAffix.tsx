@@ -138,6 +138,8 @@ export const Input: React.FC<InputProps> = ({
   disabled,
   onFocus,
   onBlur,
+  onChange,
+  type,
   ...inputProps
 }) => {
   const [isFocused, setIsFocused] = useState(false);
@@ -149,7 +151,44 @@ export const Input: React.FC<InputProps> = ({
 
   const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     setIsFocused(false);
+
+    // For number inputs, ensure integer values on blur
+    if (type === 'number') {
+      const value = e.target.value;
+      const numValue = parseInt(value) || 0;
+      const min = parseInt(inputProps.min as string) || 0;
+      const max = parseInt(inputProps.max as string) || Infinity;
+
+      const clampedValue = Math.max(min, Math.min(max, Math.round(numValue)));
+
+      // Update the input value if it differs from the clamped integer value
+      if (value !== clampedValue.toString()) {
+        e.target.value = clampedValue.toString();
+        // Trigger onChange with the corrected value
+        if (onChange) {
+          const syntheticEvent = {
+            ...e,
+            target: { ...e.target, value: clampedValue.toString() },
+          } as React.ChangeEvent<HTMLInputElement>;
+          onChange(syntheticEvent);
+        }
+      }
+    }
+
     onBlur?.(e);
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // For number inputs, filter out non-integer values during typing
+    if (type === 'number') {
+      let value = e.target.value;
+      // Allow empty string, digits, and single minus sign at the beginning
+      if (value !== '' && !/^-?\d*$/.test(value)) {
+        return; // Don't update if it contains decimals or invalid characters
+      }
+    }
+
+    onChange?.(e);
   };
 
   return (
@@ -164,12 +203,16 @@ export const Input: React.FC<InputProps> = ({
         {prefix && <Affix disabled={disabled}>{prefix}</Affix>}
         <StyledInput
           {...inputProps}
+          type={type}
           inputWidth={inputWidth}
           hasPrefix={!!prefix}
           hasSuffix={!!suffix}
           disabled={disabled}
           onFocus={handleFocus}
           onBlur={handleBlur}
+          onChange={handleChange}
+          // For number inputs, ensure step=1 by default for integers
+          step={type === 'number' && !inputProps.step ? '1' : inputProps.step}
         />
         {suffix && <Affix disabled={disabled}>{suffix}</Affix>}
       </InputWrapper>

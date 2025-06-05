@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styled from '@emotion/styled';
 import { Canvas, Rect, Text as FabricText } from 'fabric';
 import { useObjectStore } from '@/state/objectStore';
+import { useCurrentFloorElements } from '../Canvas/hooks/useFloorElements';
 import { Module } from '@/types/geometry';
 import { Text } from '@/components/ui/Text';
 import { HiMiniXMark } from 'react-icons/hi2';
@@ -160,11 +161,10 @@ interface BathroomPodEditorProps {
 }
 
 export default function BathroomPodEditor({ moduleId, onClose, podId }: BathroomPodEditorProps) {
-  const modules = useObjectStore(s => s.modules);
+  const { modules, bathroomPods } = useCurrentFloorElements();
   const addBathroomPod = useObjectStore(s => s.addBathroomPod);
   const updateBathroomPod = useObjectStore(s => s.updateBathroomPod);
   const deleteBathroomPod = useObjectStore(s => s.deleteBathroomPod);
-  const bathroomPods = useObjectStore(s => s.bathroomPods);
 
   const module = useMemo<Module>(() => {
     const m = modules.find(m => m.id === moduleId);
@@ -189,8 +189,8 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
   // Predefined bathroom pod dimensions based on type
   const getPodDefaults = useCallback(
     (type: string) => {
-      const maxWidth = Math.min(module.width - 200, 3000); // Leave 200mm margin
-      const maxLength = Math.min(module.length - 200, 3000);
+      const maxWidth = Math.min(Math.round(module.width) - 200, 3000); // Leave 200mm margin
+      const maxLength = Math.min(Math.round(module.length) - 200, 3000);
 
       switch (type) {
         case 'F': // Full Bathroom
@@ -223,19 +223,19 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
     [module.width, module.length]
   );
 
-  // Form state - using bathroom pod field names
+  // Form state - using bathroom pod field names - ensure integers
   const [podType, setPodType] = useState(existing?.type ?? 'F');
-  const [xOffset, setXOffset] = useState(existing?.x_offset ?? 100);
-  const [yOffset, setYOffset] = useState(existing?.y_offset ?? 100);
+  const [xOffset, setXOffset] = useState(Math.round(existing?.x_offset ?? 100));
+  const [yOffset, setYOffset] = useState(Math.round(existing?.y_offset ?? 100));
   const [width, setWidth] = useState(() => {
-    if (existing) return existing.width;
+    if (existing) return Math.round(existing.width);
     const defaults = getPodDefaults('F');
-    return defaults.width;
+    return Math.round(defaults.width);
   });
   const [length, setLength] = useState(() => {
-    if (existing) return existing.length;
+    if (existing) return Math.round(existing.length);
     const defaults = getPodDefaults('F');
-    return defaults.length;
+    return Math.round(defaults.length);
   });
 
   // Validation state
@@ -246,11 +246,11 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
     yOffset?: string;
   }>({});
 
-  // Module dimensions for floor area
+  // Module dimensions for floor area - ensure integers
   const moduleDimensions = useMemo(
     () => ({
-      width: module.width,
-      height: module.length, // Using length as height for top-down floor view
+      width: Math.round(module.width),
+      height: Math.round(module.length), // Using length as height for top-down floor view
     }),
     [module.width, module.length]
   );
@@ -373,36 +373,36 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
     podObjectRef.current = podRect;
     canvas.add(podRect);
 
-    // Canvas event handlers with 1mm precision
+    // Canvas event handlers with 1mm precision - ensure integers
     const onObjectMoving = (e: any) => {
       const obj = e.target;
       if (obj !== podObjectRef.current) return;
 
       const moduleFloor = moduleFloorRef.current!;
 
-      // Apply 1mm grid snapping (convert 1mm to canvas pixels)
-      const gridPx = currentScaleRef.current; // 1mm in canvas pixels
-      let left = Math.round(obj.left / gridPx) * gridPx;
-      let top = Math.round(obj.top / gridPx) * gridPx;
+      // FIX: Apply 1 pixel grid snapping instead of trying to convert mm to pixels
+      // This ensures smooth movement without precision loss
+      let left = Math.round(obj.left);
+      let top = Math.round(obj.top);
 
       // Constrain to module bounds
-      const objWidth = obj.getScaledWidth();
-      const objHeight = obj.getScaledHeight();
+      const objWidth = Math.round(obj.getScaledWidth());
+      const objHeight = Math.round(obj.getScaledHeight());
 
-      if (left < moduleFloor.left) {
-        left = moduleFloor.left;
+      if (left < Math.round(moduleFloor.left)) {
+        left = Math.round(moduleFloor.left);
       }
-      if (top < moduleFloor.top) {
-        top = moduleFloor.top;
+      if (top < Math.round(moduleFloor.top)) {
+        top = Math.round(moduleFloor.top);
       }
-      if (left + objWidth > moduleFloor.left + moduleFloor.width) {
-        left = moduleFloor.left + moduleFloor.width - objWidth;
+      if (left + objWidth > Math.round(moduleFloor.left) + Math.round(moduleFloor.width)) {
+        left = Math.round(moduleFloor.left) + Math.round(moduleFloor.width) - objWidth;
       }
-      if (top + objHeight > moduleFloor.top + moduleFloor.height) {
-        top = moduleFloor.top + moduleFloor.height - objHeight;
+      if (top + objHeight > Math.round(moduleFloor.top) + Math.round(moduleFloor.height)) {
+        top = Math.round(moduleFloor.top) + Math.round(moduleFloor.height) - objHeight;
       }
 
-      obj.set({ left, top });
+      obj.set({ left: Math.round(left), top: Math.round(top) });
       obj.setCoords();
     };
 
@@ -412,18 +412,17 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
 
       const moduleFloor = moduleFloorRef.current!;
 
-      // Calculate current scaled dimensions
-      const scaledWidth = obj.width * obj.scaleX;
-      const scaledHeight = obj.height * obj.scaleY;
+      // Calculate current scaled dimensions - ensure integers
+      const scaledWidth = Math.round(obj.width * obj.scaleX);
+      const scaledHeight = Math.round(obj.height * obj.scaleY);
 
-      // Apply 1mm grid snapping to dimensions
-      const gridPx = currentScaleRef.current; // 1mm in canvas pixels
-      const snappedWidth = Math.max(gridPx, Math.round(scaledWidth / gridPx) * gridPx);
-      const snappedHeight = Math.max(gridPx, Math.round(scaledHeight / gridPx) * gridPx);
+      // FIX: Apply pixel-level snapping instead of trying to convert mm to pixels
+      const snappedWidth = Math.max(1, Math.round(scaledWidth));
+      const snappedHeight = Math.max(1, Math.round(scaledHeight));
 
       // Constrain to module bounds
-      const maxWidth = moduleFloor.left + moduleFloor.width - obj.left;
-      const maxHeight = moduleFloor.top + moduleFloor.height - obj.top;
+      const maxWidth = Math.round(moduleFloor.left) + Math.round(moduleFloor.width) - Math.round(obj.left);
+      const maxHeight = Math.round(moduleFloor.top) + Math.round(moduleFloor.height) - Math.round(obj.top);
 
       const finalWidth = Math.min(snappedWidth, maxWidth);
       const finalHeight = Math.min(snappedHeight, maxHeight);
@@ -443,29 +442,29 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
       const moduleFloor = moduleFloorRef.current!;
 
       // Calculate the scale factors to convert canvas coordinates to real dimensions
-      const scaleX = moduleDimensions.width / moduleFloor.width;
-      const scaleY = moduleDimensions.height / moduleFloor.height;
+      const scaleX = moduleDimensions.width / Math.round(moduleFloor.width);
+      const scaleY = moduleDimensions.height / Math.round(moduleFloor.height);
 
-      // Get final dimensions
-      const finalWidth = obj.getScaledWidth();
-      const finalHeight = obj.getScaledHeight();
+      // Get final dimensions - ensure integers
+      const finalWidth = Math.round(obj.getScaledWidth());
+      const finalHeight = Math.round(obj.getScaledHeight());
 
-      // Convert to real coordinates
-      const newXOffset = Math.round((obj.left - moduleFloor.left) * scaleX);
-      const newYOffset = Math.round((obj.top - moduleFloor.top) * scaleY);
+      // Convert to real coordinates - ensure integers
+      const newXOffset = Math.round((Math.round(obj.left) - Math.round(moduleFloor.left)) * scaleX);
+      const newYOffset = Math.round((Math.round(obj.top) - Math.round(moduleFloor.top)) * scaleY);
       const newWidth = Math.round(finalWidth * scaleX);
       const newLength = Math.round(finalHeight * scaleY);
 
-      // Update form state
-      setXOffset(Math.max(0, newXOffset));
-      setYOffset(Math.max(0, newYOffset));
-      setWidth(Math.max(1, newWidth));
-      setLength(Math.max(1, newLength));
+      // Update form state - ensure integers
+      setXOffset(Math.max(0, Math.round(newXOffset)));
+      setYOffset(Math.max(0, Math.round(newYOffset)));
+      setWidth(Math.max(1, Math.round(newWidth)));
+      setLength(Math.max(1, Math.round(newLength)));
 
       // Normalize the object to have scale 1:1 with new dimensions
       obj.set({
-        width: finalWidth,
-        height: finalHeight,
+        width: Math.round(finalWidth),
+        height: Math.round(finalHeight),
         scaleX: 1,
         scaleY: 1,
       });
@@ -503,8 +502,8 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
     const container = canvasContainerRef.current;
     if (!canvas || !container) return;
 
-    const containerWidth = container.clientWidth;
-    const containerHeight = container.clientHeight;
+    const containerWidth = Math.round(container.clientWidth);
+    const containerHeight = Math.round(container.clientHeight);
 
     canvas.setDimensions({
       width: containerWidth,
@@ -523,8 +522,8 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
     const heightLabel = heightLabelRef.current;
     if (!canvas || !moduleFloor || !pod || !widthLabel || !heightLabel || isUpdatingFromCanvas.current) return;
 
-    const containerWidth = canvas.width!;
-    const containerHeight = canvas.height!;
+    const containerWidth = Math.round(canvas.width!);
+    const containerHeight = Math.round(canvas.height!);
 
     // Calculate scale to fit module in container with padding
     const padding = 60;
@@ -538,30 +537,30 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
     // Store current scale for grid snapping
     currentScaleRef.current = scale;
 
-    // Update module floor size and position
-    const moduleWidth = moduleDimensions.width * scale;
-    const moduleHeight = moduleDimensions.height * scale;
-    const moduleLeft = (containerWidth - moduleWidth) / 2;
-    const moduleTop = (containerHeight - moduleHeight) / 2;
+    // Update module floor size and position - ensure integers
+    const moduleWidth = Math.round(moduleDimensions.width * scale);
+    const moduleHeight = Math.round(moduleDimensions.height * scale);
+    const moduleLeft = Math.round((containerWidth - moduleWidth) / 2);
+    const moduleTop = Math.round((containerHeight - moduleHeight) / 2);
 
     moduleFloor.set({
-      left: moduleLeft,
-      top: moduleTop,
-      width: moduleWidth,
-      height: moduleHeight,
+      left: Math.round(moduleLeft),
+      top: Math.round(moduleTop),
+      width: Math.round(moduleWidth),
+      height: Math.round(moduleHeight),
     });
 
-    // Update pod size and position
-    const podWidth = width * scale;
-    const podHeight = length * scale;
-    const podLeft = moduleLeft + xOffset * scale;
-    const podTop = moduleTop + yOffset * scale;
+    // Update pod size and position - ensure integers
+    const podWidth = Math.round(width * scale);
+    const podHeight = Math.round(length * scale);
+    const podLeft = Math.round(moduleLeft + xOffset * scale);
+    const podTop = Math.round(moduleTop + yOffset * scale);
 
     pod.set({
-      left: podLeft,
-      top: podTop,
-      width: podWidth,
-      height: podHeight,
+      left: Math.round(podLeft),
+      top: Math.round(podTop),
+      width: Math.round(podWidth),
+      height: Math.round(podHeight),
       scaleX: 1,
       scaleY: 1,
     });
@@ -569,14 +568,14 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
     // Update dimension labels
     widthLabel.set({
       text: `${moduleDimensions.width} mm`,
-      left: moduleLeft + moduleWidth / 2,
-      top: moduleTop + moduleHeight + 15,
+      left: Math.round(moduleLeft + moduleWidth / 2),
+      top: Math.round(moduleTop + moduleHeight + 15),
     });
 
     heightLabel.set({
       text: `${moduleDimensions.height} mm`,
-      left: moduleLeft - 25,
-      top: moduleTop + moduleHeight / 2,
+      left: Math.round(moduleLeft - 25),
+      top: Math.round(moduleTop + moduleHeight / 2),
     });
 
     moduleFloor.setCoords();
@@ -594,8 +593,8 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
     if (!existing) {
       // Only apply defaults for new pods, not when editing
       const defaults = getPodDefaults(podType);
-      setWidth(defaults.width);
-      setLength(defaults.length);
+      setWidth(Math.round(defaults.width));
+      setLength(Math.round(defaults.length));
     }
   }, [podType, existing, getPodDefaults]);
 
@@ -605,10 +604,10 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
     if (existing) {
       updateBathroomPod(existing.id, {
         type: podType,
-        x_offset: xOffset,
-        y_offset: yOffset,
-        width,
-        length,
+        x_offset: Math.round(xOffset),
+        y_offset: Math.round(yOffset),
+        width: Math.round(width),
+        length: Math.round(length),
       });
     } else {
       const id = `BP${Date.now()}`;
@@ -617,10 +616,10 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
         moduleId,
         name: id,
         type: podType,
-        x_offset: xOffset,
-        y_offset: yOffset,
-        width,
-        length,
+        x_offset: Math.round(xOffset),
+        y_offset: Math.round(yOffset),
+        width: Math.round(width),
+        length: Math.round(length),
       });
     }
     onClose();
@@ -696,9 +695,10 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
                       label="Width"
                       suffix="mm"
                       type="number"
-                      min={1}
+                      step="1"
+                      min="1"
                       value={width}
-                      onChange={e => setWidth(Math.max(1, +e.target.value))}
+                      onChange={e => setWidth(Math.max(1, Math.round(parseInt(e.target.value) || 1)))}
                       error={validationErrors.width}
                     />
                     {!validationErrors.width && <SuccessMessage>Maximum: {moduleDimensions.width} mm</SuccessMessage>}
@@ -708,9 +708,10 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
                       label="Length"
                       suffix="mm"
                       type="number"
-                      min={1}
+                      step="1"
+                      min="1"
                       value={length}
-                      onChange={e => setLength(Math.max(1, +e.target.value))}
+                      onChange={e => setLength(Math.max(1, Math.round(parseInt(e.target.value) || 1)))}
                       error={validationErrors.length}
                     />
                     {!validationErrors.length && <SuccessMessage>Maximum: {moduleDimensions.height} mm</SuccessMessage>}
@@ -729,9 +730,10 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
                       label="X-position"
                       suffix="mm"
                       type="number"
-                      min={0}
+                      step="1"
+                      min="0"
                       value={xOffset}
-                      onChange={e => setXOffset(Math.max(0, +e.target.value))}
+                      onChange={e => setXOffset(Math.max(0, Math.round(parseInt(e.target.value) || 0)))}
                       error={validationErrors.xOffset}
                     />
                     {!validationErrors.xOffset && (
@@ -743,9 +745,10 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
                       label="Y-position"
                       suffix="mm"
                       type="number"
-                      min={0}
+                      step="1"
+                      min="0"
                       value={yOffset}
-                      onChange={e => setYOffset(Math.max(0, +e.target.value))}
+                      onChange={e => setYOffset(Math.max(0, Math.round(parseInt(e.target.value) || 0)))}
                       error={validationErrors.yOffset}
                     />
                     {!validationErrors.yOffset && (

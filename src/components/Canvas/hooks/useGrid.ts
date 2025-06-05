@@ -15,18 +15,19 @@ export default function useGrid(
     if (!canvas) return;
 
     // 1) Створюємо pattern-канвас
-    const basePx = gridMm * scaleFactor;
-    const size   = basePx * zoomLevel;
+    const basePx = Math.round(gridMm * scaleFactor);
+    const size = Math.round(basePx * zoomLevel);
     const patternCanvas = document.createElement('canvas');
-    patternCanvas.width = patternCanvas.height = size;
+    patternCanvas.width = Math.round(size);
+    patternCanvas.height = Math.round(size);
     const ctx = patternCanvas.getContext('2d')!;
     ctx.strokeStyle = '#9e9e9e';
-    ctx.lineWidth   = 1;
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    ctx.lineTo(0, size);
+    ctx.lineTo(0, Math.round(size));
     ctx.moveTo(0, 0);
-    ctx.lineTo(size, 0);
+    ctx.lineTo(Math.round(size), 0);
     ctx.stroke();
 
     // 2) Встановлюємо як backgroundColor
@@ -35,12 +36,12 @@ export default function useGrid(
     canvas.requestRenderAll();
 
     // 3) Затемнення поза робочою областю — додаємо прямокутник
-    const workingPx = 1000 * scaleFactor * zoomLevel; // <- підставте свій реальний розмір
+    const workingPx = Math.round(1000 * scaleFactor * zoomLevel);
     const cover = new fabric.Rect({
       left: 0,
       top: 0,
-      width: workingPx,
-      height: workingPx,
+      width: Math.round(workingPx),
+      height: Math.round(workingPx),
       fill: 'rgba(255,255,255,0)', // прозорий всередині
       selectable: false,
       evented: false,

@@ -1,10 +1,10 @@
 // src/components/Canvas/hooks/useCorridorTool.ts
 import { useEffect, useRef } from 'react';
-import {Canvas} from 'fabric';
 import * as fabric from 'fabric';
+import { Canvas } from 'fabric';
 import { useCanvasStore } from '@/state/canvasStore';
 import { useObjectStore } from '@/state/objectStore';
-import {useToolStore} from "@/state/toolStore";
+import { useToolStore } from '@/state/toolStore';
 
 export default function useCorridorTool(canvas: Canvas | null) {
   const tool = useToolStore(s => s.tool);
@@ -21,10 +21,13 @@ export default function useCorridorTool(canvas: Canvas | null) {
     const onMouseDown = (opt: any) => {
       if (tool !== 'corridor') return;
       const { x, y } = canvas.getPointer(opt.e);
-      startRef.current = { x, y };
+      // Ensure integer coordinates
+      const xInt = Math.round(x);
+      const yInt = Math.round(y);
+      startRef.current = { x: xInt, y: yInt };
       const rect = new fabric.Rect({
-        left: x,
-        top: y,
+        left: Math.round(xInt),
+        top: Math.round(yInt),
         width: 0,
         height: 0,
         fill: 'rgba(128,128,128,0.3)',
@@ -43,10 +46,13 @@ export default function useCorridorTool(canvas: Canvas | null) {
     const onMouseMove = (opt: any) => {
       if (tool !== 'corridor' || !startRef.current || !rectRef.current) return;
       const { x, y } = canvas.getPointer(opt.e);
+      // Ensure integer coordinates
+      const xInt = Math.round(x);
+      const yInt = Math.round(y);
       const { x: sx, y: sy } = startRef.current;
       rectRef.current.set({
-        width: x - sx,
-        height: y - sy,
+        width: Math.round(xInt - sx),
+        height: Math.round(yInt - sy),
       });
       canvas.requestRenderAll();
     };
@@ -55,16 +61,16 @@ export default function useCorridorTool(canvas: Canvas | null) {
       if (tool !== 'corridor' || !startRef.current || !rectRef.current) return;
       const r = rectRef.current;
       if (r.width! > 0 && r.height! > 0) {
-        const x1 = r.left!,
-          y1 = r.top!;
-        const x2 = x1 + r.width!,
-          y2 = y1 + r.height!;
+        const x1 = Math.round(r.left!),
+          y1 = Math.round(r.top!);
+        const x2 = Math.round(x1 + r.width!),
+          y2 = Math.round(y1 + r.height!);
         addCorridor({
           id: Date.now().toString(),
-          x1: x1 / scaleFactor,
-          y1: y1 / scaleFactor,
-          x2: x2 / scaleFactor,
-          y2: y2 / scaleFactor,
+          x1: Math.round(x1 / scaleFactor),
+          y1: Math.round(y1 / scaleFactor),
+          x2: Math.round(x2 / scaleFactor),
+          y2: Math.round(y2 / scaleFactor),
           floor,
         });
       }
