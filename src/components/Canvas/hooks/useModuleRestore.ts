@@ -28,11 +28,13 @@ export default function useModuleRestore(canvas: Canvas | null) {
 
         // Check if there are modules to restore but no module objects on canvas
         const existingModules = canvas.getObjects().filter(o => (o as any).isModule);
-        const existingGroups = canvas.getObjects().filter(o => (o as any).isModuleGroup);
+        const existingGroups = canvas.getObjects().filter(o => (o as any).isElementGroup);
         
         // Also check if we need to render non-grouped modules
         const nonGroupedModules = gridState.modules.filter(m => !m.isGrouped);
         
+        // Only restore if no modules exist AND we have modules to restore
+        // The reactive useRenderModules hook will handle most cases, this is just for floor switching
         if (nonGroupedModules.length > 0 && existingModules.length === 0 && existingGroups.length === 0) {
           // Restore modules to canvas (skip grouped modules)
           gridState.modules.forEach(module => {

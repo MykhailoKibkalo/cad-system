@@ -29,6 +29,7 @@ import useRenderBalconies from "@/components/Canvas/hooks/useRenderBalconies";
 import useBalconyMovement from "@/components/Canvas/hooks/useBalconyMovement";
 import useFloorSync from "@/components/Canvas/hooks/useFloorSync";
 import useModuleRestore from "@/components/Canvas/hooks/useModuleRestore";
+import useRenderModules from "@/components/Canvas/hooks/useRenderModules";
 import usePdfRestore from "@/components/Canvas/hooks/usePdfRestore";
 import usePdfPropertySync from "@/components/Canvas/hooks/usePdfPropertySync";
 import ZoomControl from "@/components/ui/ZoomControl";
@@ -36,6 +37,7 @@ import ControlWrap from "@/components/ui/ControlPanel";
 import { useCanvasRefStore } from '@/state/canvasRefStore';
 import useGrouping from './hooks/useGrouping';
 import useRenderGroups from './hooks/useRenderGroups';
+import useGroupMovement from './hooks/useGroupMovement';
 import CanvasContextMenu from './CanvasContextMenu';
 
 const CanvasContainer = styled.div<{ gridSizePx?: number; offsetX?: number; offsetY?: number }>`
@@ -141,13 +143,16 @@ export default function CanvasArea() {
 
   // Floor synchronization - must be called early to handle floor switching
   useFloorSync(canvas);
-  
+
   // Module restoration for floor switching - must be after floor sync
   useModuleRestore(canvas);
-  
+
+  // Reactive module rendering for data changes within the same floor
+  useRenderModules(canvas);
+
   // PDF restoration for floor switching
   usePdfRestore(canvas);
-  
+
   // PDF property synchronization
   usePdfPropertySync();
 
@@ -185,6 +190,7 @@ export default function CanvasArea() {
   // Group management
   useGrouping(canvas)
   useRenderGroups(canvas)
+  useGroupMovement(canvas)
 
   // Розмір клітини в px
   const baseGridPx = gridSizeMm * scaleFactor;

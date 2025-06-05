@@ -587,7 +587,7 @@ export const useFloorStore = create<FloorState>((set, get) => ({
     if (!floor) return null;
     
     return floor.gridState.groups.find(group => 
-      group.moduleIds.includes(moduleId)
+      group.elements?.modules?.includes(moduleId)
     ) || null;
   },
 

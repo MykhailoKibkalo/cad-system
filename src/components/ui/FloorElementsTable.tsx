@@ -178,14 +178,15 @@ export default function FloorElementsTable({ onClose }: FloorElementsTableProps)
   const rawElements = useFloorElements(currentFloor || undefined);
   const groups = useFloorStore(s => s.getActiveGridState()?.groups || []);
   
-  // Filter out individual elements that are part of groups to avoid duplication
+  // Don't filter out grouped elements - they should still appear in the table
+  // Groups are shown as separate entries, but individual elements should remain visible
   const filteredElements = useMemo(() => {
     return {
-      modules: rawElements.modules.filter(m => !m.isGrouped),
+      modules: rawElements.modules, // Show all modules, including grouped ones
       openings: rawElements.openings, // Openings are never grouped individually
-      balconies: rawElements.balconies.filter(b => !b.isGrouped),
-      bathroomPods: rawElements.bathroomPods.filter(bp => !bp.isGrouped),
-      corridors: rawElements.corridors.filter(c => !c.isGrouped),
+      balconies: rawElements.balconies, // Show all balconies, including grouped ones
+      bathroomPods: rawElements.bathroomPods, // Show all bathroom pods, including grouped ones
+      corridors: rawElements.corridors, // Show all corridors, including grouped ones
       roofs: rawElements.roofs
     };
   }, [rawElements]);
@@ -498,6 +499,7 @@ export default function FloorElementsTable({ onClose }: FloorElementsTableProps)
             modules,
             [
               { key: 'name', label: 'Name' },
+              { key: 'groupStatus', label: 'Group Status', sortable: false },
               { key: 'width', label: 'Width (mm)' },
               { key: 'length', label: 'Length (mm)' },
               { key: 'height', label: 'Height (mm)' },
@@ -508,6 +510,14 @@ export default function FloorElementsTable({ onClose }: FloorElementsTableProps)
               { key: 'stackedFloors', label: 'Floors stacked' },
             ],
             (item, key) => {
+              if (key === 'groupStatus') {
+                const module = item as any;
+                if (module.isGrouped && module.groupId) {
+                  const group = groups.find(g => g.id === module.groupId);
+                  return group ? `Grouped (${group.name})` : 'Grouped (Unknown)';
+                }
+                return 'Individual';
+              }
               const value = (item as any)[key];
               // Format numeric values as integers
               return typeof value === 'number' ? Math.round(value) : value;
@@ -578,6 +588,7 @@ export default function FloorElementsTable({ onClose }: FloorElementsTableProps)
             enhancedCorridors,
             [
               { key: 'id', label: 'Name' },
+              { key: 'groupStatus', label: 'Group Status', sortable: false },
               { key: 'direction', label: 'Direction (H/V)' },
               { key: 'floor', label: 'Floor #' },
               { key: 'x1', label: 'x1' },
@@ -586,6 +597,14 @@ export default function FloorElementsTable({ onClose }: FloorElementsTableProps)
               { key: 'y2', label: 'y2' },
             ],
             (item, key) => {
+              if (key === 'groupStatus') {
+                const corridor = item as any;
+                if (corridor.isGrouped && corridor.groupId) {
+                  const group = groups.find(g => g.id === corridor.groupId);
+                  return group ? `Grouped (${group.name})` : 'Grouped (Unknown)';
+                }
+                return 'Individual';
+              }
               const value = (item as any)[key];
               return typeof value === 'number' ? Math.round(value) : value;
             }

@@ -180,11 +180,8 @@ export default function GroupsSidebar({ isOpen, onClose, canvas }: GroupsSidebar
     // Also select the group on canvas
     if (canvas) {
       const fabricGroup = canvas.getObjects().find(obj => 
-        (obj as any).isModuleGroup && 
-        (obj as any).moduleIds?.length > 0 &&
-        groups.find(g => g.id === groupId)?.moduleIds.every((id: string) => 
-          (obj as any).moduleIds.includes(id)
-        )
+        (obj as any).isElementGroup && 
+        (obj as any).groupId === groupId
       );
       
       if (fabricGroup) {
@@ -263,7 +260,7 @@ export default function GroupsSidebar({ isOpen, onClose, canvas }: GroupsSidebar
           (groups || []).map(group => {
             const isSelected = selectedObjectIds.includes(group.id);
             const isExpanded = expandedGroups.has(group.id);
-            const groupModules = getModules(group.moduleIds);
+            const groupModules = getModules(group.elements?.modules || []);
             
             return (
               <GroupItem
@@ -299,7 +296,7 @@ export default function GroupsSidebar({ isOpen, onClose, canvas }: GroupsSidebar
                     )}
                     
                     <GroupInfo>
-                      {group.moduleIds.length} modules • Created {formatDate(group.createdAt)}
+                      {(group.elements?.modules || []).length} modules • Created {formatDate(group.createdAt)}
                     </GroupInfo>
                   </GroupContent>
                   

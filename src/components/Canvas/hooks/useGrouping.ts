@@ -6,19 +6,11 @@ import { v4 as uuidv4 } from 'uuid';
 import { useObjectStore } from '@/state/objectStore';
 import { useSelectionStore } from '@/state/selectionStore';
 import { useCanvasStore } from '@/state/canvasStore';
+import { useFloorStore } from '@/state/floorStore';
 import { ElementGroup } from '@/types/geometry';
 
 export default function useGrouping(canvas: Canvas | null) {
-  // Skip during SSR
-  if (typeof window === 'undefined') {
-    return {
-      createGroup: () => null,
-      copyGroup: () => null,
-      ungroupGroup: () => {},
-      canCreateGroup: false,
-    };
-  }
-
+  // Always call hooks first - this is required by Rules of Hooks
   const { 
     addGroup, 
     updateGroup, 
@@ -43,6 +35,16 @@ export default function useGrouping(canvas: Canvas | null) {
   } = useSelectionStore();
   
   const scaleFactor = useCanvasStore(s => s.scaleFactor);
+
+  // Skip during SSR - return after hooks are called
+  if (typeof window === 'undefined') {
+    return {
+      createGroup: () => null,
+      copyGroup: () => null,
+      ungroupGroup: () => {},
+      canCreateGroup: false,
+    };
+  }
 
   // Create a group from selected elements using correct Fabric.js API
   const createGroup = useCallback((groupName?: string) => {
@@ -234,90 +236,400 @@ export default function useGrouping(canvas: Canvas | null) {
 
   // Ungroup using proper Fabric.js API
   const ungroupGroup = useCallback((groupId?: string) => {
-    if (!canvas) return;
+    console.log('🔥 ungroupGroup called with groupId:', groupId);
+    if (!canvas) {
+      console.error('🔥 No canvas for ungrouping');
+      return;
+    }
 
     let group: fabric.Group | null = null;
     let groupData: ElementGroup | null = null;
 
     if (groupId) {
-      // Find group by ID
-      const groups = useObjectStore.getState().groups;
-      groupData = groups?.find(g => g.id === groupId) as ElementGroup || null;
-      if (!groupData) return;
+      // Find group by ID in floorStore
+      console.log('🔥 Finding group by ID:', groupId);
+      const floorStore = useFloorStore.getState();
+      const gridState = floorStore.getActiveGridState();
+      const groups = gridState?.groups || [];
+      groupData = groups.find(g => g.id === groupId) as ElementGroup || null;
+      
+      console.log('🔥 Group data found:', !!groupData, groupData);
+      if (!groupData) {
+        console.error('🔥 Group data not found for ID:', groupId);
+        return;
+      }
       
       // Find fabric group
       group = canvas.getObjects().find(obj => 
         (obj as any).isElementGroup && (obj as any).groupId === groupId
       ) as fabric.Group;
+      
+      console.log('🔥 Fabric group found:', !!group);
     } else {
       // Use active object
+      console.log('🔥 Using active object for ungrouping');
       const activeObject = canvas.getActiveObject();
-      if (!activeObject || !(activeObject as any).isElementGroup) return;
+      console.log('🔥 Active object:', {
+        exists: !!activeObject,
+        isElementGroup: (activeObject as any)?.isElementGroup,
+        groupId: (activeObject as any)?.groupId
+      });
+      
+      if (!activeObject || !(activeObject as any).isElementGroup) {
+        console.error('🔥 Active object is not a group');
+        return;
+      }
       
       group = activeObject as fabric.Group;
       const gId = (group as any).groupId;
       
-      // Find group data
-      const groups = useObjectStore.getState().groups;
-      groupData = groups?.find(g => g.id === gId) as ElementGroup || null;
+      console.log('🔥 Found group ID from active object:', gId);
+      
+      // Find group data in floorStore
+      const floorStore = useFloorStore.getState();
+      const gridState = floorStore.getActiveGridState();
+      const groups = gridState?.groups || [];
+      groupData = groups.find(g => g.id === gId) as ElementGroup || null;
+      
+      console.log('🔥 Group data found from active object:', !!groupData);
     }
 
-    if (!group || !groupData) return;
+    if (!group || !groupData) {
+      console.error('🔥 Missing group or groupData:', { group: !!group, groupData: !!groupData });
+      return;
+    }
 
-    console.log('🔥 Ungrouping group:', groupData.id);
+    console.log('🔥 Starting ungrouping process for group:', groupData.name);
 
-    // Get the objects from the group
-    const groupObjects = group.getObjects();
-    
-    // Remove the group from canvas
-    canvas.remove(group);
-    
-    // Add individual objects back to canvas
-    groupObjects.forEach(obj => {
-      canvas.add(obj);
-    });
-    
-    // Create active selection from the ungrouped objects
-    const activeSelection = new fabric.ActiveSelection(groupObjects, {
-      canvas: canvas,
-    });
-    canvas.setActiveObject(activeSelection);
-    
-    // Mark elements as not grouped
-    groupData.elements.modules.forEach(moduleId => {
-      updateModule(moduleId, { isGrouped: false, groupId: undefined });
-    });
-    groupData.elements.corridors.forEach(corridorId => {
-      updateCorridor(corridorId, { isGrouped: false, groupId: undefined });
-    });
-    groupData.elements.balconies.forEach(balconyId => {
-      updateBalcony(balconyId, { isGrouped: false, groupId: undefined });
-    });
-    groupData.elements.bathroomPods.forEach(podId => {
-      updateBathroomPod(podId, { isGrouped: false, groupId: undefined });
-    });
+    try {
+      console.log('🔥 Starting ungrouping with position preservation...');
+      
+      // Get the group's current position and the objects within it
+      const groupObjects = group.getObjects();
+      const groupLeft = group.left || 0;
+      const groupTop = group.top || 0;
+      
+      console.log('🔥 Group position:', { left: groupLeft, top: groupTop });
+      console.log('🔥 Group contains objects:', groupObjects.length);
+      
+      // Calculate new positions for each element based on group position + relative offset
+      const elementUpdates = new Map<string, any>();
+      
+      groupObjects.forEach((obj: any, index: number) => {
+        // Get the object's position relative to the group
+        const objLeft = obj.left || 0;
+        const objTop = obj.top || 0;
+        
+        // Calculate absolute position (group position + relative position)
+        const absoluteLeft = Math.round(groupLeft + objLeft);
+        const absoluteTop = Math.round(groupTop + objTop);
+        
+        // Convert back to mm coordinates
+        const newX = Math.round(absoluteLeft / scaleFactor);
+        const newY = Math.round(absoluteTop / scaleFactor);
+        
+        console.log(`🔥 Object ${index} position calculation:`, {
+          objType: obj.type,
+          objLeft,
+          objTop,
+          groupLeft,
+          groupTop,
+          absoluteLeft,
+          absoluteTop,
+          newX,
+          newY
+        });
+        
+        // Store updates for each element type
+        if (obj.isModule) {
+          elementUpdates.set(obj.isModule, {
+            type: 'module',
+            id: obj.isModule,
+            updates: { x0: newX, y0: newY, isGrouped: false, groupId: undefined }
+          });
+        } else if (obj.isCorridor) {
+          // For corridors, we need to update both points maintaining the shape
+          const corridor = corridors.find(c => c.id === obj.isCorridor);
+          if (corridor) {
+            const width = corridor.x2 - corridor.x1;
+            const height = corridor.y2 - corridor.y1;
+            elementUpdates.set(obj.isCorridor, {
+              type: 'corridor',
+              id: obj.isCorridor,
+              updates: { 
+                x1: newX, 
+                y1: newY, 
+                x2: newX + width, 
+                y2: newY + height,
+                isGrouped: false, 
+                groupId: undefined 
+              }
+            });
+          }
+        } else if (obj.isBalcony) {
+          elementUpdates.set(obj.isBalcony, {
+            type: 'balcony',
+            id: obj.isBalcony,
+            updates: { isGrouped: false, groupId: undefined }
+          });
+        } else if (obj.isBathroomPod) {
+          elementUpdates.set(obj.isBathroomPod, {
+            type: 'bathroomPod',
+            id: obj.isBathroomPod,
+            updates: { isGrouped: false, groupId: undefined }
+          });
+        }
+      });
+      
+      // Apply all updates to store
+      console.log('🔥 Applying position updates to elements...');
+      elementUpdates.forEach(update => {
+        console.log(`🔥 Updating ${update.type} ${update.id}:`, update.updates);
+        
+        switch (update.type) {
+          case 'module':
+            updateModule(update.id, update.updates);
+            break;
+          case 'corridor':
+            updateCorridor(update.id, update.updates);
+            break;
+          case 'balcony':
+            updateBalcony(update.id, update.updates);
+            break;
+          case 'bathroomPod':
+            updateBathroomPod(update.id, update.updates);
+            break;
+        }
+      });
+      
+      // Also unmark any remaining elements that weren't in the fabric group
+      groupData.elements.modules.forEach(moduleId => {
+        if (!elementUpdates.has(moduleId)) {
+          console.log(`🔥 Unmarking module not in fabric group: ${moduleId}`);
+          updateModule(moduleId, { isGrouped: false, groupId: undefined });
+        }
+      });
+      
+      groupData.elements.corridors.forEach(corridorId => {
+        if (!elementUpdates.has(corridorId)) {
+          console.log(`🔥 Unmarking corridor not in fabric group: ${corridorId}`);
+          updateCorridor(corridorId, { isGrouped: false, groupId: undefined });
+        }
+      });
+      
+      groupData.elements.balconies.forEach(balconyId => {
+        if (!elementUpdates.has(balconyId)) {
+          console.log(`🔥 Unmarking balcony not in fabric group: ${balconyId}`);
+          updateBalcony(balconyId, { isGrouped: false, groupId: undefined });
+        }
+      });
+      
+      groupData.elements.bathroomPods.forEach(podId => {
+        if (!elementUpdates.has(podId)) {
+          console.log(`🔥 Unmarking bathroom pod not in fabric group: ${podId}`);
+          updateBathroomPod(podId, { isGrouped: false, groupId: undefined });
+        }
+      });
 
-    // Remove group from store
-    deleteGroup(groupData.id);
-    
-    // Update selection to individual elements
-    const allElementIds = [
-      ...groupData.elements.modules,
-      ...groupData.elements.corridors,
-      ...groupData.elements.balconies,
-      ...groupData.elements.bathroomPods
-    ];
-    setSelectedObjectIds(allElementIds);
-    
-    canvas.requestRenderAll();
-    console.log('🔥 Ungrouping completed');
+      // Remove group from canvas
+      console.log('🔥 Removing group from canvas');
+      canvas.remove(group);
+
+      // Remove group from store
+      console.log('🔥 Removing group from store:', groupData.id);
+      deleteGroup(groupData.id);
+      
+      // Force canvas to re-render - the reactive hooks should recreate individual elements
+      canvas.requestRenderAll();
+      
+      // Update selection to individual elements
+      const allElementIds = [
+        ...groupData.elements.modules,
+        ...groupData.elements.corridors,
+        ...groupData.elements.balconies,
+        ...groupData.elements.bathroomPods
+      ];
+      console.log('🔥 Updating selection to individual elements:', allElementIds);
+      setSelectedObjectIds(allElementIds);
+      
+      console.log('🔥 Ungrouping completed - reactive hooks should render individual elements');
+    } catch (error) {
+      console.error('🔥 Error during ungrouping:', error);
+    }
   }, [canvas, deleteGroup, updateModule, updateCorridor, updateBalcony, updateBathroomPod, setSelectedObjectIds]);
 
-  // Simple copy group implementation
+  // Copy group implementation - simplified approach without cloning
   const copyGroup = useCallback((groupId: string) => {
-    console.log('🔥 Copy group not implemented yet');
-    return null;
-  }, []);
+    console.log('🔥 copyGroup called with groupId:', groupId);
+    if (!canvas || !groupId) {
+      console.error('🔥 No canvas or groupId for copying');
+      return null;
+    }
+
+    // Find group data in floorStore
+    const floorStore = useFloorStore.getState();
+    const gridState = floorStore.getActiveGridState();
+    const groups = gridState?.groups || [];
+    const groupData = groups.find(g => g.id === groupId) as ElementGroup || null;
+    
+    if (!groupData) {
+      console.error('🔥 Group data not found for copying:', groupId);
+      return null;
+    }
+
+    // Find the fabric group on canvas
+    const fabricGroup = canvas.getObjects().find(obj => 
+      (obj as any).isElementGroup && (obj as any).groupId === groupId
+    ) as fabric.Group;
+
+    if (!fabricGroup) {
+      console.error('🔥 Fabric group not found on canvas:', groupId);
+      return null;
+    }
+
+    // Generate new IDs for copied elements
+    const newGroupId = uuidv4();
+    const elementIdMap = new Map<string, string>();
+    
+    // Create mappings for new element IDs
+    groupData.elements.modules.forEach(id => elementIdMap.set(id, uuidv4()));
+    groupData.elements.corridors.forEach(id => elementIdMap.set(id, uuidv4()));
+    groupData.elements.balconies.forEach(id => elementIdMap.set(id, uuidv4()));
+    groupData.elements.bathroomPods.forEach(id => elementIdMap.set(id, uuidv4()));
+
+    const offset = 100; // pixels
+    
+    // Create new group data with copied elements
+    const newGroupElements = {
+      modules: groupData.elements.modules.map(id => elementIdMap.get(id)!),
+      corridors: groupData.elements.corridors.map(id => elementIdMap.get(id)!),
+      balconies: groupData.elements.balconies.map(id => elementIdMap.get(id)!),
+      bathroomPods: groupData.elements.bathroomPods.map(id => elementIdMap.get(id)!),
+    };
+
+    const newGroupData: ElementGroup = {
+      id: newGroupId,
+      name: `${groupData.name} (Copy)`,
+      elements: newGroupElements,
+      x: Math.round((fabricGroup.left || 0) + offset),
+      y: Math.round((fabricGroup.top || 0) + offset),
+      width: groupData.width,
+      height: groupData.height,
+      createdAt: Date.now(),
+    };
+
+    // Copy the actual elements in the store
+    const objectStore = useObjectStore.getState();
+    
+    // Copy modules
+    groupData.elements.modules.forEach(oldId => {
+      const module = modules.find(m => m.id === oldId);
+      if (module) {
+        const newId = elementIdMap.get(oldId)!;
+        const copiedModule = {
+          ...module,
+          id: newId,
+          x0: module.x0 + Math.round(offset / scaleFactor),
+          y0: module.y0 + Math.round(offset / scaleFactor),
+          isGrouped: true,
+          groupId: newGroupId,
+        };
+        objectStore.addModule(copiedModule);
+      }
+    });
+
+    // Copy corridors
+    groupData.elements.corridors.forEach(oldId => {
+      const corridor = corridors.find(c => c.id === oldId);
+      if (corridor) {
+        const newId = elementIdMap.get(oldId)!;
+        const offsetMm = Math.round(offset / scaleFactor);
+        const copiedCorridor = {
+          ...corridor,
+          id: newId,
+          x1: corridor.x1 + offsetMm,
+          y1: corridor.y1 + offsetMm,
+          x2: corridor.x2 + offsetMm,
+          y2: corridor.y2 + offsetMm,
+          isGrouped: true,
+          groupId: newGroupId,
+        };
+        objectStore.addCorridor(copiedCorridor);
+      }
+    });
+
+    // Copy balconies
+    groupData.elements.balconies.forEach(oldId => {
+      const balcony = balconies.find(b => b.id === oldId);
+      if (balcony) {
+        const newId = elementIdMap.get(oldId)!;
+        const copiedBalcony = {
+          ...balcony,
+          id: newId,
+          // Balconies need to find their new parent module
+          moduleId: elementIdMap.get(balcony.moduleId) || balcony.moduleId,
+          isGrouped: true,
+          groupId: newGroupId,
+        };
+        objectStore.addBalcony(copiedBalcony);
+      }
+    });
+
+    // Copy bathroom pods
+    groupData.elements.bathroomPods.forEach(oldId => {
+      const pod = bathroomPods.find(bp => bp.id === oldId);
+      if (pod) {
+        const newId = elementIdMap.get(oldId)!;
+        const copiedPod = {
+          ...pod,
+          id: newId,
+          // Bathroom pods need to find their new parent module
+          moduleId: elementIdMap.get(pod.moduleId) || pod.moduleId,
+          isGrouped: true,
+          groupId: newGroupId,
+        };
+        objectStore.addBathroomPod(copiedPod);
+      }
+    });
+
+    // Add the new group to store
+    addGroup(newGroupData);
+    
+    console.log('🔥 All elements copied to store, group data created');
+    console.log('🔥 New group elements:', newGroupElements);
+    console.log('🔥 Copied modules:', newGroupElements.modules.length);
+    console.log('🔥 Copied corridors:', newGroupElements.corridors.length);
+    console.log('🔥 Copied balconies:', newGroupElements.balconies.length);
+    console.log('🔥 Copied bathroom pods:', newGroupElements.bathroomPods.length);
+    
+    // The reactive render hooks will automatically create the new group and its elements
+    // because we've added them to the store
+    
+    // Update selection to the new group
+    setSelectedObjectIds([newGroupId]);
+    
+    // Small delay to allow render hooks to create the copied group
+    setTimeout(() => {
+      setSelectedObjectIds([newGroupId]);
+      
+      // Find the new group on canvas and select it
+      const newGroup = canvas.getObjects().find(obj => 
+        (obj as any).isElementGroup && (obj as any).groupId === newGroupId
+      );
+      
+      if (newGroup) {
+        canvas.setActiveObject(newGroup);
+        console.log('🔥 Selected copied group on canvas');
+      } else {
+        console.log('🔥 New group not found on canvas yet, selection updated in store');
+      }
+      
+      canvas.requestRenderAll();
+      console.log('🔥 Group copied successfully:', newGroupData);
+    }, 300); // Longer delay to ensure group rendering completes
+
+    return true;
+  }, [canvas, modules, corridors, balconies, bathroomPods, scaleFactor, addGroup, setSelectedObjectIds]);
 
   return {
     createGroup,

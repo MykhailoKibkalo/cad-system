@@ -11,12 +11,18 @@ export default function useRenderCorridors(canvas: Canvas | null) {
 
   useEffect(() => {
     if (!canvas) return;
-    // remove any old corridor objects
+    // Remove only individual corridor objects (not those inside groups)
     canvas.getObjects().forEach(o => {
-      if ((o as any).isCorridor) canvas.remove(o);
+      if ((o as any).isCorridor && !(o as any).group) {
+        canvas.remove(o);
+      }
     });
 
     corridors.forEach(c => {
+      // Skip corridors that are part of a group
+      if (c.isGrouped) {
+        return;
+      }
       // No need to filter by floor since corridors are already floor-specific
 
       // Ensure all calculations result in integers
