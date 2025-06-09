@@ -25,6 +25,7 @@ import FloorElementsTable from '@/components/ui/FloorElementsTable';
 import { useObjectStore } from '@/state/objectStore';
 import GroupsSidebar from '@/components/Groups/GroupsSidebar';
 import { useCanvasRefStore } from '@/state/canvasRefStore';
+import BuildingModuleTable from '@/components/BuildingModuleTable';
 
 const Container = styled.div`
   display: flex;
@@ -196,6 +197,7 @@ export default function Header() {
   const { setTool } = useToolStore();
   const [showFloorElementsTable, setShowFloorElementsTable] = useState(false);
   const [showGroupsSidebar, setShowGroupsSidebar] = useState(false);
+  const [showBuildingTable, setShowBuildingTable] = useState(false);
   const hasElements = useHasFloorElements();
   const groups = useObjectStore(s => s.groups);
   const hasGroups = groups && groups.length > 0;
@@ -345,7 +347,7 @@ export default function Header() {
               </>
             )}
 
-            {/* Floor Elements Button - New addition */}
+            {/* Floor Elements Button */}
             <FloorElementsButton
               disabled={!hasElements}
               onClick={openFloorElementsPanel}
@@ -353,6 +355,17 @@ export default function Header() {
             >
               <LuTable size={24} />
               <Text size={16}>View Floor Elements</Text>
+            </FloorElementsButton>
+            
+            {/* Building Table Button */}
+            <Divider orientation="vertical" length={'40px'} />
+            <FloorElementsButton
+              disabled={false}
+              onClick={() => setShowBuildingTable(true)}
+              title="View building-wide module summary"
+            >
+              <LuTable size={24} />
+              <Text size={16}>Building Table</Text>
             </FloorElementsButton>
 
             {/* Groups Button - Only show when groups exist */}
@@ -469,6 +482,58 @@ export default function Header() {
 
       {/* Floor Elements Table Modal */}
       {showFloorElementsTable && <FloorElementsTable onClose={() => setShowFloorElementsTable(false)} />}
+      
+      {/* Building Module Table Modal */}
+      {showBuildingTable && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          zIndex: 1003,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            maxWidth: '95vw',
+            maxHeight: '95vh',
+            overflow: 'auto',
+            position: 'relative'
+          }}>
+            <div style={{
+              position: 'sticky',
+              top: 0,
+              backgroundColor: 'white',
+              borderBottom: '1px solid #ddd',
+              padding: '16px 24px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              zIndex: 1
+            }}>
+              <h2 style={{ margin: 0 }}>Building-Wide Module Summary</h2>
+              <button
+                onClick={() => setShowBuildingTable(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  padding: '8px'
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <BuildingModuleTable />
+          </div>
+        </div>
+      )}
     </>
   );
 }
