@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useFloorStore } from '../state/floorStore';
 import { Module, Opening, Balcony, BathroomPod, Corridor, Roof } from '@/types/geometry';
 
@@ -46,6 +46,7 @@ interface RoofTableRow {
 
 const BuildingModuleTable: React.FC = () => {
   const floors = useFloorStore(state => state.floors);
+  const [exportFormat, setExportFormat] = useState<'json' | 'csv'>('json');
   
   // Generate module summary with attachments
   const generateModuleSummary = (): ModuleTableRow[] => {
@@ -226,12 +227,142 @@ const BuildingModuleTable: React.FC = () => {
     return [];
   };
   
+  // Export functions
+  const convertToCSV = (data: any[], headers: string[]) => {
+    const csvRows = [];
+    csvRows.push(headers.join(','));
+    
+    data.forEach(row => {
+      const values = headers.map(header => {
+        const keys = header.toLowerCase().replace(/ /g, '');
+        const value = row[keys] || row[header] || '';
+        // Escape commas and quotes in CSV
+        return typeof value === 'string' && value.includes(',') 
+          ? `"${value.replace(/"/g, '""')}"`
+          : value;
+      });
+      csvRows.push(values.join(','));
+    });
+    
+    return csvRows.join('\n');
+  };
+  
+  const exportData = () => {
+    const moduleData = moduleRows.map(row => ({
+      moduleName: row.moduleName || row.identifier || '',
+      width: row.width,
+      length: row.length,
+      height: row.height,
+      x0: row.x0,
+      y0: row.y0,
+      zOffset: row.zOffset,
+      rotation: row.rotation,
+      numberOfModulesStacked: row.numberOfModulesStacked,
+      type: row.type,
+      wallSide: row.wallSide || '',
+      distanceAlongWall: row.distanceAlongWall || '',
+      yOffset: row.yOffset || '',
+      xOffset: row.xOffset || ''
+    }));
+    
+    const corridorData = corridorRows.map(row => ({
+      name: row.name,
+      direction: row.direction,
+      floor: row.floor,
+      x1: row.x1,
+      y1: row.y1,
+      x2: row.x2,
+      y2: row.y2
+    }));
+    
+    const roofData = roofRows.map(row => ({
+      name: row.name,
+      direction: row.direction,
+      rooftype: row.rooftype,
+      angle: row.angle,
+      level: row.level,
+      x1: row.x1,
+      y1: row.y1,
+      x2: row.x2,
+      y2: row.y2,
+      parapetHeight: row.parapetHeight
+    }));
+    
+    let content = '';
+    let filename = '';
+    
+    if (exportFormat === 'json') {
+      const exportObj = {
+        modules: moduleData,
+        corridors: corridorData,
+        roofs: roofData
+      };
+      content = JSON.stringify(exportObj, null, 2);
+      filename = 'building-data.json';
+    } else {
+      // CSV format - export each table separately
+      const moduleHeaders = ['Module Name', 'Width', 'Length', 'Height', 'x0', 'y0', 'z_offset', 'Rotation', 'Number of modules stacked', 'Type', 'Wall Side', 'Distance Along Wall', 'Y Offset', 'X Offset'];
+      const corridorHeaders = ['Name', 'Direction', 'Floor', 'x1', 'y1', 'x2', 'y2'];
+      const roofHeaders = ['Name', 'Direction', 'Rooftype', 'Angle', 'Level', 'x1', 'y1', 'x2', 'y2', 'Parapet Height'];
+      
+      content = '=== MODULES ===\n' + convertToCSV(moduleData, moduleHeaders) + 
+                '\n\n=== CORRIDORS ===\n' + convertToCSV(corridorData, corridorHeaders) +
+                '\n\n=== ROOFS ===\n' + convertToCSV(roofData, roofHeaders);
+      filename = 'building-data.csv';
+    }
+    
+    // Create download
+    const blob = new Blob([content], { type: exportFormat === 'json' ? 'application/json' : 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+  
   const moduleRows = generateModuleSummary();
   const corridorRows = generateCorridorsSummary();
   const roofRows = generateRoofsSummary();
 
   return (
     <div style={{ padding: '20px', overflowX: 'auto' }}>
+      {/* Export Controls */}
+      <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <label style={{ fontWeight: 'bold' }}>Export as:</label>
+        <select 
+          value={exportFormat} 
+          onChange={(e) => setExportFormat(e.target.value as 'json' | 'csv')}
+          style={{
+            padding: '8px 12px',
+            borderRadius: '4px',
+            border: '1px solid #ddd',
+            fontSize: '14px'
+          }}
+        >
+          <option value="json">JSON</option>
+          <option value="csv">CSV</option>
+        </select>
+        <button 
+          onClick={exportData}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: '#4CAF50',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: 'bold'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#45a049'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#4CAF50'}
+        >
+          Export Data
+        </button>
+      </div>
       {/* Modules Table */}
       <h2>Modules</h2>
       <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: '1200px', marginBottom: '40px' }}>

@@ -49,6 +49,9 @@ export interface Floor {
   pdfUrl?: string;
   gridState: GridState;
   elementsTableData: any[];
+  groupId?: string; // Optional group ID for identical floors
+  isGroupMaster?: boolean; // Whether this floor is the master of a group
+  groupCount?: number; // Total count of floors in group
 }
 
 interface FloorState {
@@ -61,6 +64,7 @@ interface FloorState {
   updateFloor: (id: string, updates: Partial<Floor>) => void;
   deleteFloor: (id: string) => void;
   cloneFloor: (sourceFloorId: string, newName: string) => string | null;
+  copyFloorMultiple: (sourceFloorId: string, newName: string, count: number) => string[] | null;
   selectFloor: (id: string) => void;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
@@ -277,6 +281,116 @@ export const useFloorStore = create<FloorState>((set, get) => ({
     }));
     
     return clonedFloor.id;
+  },
+
+  copyFloorMultiple: (sourceFloorId, newName, count) => {
+    const state = get();
+    const sourceFloor = state.floors.find(f => f.id === sourceFloorId);
+    
+    if (!sourceFloor) {
+      console.error('Source floor not found for copying');
+      return null;
+    }
+    
+    if (count < 1 || count > 20) {
+      console.error('Invalid copy count. Must be between 1 and 20');
+      return null;
+    }
+    
+    const groupId = uuidv4();
+    const newFloorIds: string[] = [];
+    const clonedFloors: Floor[] = [];
+    
+    for (let i = 0; i < count; i++) {
+      // Create mapping of old module IDs to new module IDs
+      const moduleIdMap = new Map<string, string>();
+      const clonedModules = sourceFloor.gridState.modules.map(module => {
+        const newId = uuidv4();
+        moduleIdMap.set(module.id, newId);
+        return {
+          ...module,
+          id: newId
+        };
+      });
+      
+      // Deep clone the source floor
+      const clonedFloor: Floor = {
+        id: uuidv4(),
+        name: count > 1 ? `${newName} ${i + 1}` : newName,
+        height: sourceFloor.height,
+        pdfUrl: sourceFloor.pdfUrl,
+        groupId: count > 1 ? groupId : undefined,
+        isGroupMaster: i === 0 && count > 1,
+        groupCount: count > 1 ? count : undefined,
+        gridState: {
+          gridWidthM: sourceFloor.gridState.gridWidthM,
+          gridHeightM: sourceFloor.gridState.gridHeightM,
+          
+          // Use the cloned modules
+          modules: clonedModules,
+          
+          // Clone corridors with new IDs
+          corridors: sourceFloor.gridState.corridors.map(corridor => ({
+            ...corridor,
+            id: uuidv4()
+          })),
+          
+          // Clone openings with new IDs and map to new module IDs
+          openings: sourceFloor.gridState.openings.map(opening => ({
+            ...opening,
+            id: uuidv4(),
+            moduleId: moduleIdMap.get(opening.moduleId) || opening.moduleId
+          })),
+          
+          // Clone balconies with new IDs and map to new module IDs
+          balconies: sourceFloor.gridState.balconies.map(balcony => ({
+            ...balcony,
+            id: uuidv4(),
+            moduleId: moduleIdMap.get(balcony.moduleId) || balcony.moduleId
+          })),
+          
+          // Clone bathroom pods with new IDs and map to new module IDs
+          bathroomPods: sourceFloor.gridState.bathroomPods.map(pod => ({
+            ...pod,
+            id: uuidv4(),
+            moduleId: moduleIdMap.get(pod.moduleId) || pod.moduleId
+          })),
+          
+          // Clone groups with new IDs and update element references
+          groups: sourceFloor.gridState.groups.map(group => ({
+            ...group,
+            id: uuidv4(),
+            elements: {
+              modules: group.elements.modules.map(moduleId => moduleIdMap.get(moduleId) || moduleId),
+              corridors: group.elements.corridors,
+              balconies: group.elements.balconies,
+              bathroomPods: group.elements.bathroomPods
+            }
+          })),
+          
+          // Clone PDF data
+          pdfData: sourceFloor.gridState.pdfData ? {
+            ...sourceFloor.gridState.pdfData
+          } : null,
+          
+          // Clone canvas state
+          canvasState: {
+            ...sourceFloor.gridState.canvasState
+          }
+        },
+        elementsTableData: [...sourceFloor.elementsTableData]
+      };
+      
+      clonedFloors.push(clonedFloor);
+      newFloorIds.push(clonedFloor.id);
+    }
+    
+    set(state => ({
+      floors: [...state.floors, ...clonedFloors],
+      selectedFloorId: clonedFloors[0].id
+    }));
+    
+    return newFloorIds;
   },
 
   selectFloor: (id) => {

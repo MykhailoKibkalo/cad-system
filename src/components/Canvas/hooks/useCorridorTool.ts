@@ -5,11 +5,13 @@ import { Canvas } from 'fabric';
 import { useCanvasStore } from '@/state/canvasStore';
 import { useObjectStore } from '@/state/objectStore';
 import { useToolStore } from '@/state/toolStore';
+import { topToBottomYMm } from '@/utils/coordinateTransform';
 
 export default function useCorridorTool(canvas: Canvas | null) {
   const tool = useToolStore(s => s.tool);
   const scaleFactor = useCanvasStore(s => s.scaleFactor);
   const floor = useCanvasStore(s => s.currentFloor);
+  const gridHeightM = useCanvasStore(s => s.gridHeightM);
   const addCorridor = useObjectStore(s => s.addCorridor);
 
   const startRef = useRef<{ x: number; y: number } | null>(null);
@@ -61,16 +63,28 @@ export default function useCorridorTool(canvas: Canvas | null) {
       if (tool !== 'corridor' || !startRef.current || !rectRef.current) return;
       const r = rectRef.current;
       if (r.width! > 0 && r.height! > 0) {
-        const x1 = Math.round(r.left!),
-          y1 = Math.round(r.top!);
-        const x2 = Math.round(x1 + r.width!),
-          y2 = Math.round(y1 + r.height!);
+        const x1Px = Math.round(r.left!);
+        const y1Px = Math.round(r.top!);
+        const x2Px = Math.round(x1Px + r.width!);
+        const y2Px = Math.round(y1Px + r.height!);
+        
+        // Convert to mm
+        const x1Mm = Math.round(x1Px / scaleFactor);
+        const y1TopMm = Math.round(y1Px / scaleFactor);
+        const x2Mm = Math.round(x2Px / scaleFactor);
+        const y2TopMm = Math.round(y2Px / scaleFactor);
+        
+        // Convert Y coordinates from top-left to bottom-left
+        const y1BottomMm = topToBottomYMm(y1TopMm, gridHeightM);
+        const y2BottomMm = topToBottomYMm(y2TopMm, gridHeightM);
+        
+        // Store with bottom-left Y coordinates (smaller Y is bottom)
         addCorridor({
           id: Date.now().toString(),
-          x1: Math.round(x1 / scaleFactor),
-          y1: Math.round(y1 / scaleFactor),
-          x2: Math.round(x2 / scaleFactor),
-          y2: Math.round(y2 / scaleFactor),
+          x1: x1Mm,
+          y1: Math.min(y1BottomMm, y2BottomMm), // bottom edge
+          x2: x2Mm,
+          y2: Math.max(y1BottomMm, y2BottomMm), // top edge
           floor,
         });
       }
@@ -90,5 +104,5 @@ export default function useCorridorTool(canvas: Canvas | null) {
       canvas.off('mouse:move', onMouseMove);
       canvas.off('mouse:up', onMouseUp);
     };
-  }, [canvas, tool, scaleFactor, floor, addCorridor]);
+  }, [canvas, tool, scaleFactor, floor, gridHeightM, addCorridor]);
 }

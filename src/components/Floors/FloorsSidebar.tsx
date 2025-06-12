@@ -6,6 +6,7 @@ import { useFloorStore } from '@/state/floorStore';
 import { LuCopy, LuLayers, LuPencil, LuPlus, LuTrash2, LuX } from 'react-icons/lu';
 import AddFloorModal from './AddFloorModal';
 import EditFloorModal from './EditFloorModal';
+import CopyFloorModal from './CopyFloorModal';
 import { Button } from '@/components/ui/Button';
 
 const SidebarContainer = styled.div<{ isOpen: boolean }>`
@@ -92,11 +93,25 @@ const FloorName = styled.div`
   font-weight: 500;
   color: ${colors.black};
   margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
 `;
 
 const FloorHeight = styled.div`
   font-size: 14px;
   color: #666;
+`;
+
+const GroupBadge = styled.div`
+  background: #e3f2fd;
+  color: #1976d2;
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  margin-left: 8px;
+  white-space: nowrap;
 `;
 
 const FloorActions = styled.div`
@@ -216,6 +231,7 @@ const FloorsSidebar: React.FC = () => {
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingFloorId, setEditingFloorId] = useState<string | null>(null);
+  const [copyingFloorId, setCopyingFloorId] = useState<string | null>(null);
   const [floorToDelete, setFloorToDelete] = useState<string | null>(null);
   const [contextMenuFloorId, setContextMenuFloorId] = useState<string | null>(null);
   
@@ -256,16 +272,7 @@ const FloorsSidebar: React.FC = () => {
 
   const handleCopyFloor = (e: React.MouseEvent, sourceFloorId: string) => {
     e.stopPropagation();
-    const sourceFloor = floors.find(f => f.id === sourceFloorId);
-    if (!sourceFloor) return;
-    
-    const newFloorName = window.prompt('Enter new floor name:', `${sourceFloor.name} (Copy)`);
-    if (newFloorName && newFloorName.trim()) {
-      const newFloorId = cloneFloor(sourceFloorId, newFloorName.trim());
-      if (newFloorId) {
-        console.log(`Floor copied successfully. New floor ID: ${newFloorId}`);
-      }
-    }
+    setCopyingFloorId(sourceFloorId);
     setContextMenuFloorId(null);
   };
 
@@ -323,7 +330,9 @@ const FloorsSidebar: React.FC = () => {
         </SidebarHeader>
 
         <FloorsList>
-          {floors.map(floor => (
+          {floors
+            .filter(floor => !floor.groupId || floor.isGroupMaster)
+            .map(floor => (
             <FloorItem
               key={floor.id}
               isActive={floor.id === selectedFloorId}
@@ -333,7 +342,12 @@ const FloorsSidebar: React.FC = () => {
                 <LuLayers size={20} />
               </FloorIcon>
               <FloorInfo>
-                <FloorName>{floor.name}</FloorName>
+                <FloorName>
+                  {floor.name}
+                  {floor.groupCount && floor.groupCount > 1 && (
+                    <GroupBadge>×{floor.groupCount}</GroupBadge>
+                  )}
+                </FloorName>
                 <FloorHeight>({floor.height} mm)</FloorHeight>
               </FloorInfo>
               <FloorActions className="actions">
@@ -379,6 +393,8 @@ const FloorsSidebar: React.FC = () => {
       {showAddModal && <AddFloorModal onClose={() => setShowAddModal(false)} />}
 
       {editingFloorId && <EditFloorModal floorId={editingFloorId} onClose={() => setEditingFloorId(null)} />}
+
+      {copyingFloorId && <CopyFloorModal sourceFloorId={copyingFloorId} onClose={() => setCopyingFloorId(null)} />}
     </>
   );
 };

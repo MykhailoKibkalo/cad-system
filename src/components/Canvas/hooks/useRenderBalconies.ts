@@ -4,10 +4,12 @@ import type { Canvas } from 'fabric';
 import * as fabric from 'fabric';
 import { useCurrentFloorElements } from './useFloorElements';
 import { useCanvasStore } from '@/state/canvasStore';
+import { rectBottomToTopYMm } from '@/utils/coordinateTransform';
 
 export default function useRenderBalconies(canvas: Canvas | null) {
   const { balconies, modules } = useCurrentFloorElements();
   const scale = useCanvasStore(s => s.scaleFactor);
+  const gridHeightM = useCanvasStore(s => s.gridHeightM);
 
   useEffect(() => {
     if (!canvas) return;
@@ -20,16 +22,17 @@ export default function useRenderBalconies(canvas: Canvas | null) {
       const mod = modules.find(m => m.id === bc.moduleId);
       if (!mod) return;
 
-      // Ensure all calculations result in integers
+      // Convert module position from bottom-left to canvas coordinates
+      const moduleTopYMm = rectBottomToTopYMm(mod.y0!, mod.length!, gridHeightM);
       let left = Math.round(mod.x0! * scale);
-      let top = Math.round(mod.y0! * scale);
+      let top = Math.round(moduleTopYMm * scale);
       let w = Math.round(bc.width * scale);
       let h = Math.round(bc.length * scale);
 
       switch (bc.wallSide) {
-        case 1: // top
+        case 1: // top (in bottom-left system, this is actually the "top" wall)
           left += Math.round(bc.distanceAlongWall * scale);
-          top -= h;
+          top -= h; // Balcony extends upward from top wall
           break;
         case 2: // right
           left += Math.round(mod.width! * scale);
@@ -37,9 +40,9 @@ export default function useRenderBalconies(canvas: Canvas | null) {
           w = Math.round(bc.length * scale);
           h = Math.round(bc.width * scale);
           break;
-        case 3: // bottom
+        case 3: // bottom (in bottom-left system, this is actually the "bottom" wall)
           left += Math.round(bc.distanceAlongWall * scale);
-          top += Math.round(mod.length! * scale);
+          top += Math.round(mod.length! * scale); // Balcony extends downward from bottom wall
           break;
         case 4: // left
           left -= Math.round(bc.length * scale);
@@ -88,5 +91,5 @@ export default function useRenderBalconies(canvas: Canvas | null) {
       canvas.add(rect);
     });
     canvas.requestRenderAll();
-  }, [canvas, balconies, modules, scale]);
+  }, [canvas, balconies, modules, scale, gridHeightM]);
 }

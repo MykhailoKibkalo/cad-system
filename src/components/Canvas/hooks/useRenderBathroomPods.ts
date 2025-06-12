@@ -4,10 +4,12 @@ import type { Canvas } from 'fabric';
 import * as fabric from 'fabric';
 import { useCurrentFloorElements } from './useFloorElements';
 import { useCanvasStore } from '@/state/canvasStore';
+import { rectBottomToTopYMm } from '@/utils/coordinateTransform';
 
 export default function useRenderBathroomPods(canvas: Canvas | null) {
   const { bathroomPods, modules } = useCurrentFloorElements();
   const scaleFactor = useCanvasStore(s => s.scaleFactor);
+  const gridHeightM = useCanvasStore(s => s.gridHeightM);
 
   useEffect(() => {
     if (!canvas) return;
@@ -24,9 +26,15 @@ export default function useRenderBathroomPods(canvas: Canvas | null) {
       const mod = modules.find(m => m.id === bp.moduleId);
       if (!mod) return;
 
-      // Ensure all calculations result in integers
-      const left = Math.round(Math.round(mod.x0! * scaleFactor) + Math.round(bp.x_offset * scaleFactor));
-      const top = Math.round(Math.round(mod.y0! * scaleFactor) + Math.round(bp.y_offset * scaleFactor));
+      // Convert module position from bottom-left to canvas coordinates
+      const moduleTopYMm = rectBottomToTopYMm(mod.y0!, mod.length!, gridHeightM);
+      const moduleCanvasLeft = Math.round(mod.x0! * scaleFactor);
+      const moduleCanvasTop = Math.round(moduleTopYMm * scaleFactor);
+      
+      // Calculate bathroom pod position relative to module (canvas coordinates)
+      // Bathroom pod y_offset is from bottom of module in bottom-left coordinate system
+      const left = Math.round(moduleCanvasLeft + Math.round(bp.x_offset * scaleFactor));
+      const top = Math.round(moduleCanvasTop + Math.round((mod.length! - bp.y_offset - bp.length) * scaleFactor));
       const width = Math.round(bp.width * scaleFactor);
       const height = Math.round(bp.length * scaleFactor);
 
@@ -51,5 +59,5 @@ export default function useRenderBathroomPods(canvas: Canvas | null) {
     });
 
     canvas.requestRenderAll();
-  }, [canvas, bathroomPods, modules, scaleFactor]);
+  }, [canvas, bathroomPods, modules, scaleFactor, gridHeightM]);
 }

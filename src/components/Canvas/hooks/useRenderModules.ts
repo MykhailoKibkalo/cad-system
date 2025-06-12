@@ -4,6 +4,7 @@ import type { Canvas } from 'fabric';
 import * as fabric from 'fabric';
 import { useCurrentFloorModules } from './useFloorElements';
 import { useCanvasStore } from '@/state/canvasStore';
+import { rectBottomToTopYMm } from '@/utils/coordinateTransform';
 
 /**
  * Reactive hook to render modules when data changes within the same floor
@@ -12,6 +13,7 @@ import { useCanvasStore } from '@/state/canvasStore';
 export default function useRenderModules(canvas: Canvas | null) {
   const modules = useCurrentFloorModules();
   const scaleFactor = useCanvasStore(s => s.scaleFactor);
+  const gridHeightM = useCanvasStore(s => s.gridHeightM);
 
   useEffect(() => {
     if (!canvas) return;
@@ -54,9 +56,10 @@ export default function useRenderModules(canvas: Canvas | null) {
           return;
         }
         
-        // Calculate expected values
+        // Calculate expected values - convert from bottom-left to top-left for canvas
         const expectedLeft = Math.round(module.x0 * scaleFactor);
-        const expectedTop = Math.round(module.y0 * scaleFactor);
+        const topYMm = rectBottomToTopYMm(module.y0, module.length, gridHeightM);
+        const expectedTop = Math.round(topYMm * scaleFactor);
         const expectedWidth = Math.round(module.width * scaleFactor);
         const expectedHeight = Math.round(module.length * scaleFactor);
         
@@ -92,9 +95,12 @@ export default function useRenderModules(canvas: Canvas | null) {
         // Module doesn't exist - create it
         console.log(`🔧 Creating new module: ${module.id} at (${module.x0}, ${module.y0})`);
         
+        // Convert from bottom-left to top-left for canvas rendering
+        const topYMm = rectBottomToTopYMm(module.y0, module.length, gridHeightM);
+        
         const rect = new fabric.Rect({
           left: Math.round(module.x0 * scaleFactor),
-          top: Math.round(module.y0 * scaleFactor),
+          top: Math.round(topYMm * scaleFactor),
           width: Math.round(module.width * scaleFactor),
           height: Math.round(module.length * scaleFactor),
           fill: 'rgba(54, 162, 235, 0.2)',
@@ -127,5 +133,5 @@ export default function useRenderModules(canvas: Canvas | null) {
     });
 
     canvas.requestRenderAll();
-  }, [canvas, modules, scaleFactor]);
+  }, [canvas, modules, scaleFactor, gridHeightM]);
 }

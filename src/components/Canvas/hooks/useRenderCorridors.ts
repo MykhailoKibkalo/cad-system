@@ -4,10 +4,12 @@ import type { Canvas } from 'fabric';
 import * as fabric from 'fabric';
 import { useCurrentFloorCorridors } from './useFloorElements';
 import { useCanvasStore } from '@/state/canvasStore';
+import { bottomToTopYMm } from '@/utils/coordinateTransform';
 
 export default function useRenderCorridors(canvas: Canvas | null) {
   const corridors = useCurrentFloorCorridors();
   const scaleFactor = useCanvasStore(s => s.scaleFactor);
+  const gridHeightM = useCanvasStore(s => s.gridHeightM);
 
   useEffect(() => {
     if (!canvas) return;
@@ -49,11 +51,14 @@ export default function useRenderCorridors(canvas: Canvas | null) {
           return;
         }
         
-        // Calculate expected values
+        // Calculate expected values - convert from bottom-left to top-left for canvas
         const expectedLeft = Math.round(corridor.x1 * scaleFactor);
-        const expectedTop = Math.round(corridor.y1 * scaleFactor);
         const expectedWidth = Math.round((corridor.x2 - corridor.x1) * scaleFactor);
         const expectedHeight = Math.round((corridor.y2 - corridor.y1) * scaleFactor);
+        
+        // Convert Y from bottom-left to top-left (y2 is top edge in bottom-left system)
+        const topYMm = bottomToTopYMm(corridor.y2, gridHeightM);
+        const expectedTop = Math.round(topYMm * scaleFactor);
         
         // Update position and size if they differ significantly
         const needsUpdate = 
@@ -77,9 +82,12 @@ export default function useRenderCorridors(canvas: Canvas | null) {
         console.log(`🔧 Creating new corridor: ${corridor.id}`);
         
         const left = Math.round(corridor.x1 * scaleFactor);
-        const top = Math.round(corridor.y1 * scaleFactor);
         const width = Math.round((corridor.x2 - corridor.x1) * scaleFactor);
         const height = Math.round((corridor.y2 - corridor.y1) * scaleFactor);
+        
+        // Convert Y from bottom-left to top-left (y2 is top edge in bottom-left system)
+        const topYMm = bottomToTopYMm(corridor.y2, gridHeightM);
+        const top = Math.round(topYMm * scaleFactor);
 
         const rect = new fabric.Rect({
           left: left,
@@ -115,5 +123,5 @@ export default function useRenderCorridors(canvas: Canvas | null) {
     });
 
     canvas.requestRenderAll();
-  }, [canvas, corridors, scaleFactor]);
+  }, [canvas, corridors, scaleFactor, gridHeightM]);
 }

@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from '@emotion/styled';
 import { Canvas, Rect, Text as FabricText } from 'fabric';
+import * as fabric from 'fabric';
 import { useObjectStore } from '@/state/objectStore';
 import { useCanvasStore } from '@/state/canvasStore';
 import { useTemplateStore } from '@/state/templateStore';
@@ -339,6 +340,48 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
       transparentCorners: false,
       lockRotation: true,
     });
+
+    // Add origin indicator for bottom-left coordinate system
+    const originGroup = new fabric.Group([
+      // X-axis arrow (red)
+      new fabric.Path('M 0 0 L 20 0 L 17 -2 M 20 0 L 17 2', {
+        stroke: '#ef4444',
+        strokeWidth: 1.5,
+        fill: 'transparent',
+      }),
+      // Y-axis arrow (green) pointing up
+      new fabric.Path('M 0 0 L 0 -20 L -2 -17 M 0 -20 L 2 -17', {
+        stroke: '#10b981',
+        strokeWidth: 1.5,
+        fill: 'transparent',
+      }),
+      // Origin point
+      new fabric.Circle({
+        left: -2,
+        top: -2,
+        radius: 2,
+        fill: '#1f2937',
+        stroke: '#1f2937',
+      }),
+    ], {
+      left: 5,
+      top: container.clientHeight - 25,
+      selectable: false,
+      evented: false,
+    });
+    canvas.add(originGroup);
+
+    // Add coordinate labels
+    const coordLabel = new FabricText('(0, 0)', {
+      left: 5,
+      top: container.clientHeight - 10,
+      fontSize: 10,
+      fill: '#6b7280',
+      fontFamily: 'Atkinson Hyperlegible, sans-serif',
+      selectable: false,
+      evented: false,
+    });
+    canvas.add(coordLabel);
     openingObjectRef.current = openingRect;
     canvas.add(openingRect);
 
@@ -418,15 +461,17 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
       const finalWidth = Math.round(obj.getScaledWidth());
       const finalHeight = Math.round(obj.getScaledHeight());
 
-      // Convert to real coordinates - ensure integers
+      // Convert to real coordinates with bottom-left origin
       const newDistance = Math.round((Math.round(obj.left) - Math.round(wall.left)) * scaleX);
-      const newYOffset = Math.round((Math.round(obj.top) - Math.round(wall.top)) * scaleY);
+      // For Y, we need to invert because canvas Y increases downward
+      const canvasYOffset = Math.round(obj.top) - Math.round(wall.top);
+      const bottomYOffset = Math.round((Math.round(wall.height) - canvasYOffset - finalHeight) * scaleY);
       const newWidth = Math.round(finalWidth * scaleX);
       const newHeight = Math.round(finalHeight * scaleY);
 
       // Update form state - ensure integers
       setDistance(Math.max(0, Math.round(newDistance)));
-      setYOffset(Math.max(0, Math.round(newYOffset)));
+      setYOffset(Math.max(0, Math.round(bottomYOffset)));
       setWidth(Math.max(1, Math.round(newWidth)));
       setHeight(Math.max(1, Math.round(newHeight)));
 
@@ -519,11 +564,12 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
       height: Math.round(wallHeight),
     });
 
-    // Update opening size and position - ensure integers
+    // Update opening size and position with bottom-left coordinates
     const openingWidth = Math.round(width * scale);
     const openingHeight = Math.round(height * scale);
     const openingLeft = Math.round(wallLeft + distance * scale);
-    const openingTop = Math.round(wallTop + yOffset * scale);
+    // Convert Y from bottom-left to top-left for canvas rendering
+    const openingTop = Math.round(wallTop + wallHeight - (yOffset + height) * scale);
 
     opening.set({
       left: Math.round(openingLeft),
@@ -644,7 +690,7 @@ export default function OpeningEditor({ moduleId, onClose, openingId }: OpeningE
                 Interactive Preview
               </Text>
               <Text size={14} color="#64748b">
-                Drag and resize the opening. Changes sync with form fields.
+                Drag and resize the opening. Origin (0,0) is at bottom-left corner.
               </Text>
               <Preview ref={canvasContainerRef}>
                 <canvas id="preview-canvas" />

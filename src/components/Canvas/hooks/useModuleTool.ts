@@ -5,6 +5,7 @@ import { useToolStore } from '@/state/toolStore';
 import { useObjectStore } from '@/state/objectStore';
 import { useCanvasStore } from '@/state/canvasStore';
 import { Module } from '@/types/geometry';
+import { rectTopToBottomYMm } from '@/utils/coordinateTransform';
 
 export default function useModuleTool(canvas: Canvas | null) {
   const tool = useToolStore(s => s.tool);
@@ -13,6 +14,7 @@ export default function useModuleTool(canvas: Canvas | null) {
   const scaleFactor = useCanvasStore(s => s.scaleFactor);
   const snapMode = useCanvasStore(s => s.snapMode);
   const gridSizeMm = useCanvasStore(s => s.gridSizeMm);
+  const gridHeightM = useCanvasStore(s => s.gridHeightM);
 
   // Змінні для малювання
   const startRef = useRef<{ x: number; y: number } | null>(null);
@@ -97,15 +99,23 @@ export default function useModuleTool(canvas: Canvas | null) {
         const id = Date.now().toString();
         (rect as any).isModule = id;
 
-        // Створюємо запис модуля у сторі - ensure integers
+        // Create module record in store with bottom-left coordinates
+        const moduleWidthMm = Math.round(pxWidth / scaleFactor);
+        const moduleHeightMm = Math.round(pxHeight / scaleFactor);
+        const leftMm = Math.round(rect.left! / scaleFactor);
+        const topMm = Math.round(rect.top! / scaleFactor);
+        
+        // Convert from canvas top-left to bottom-left coordinate system
+        const bottomYMm = rectTopToBottomYMm(topMm, moduleHeightMm, gridHeightM);
+        
         const module: Module = {
           id,
           name: `M${id}`,
-          width: Math.round(pxWidth / scaleFactor),
-          length: Math.round(pxHeight / scaleFactor),
+          width: moduleWidthMm,
+          length: moduleHeightMm,
           height: 3100,
-          x0: Math.round(rect.left! / scaleFactor),
-          y0: Math.round(rect.top! / scaleFactor),
+          x0: leftMm, // X remains the same
+          y0: bottomYMm, // Y is now from bottom
           zOffset: 0,
           rotation: 0,
           stackedFloors: 1,
@@ -134,5 +144,5 @@ export default function useModuleTool(canvas: Canvas | null) {
       canvas.off('mouse:move', onMouseMove);
       canvas.off('mouse:up', onMouseUp);
     };
-  }, [canvas, tool, scaleFactor, snapMode, gridSizeMm, addModule, setTool]);
+  }, [canvas, tool, scaleFactor, snapMode, gridSizeMm, gridHeightM, addModule, setTool]);
 }

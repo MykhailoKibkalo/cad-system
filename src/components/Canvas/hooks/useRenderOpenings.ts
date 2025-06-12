@@ -3,6 +3,7 @@ import {useEffect} from 'react';
 import {Canvas, Rect} from 'fabric';
 import {useCurrentFloorElements} from './useFloorElements';
 import {useCanvasStore} from '@/state/canvasStore';
+import { rectBottomToTopYMm } from '@/utils/coordinateTransform';
 
 /**
  * На плані (top-view) малюємо opening як тонку смугу на межі модуля.
@@ -10,6 +11,7 @@ import {useCanvasStore} from '@/state/canvasStore';
 export default function useRenderOpenings(canvas: Canvas | null) {
   const { openings, modules } = useCurrentFloorElements();
   const scale = useCanvasStore(s => s.scaleFactor);
+  const gridHeightM = useCanvasStore(s => s.gridHeightM);
 
   useEffect(() => {
     if (!canvas) return;
@@ -26,9 +28,10 @@ export default function useRenderOpenings(canvas: Canvas | null) {
       const mod = modules.find(m => m.id === o.moduleId);
       if (!mod) return;
 
-      // координати модуля в px - ensure integers
-      const x = Math.round(mod.x0 * scale);
-      const y = Math.round(mod.y0 * scale);
+      // Convert module position from bottom-left to canvas coordinates
+      const moduleTopYMm = rectBottomToTopYMm(mod.y0, mod.length, gridHeightM);
+      const x = Math.round(mod.x0 * scale); // Left edge stays the same
+      const y = Math.round(moduleTopYMm * scale); // Top edge in canvas coordinates
       const w = Math.round(mod.width * scale);
       const h = Math.round(mod.length * scale);
 
@@ -77,5 +80,5 @@ export default function useRenderOpenings(canvas: Canvas | null) {
     });
 
     canvas.requestRenderAll();
-  }, [canvas, openings, modules, scale]);
+  }, [canvas, openings, modules, scale, gridHeightM]);
 }

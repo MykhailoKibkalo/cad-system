@@ -39,6 +39,7 @@ import useGrouping from './hooks/useGrouping';
 import useRenderGroups from './hooks/useRenderGroups';
 import useGroupMovement from './hooks/useGroupMovement';
 import useCanvasCleanup from './hooks/useCanvasCleanup';
+import useOriginIndicator from './hooks/useOriginIndicator';
 import CanvasContextMenu from './CanvasContextMenu';
 
 const CanvasContainer = styled.div<{ gridSizePx?: number; offsetX?: number; offsetY?: number }>`
@@ -113,6 +114,20 @@ export default function CanvasArea() {
     if (canvas && wrapperRef.current) {
       const { clientWidth: w, clientHeight: h } = wrapperRef.current;
       canvas.setDimensions({ width: w, height: h });
+      
+      // Set initial view to show bottom-left corner (0,0 in grid coordinates)
+      // This will be automatically adjusted by usePanZoom constraints
+      setTimeout(() => {
+        const { gridHeightM, scaleFactor } = useCanvasStore.getState();
+        const gridHeightPx = gridHeightM * 1000 * scaleFactor;
+        
+        // Position to show bottom of grid at bottom of canvas
+        const panX = 0;
+        const panY = h - gridHeightPx;
+        
+        canvas.setViewportTransform([1, 0, 0, 1, panX, panY]);
+        canvas.requestRenderAll();
+      }, 100); // Small delay to let other hooks initialize
     }
   }, [canvas]);
 
@@ -122,8 +137,19 @@ export default function CanvasArea() {
       setCenter(() => () => {
         // Reset zoom to 100%
         useCanvasStore.getState().setZoomLevel(1);
-        // Reset pan to 0,0 (constraints will be applied by usePanZoom)
-        canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+        
+        // Calculate position to show bottom-left corner of grid
+        const canvasWidth = canvas.getWidth();
+        const canvasHeight = canvas.getHeight();
+        const { gridHeightM, scaleFactor } = useCanvasStore.getState();
+        const gridHeightPx = gridHeightM * 1000 * scaleFactor;
+        
+        // Position viewport to show bottom-left corner (0,0 in grid coordinates)
+        // In canvas coordinates, bottom-left means pan Y should show the bottom of the grid
+        const panX = 0; // Start from left edge
+        const panY = canvasHeight - gridHeightPx; // Position to show bottom of grid at bottom of canvas
+        
+        canvas.setViewportTransform([1, 0, 0, 1, panX, panY]);
         canvas.requestRenderAll();
       });
     }
@@ -157,8 +183,11 @@ export default function CanvasArea() {
   // PDF property synchronization
   usePdfPropertySync();
 
-  // 3) Grid та Snapping
+  // 3) Grid та Snapping (removed useGrid to prevent double grid)
   // useGrid(canvas, scaleFactor, gridSizeMm);
+  
+  // Add origin indicator to show bottom-left coordinate system
+  useOriginIndicator(canvas);
 
   useSelection(canvas);
 
