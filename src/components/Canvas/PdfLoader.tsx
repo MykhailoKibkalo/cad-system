@@ -7,6 +7,7 @@ import { printPDF, PdfManager } from '@/utils/pdfUtils';
 import { useCanvasStore } from '@/state/canvasStore';
 import { useFloorStore } from '@/state/floorStore';
 import { useCurrentFloorPdfData } from './hooks/useFloorElements';
+import { rectBottomToTopYMm, topToBottomYMm, rectTopToBottomYMm } from '@/utils/coordinateTransform';
 
 interface PdfLoaderProps {
   canvas: fabric.Canvas;
@@ -20,10 +21,12 @@ export default function PdfLoader({ canvas }: PdfLoaderProps) {
     scaleFactor,
     gridSizeMm,
     resetPdfState,
+    gridHeightM,
   } = useCanvasStore();
   
   const pdfData = useCurrentFloorPdfData();
   const setActivePdfData = useFloorStore(s => s.setActivePdfData);
+  const getActiveGridState = useFloorStore(s => s.getActiveGridState);
   const pdfLocked = pdfData?.isLocked || false;
   const pdfOpacity = pdfData?.opacity || 1;
 
@@ -45,13 +48,34 @@ export default function PdfLoader({ canvas }: PdfLoaderProps) {
         let pdfDataUrl: string | null = null;
         let pdfImage: fabric.Image | null = null;
 
+        // Get grid dimensions once, outside the loop
+        const activeGridState = getActiveGridState();
+        const currentGridHeightM = activeGridState?.gridHeightM || gridHeightM;
+
         for (const cEl of pages) {
+          // Position PDF at grid coordinates (0,0) which is bottom-left of grid
+          
+          // PDF dimensions in mm
+          const pdfWidthMm = (cEl.width * scale) / scaleFactor;
+          const pdfHeightMm = (cEl.height * scale) / scaleFactor;
+          
+          // Grid coordinates (0,0) = bottom-left corner
+          const gridX = 0; // Left edge of grid
+          const gridY = 0; // Bottom edge of grid (in bottom-left coordinate system)
+          
+          // Convert from bottom-left grid coordinates to top-left canvas coordinates
+          const topYMm = rectBottomToTopYMm(gridY, pdfHeightMm, currentGridHeightM);
+          
+          // Convert to pixels
+          const canvasX = gridX * scaleFactor;
+          const canvasY = topYMm * scaleFactor;
+          
           const img = new fabric.Image(cEl, {
             // Basic Fabric.js properties
             originX: 'left',
             originY: 'top',
-            left: 0, // Explicit position
-            top: 0,
+            left: canvasX, // Grid position converted to canvas
+            top: canvasY, // Grid position converted to canvas
             scaleX: scale,
             scaleY: scale,
 
@@ -111,7 +135,12 @@ export default function PdfLoader({ canvas }: PdfLoaderProps) {
                 isLocked: pdfLocked,
                 scaleFactor: scaleFactor,
               });
-              console.log(`📄 Saved PDF to floor store with position: x=${actualPdf.left}, y=${actualPdf.top}`);
+              console.log(`📄 INITIAL IMPORT - Saved PDF to floor store:`, {
+                position: { x: actualPdf.left, y: actualPdf.top },
+                dimensions: { width: Math.round(actualPdf.getScaledWidth()), height: Math.round(actualPdf.getScaledHeight()) },
+                scaleFactor: scaleFactor,
+                gridHeightM: currentGridHeightM
+              });
             }
           }, 100);
         }
@@ -218,15 +247,80 @@ export default function PdfLoader({ canvas }: PdfLoaderProps) {
     };
   }, [canvas, pdfLocked]);
 
-  // Update dimensions when scale factor changes
+  // Update dimensions and reposition PDF when scale factor changes
   useEffect(() => {
     const pdfManager = new PdfManager(canvas);
 
     if (pdfManager.hasPdfObjects()) {
       const { widthGrid, heightGrid } = pdfManager.getPdfDimensionsInGrid(scaleFactor, gridSizeMm);
       setPdfDimensions(widthGrid, heightGrid);
+      
+      // Reactive PDF positioning - mimic how modules handle scale factor changes
+      const pdfObjects = canvas.getObjects().filter(obj => (obj as any).isPdfImage);
+      if (pdfObjects.length > 0) {
+        const pdf = pdfObjects[0];
+        
+        // Get current PDF data
+        const currentPdfData = useFloorStore.getState().getActiveGridState()?.pdfData;
+        if (currentPdfData?.url) {
+          // Get the active floor's grid dimensions
+          const activeGridState = getActiveGridState();
+          const currentGridHeightM = activeGridState?.gridHeightM || gridHeightM;
+          
+          // Get the stored scale factor
+          const storedScaleFactor = currentPdfData.scaleFactor || 1;
+          
+          // Calculate the original PDF dimensions in mm
+          const originalPdfWidthMm = currentPdfData.width / storedScaleFactor;
+          const originalPdfHeightMm = currentPdfData.height / storedScaleFactor;
+          
+          // Convert stored top-left position to grid coordinates (bottom-left system)
+          const storedTopYMm = currentPdfData.y / storedScaleFactor;
+          const storedLeftXMm = currentPdfData.x / storedScaleFactor;
+          
+          // Calculate the bottom-left corner in grid coordinates
+          // This is the position we want to maintain
+          const gridBottomY = rectTopToBottomYMm(storedTopYMm, originalPdfHeightMm, currentGridHeightM);
+          const gridLeftX = storedLeftXMm;
+          
+          // Now calculate new canvas position with new scale factor
+          // The PDF dimensions will scale with the new factor
+          const newPdfWidthMm = originalPdfWidthMm;  // Logical size stays the same
+          const newPdfHeightMm = originalPdfHeightMm; // Logical size stays the same
+          
+          // Convert grid bottom-left back to canvas top-left with new scale
+          const newTopYMm = rectBottomToTopYMm(gridBottomY, newPdfHeightMm, currentGridHeightM);
+          const newCanvasX = gridLeftX * scaleFactor;
+          const newCanvasY = newTopYMm * scaleFactor;
+          
+          // Apply the calculated position (like modules do)
+          pdf.set({
+            left: newCanvasX,
+            top: newCanvasY
+          });
+          
+          canvas.requestRenderAll();
+          
+          // Update the floor store with new pixel position and scale factor
+          setActivePdfData({
+            ...currentPdfData,
+            x: Math.round(newCanvasX),
+            y: Math.round(newCanvasY),
+            scaleFactor: scaleFactor,
+          });
+          
+          console.log(`📄 PDF repositioned after scale change:`, {
+            oldScale: storedScaleFactor,
+            newScale: scaleFactor,
+            gridPosition: { x: gridLeftX.toFixed(0), bottomY: gridBottomY.toFixed(0) },
+            oldCanvasPos: { x: currentPdfData.x, y: currentPdfData.y },
+            newCanvasPos: { x: newCanvasX.toFixed(0), y: newCanvasY.toFixed(0) },
+            pdfSize: { width: newPdfWidthMm.toFixed(0), height: newPdfHeightMm.toFixed(0) }
+          });
+        }
+      }
     }
-  }, [canvas, scaleFactor, gridSizeMm, setPdfDimensions]);
+  }, [canvas, scaleFactor, gridSizeMm, setPdfDimensions, gridHeightM, getActiveGridState, setActivePdfData]);
 
   // Update floor store when PDF is moved or modified
   useEffect(() => {

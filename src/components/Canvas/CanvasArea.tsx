@@ -24,22 +24,21 @@ import useBathroomPodTool from '@/components/Canvas/hooks/useBathroomPodTool';
 import useRenderBathroomPods from '@/components/Canvas/hooks/useRenderBathroomPods';
 import useBathroomPodMovement from '@/components/Canvas/hooks/useBathroomPodMovement';
 import useIgnoreModulesFindTarget from '@/components/Canvas/hooks/useIgnoreModulesFindTarget';
-import useBalconyTool from "@/components/Canvas/hooks/useBalconyTool";
-import useRenderBalconies from "@/components/Canvas/hooks/useRenderBalconies";
-import useBalconyMovement from "@/components/Canvas/hooks/useBalconyMovement";
-import useFloorSync from "@/components/Canvas/hooks/useFloorSync";
-import useModuleRestore from "@/components/Canvas/hooks/useModuleRestore";
-import useRenderModules from "@/components/Canvas/hooks/useRenderModules";
-import usePdfRestore from "@/components/Canvas/hooks/usePdfRestore";
-import usePdfPropertySync from "@/components/Canvas/hooks/usePdfPropertySync";
-import ZoomControl from "@/components/ui/ZoomControl";
-import ControlWrap from "@/components/ui/ControlPanel";
+import useBalconyTool from '@/components/Canvas/hooks/useBalconyTool';
+import useRenderBalconies from '@/components/Canvas/hooks/useRenderBalconies';
+import useBalconyMovement from '@/components/Canvas/hooks/useBalconyMovement';
+import useFloorSync from '@/components/Canvas/hooks/useFloorSync';
+import useModuleRestore from '@/components/Canvas/hooks/useModuleRestore';
+import useRenderModules from '@/components/Canvas/hooks/useRenderModules';
+import usePdfRestore from '@/components/Canvas/hooks/usePdfRestore';
+import usePdfPropertySync from '@/components/Canvas/hooks/usePdfPropertySync';
+import ZoomControl from '@/components/ui/ZoomControl';
+import ControlWrap from '@/components/ui/ControlPanel';
 import { useCanvasRefStore } from '@/state/canvasRefStore';
 import useGrouping from './hooks/useGrouping';
 import useRenderGroups from './hooks/useRenderGroups';
 import useGroupMovement from './hooks/useGroupMovement';
 import useCanvasCleanup from './hooks/useCanvasCleanup';
-import useOriginIndicator from './hooks/useOriginIndicator';
 import CanvasContextMenu from './CanvasContextMenu';
 
 const CanvasContainer = styled.div<{ gridSizePx?: number; offsetX?: number; offsetY?: number }>`
@@ -64,7 +63,8 @@ const GridOverlay = styled.div<{
   width: ${p => p.gridWidthPx * p.zoom}px;
   height: ${p => p.gridHeightPx * p.zoom}px;
   pointer-events: none;
-  background-image: linear-gradient(to right, #ddd 1px, transparent 1px), linear-gradient(to bottom, #ddd 1px, transparent 1px);
+  background-image:
+    linear-gradient(to right, #ddd 1px, transparent 1px), linear-gradient(to bottom, #ddd 1px, transparent 1px);
   background-size: ${p => p.gridSizePx}px ${p => p.gridSizePx}px;
   background-position: ${p => p.offsetX}px ${p => p.offsetY}px;
   //border: 1px solid #aeaeae;
@@ -86,6 +86,37 @@ const Wrapper = styled.div`
     height: 100%;
   }
 `;
+
+// const CalibrationTooltip = styled.div`
+//   position: absolute;
+//   top: 20px;
+//   left: 50%;
+//   transform: translateX(-50%);
+//   background: rgba(0, 0, 0, 0.8);
+//   color: white;
+//   padding: 12px 20px;
+//   border-radius: 8px;
+//   font-size: 14px;
+//   font-weight: 500;
+//   display: flex;
+//   align-items: center;
+//   gap: 8px;
+//   z-index: 1001;
+//   pointer-events: none;
+//   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+//   animation: fadeIn 0.3s ease-out;
+//
+//   @keyframes fadeIn {
+//     from {
+//       opacity: 0;
+//       transform: translateX(-50%) translateY(-10px);
+//     }
+//     to {
+//       opacity: 1;
+//       transform: translateX(-50%) translateY(0);
+//     }
+//   }
+// `;
 
 export default function CanvasArea() {
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -114,17 +145,17 @@ export default function CanvasArea() {
     if (canvas && wrapperRef.current) {
       const { clientWidth: w, clientHeight: h } = wrapperRef.current;
       canvas.setDimensions({ width: w, height: h });
-      
+
       // Set initial view to show bottom-left corner (0,0 in grid coordinates)
       // This will be automatically adjusted by usePanZoom constraints
       setTimeout(() => {
         const { gridHeightM, scaleFactor } = useCanvasStore.getState();
         const gridHeightPx = gridHeightM * 1000 * scaleFactor;
-        
+
         // Position to show bottom of grid at bottom of canvas
         const panX = 0;
         const panY = h - gridHeightPx;
-        
+
         canvas.setViewportTransform([1, 0, 0, 1, panX, panY]);
         canvas.requestRenderAll();
       }, 100); // Small delay to let other hooks initialize
@@ -137,18 +168,17 @@ export default function CanvasArea() {
       setCenter(() => () => {
         // Reset zoom to 100%
         useCanvasStore.getState().setZoomLevel(1);
-        
+
         // Calculate position to show bottom-left corner of grid
-        const canvasWidth = canvas.getWidth();
         const canvasHeight = canvas.getHeight();
         const { gridHeightM, scaleFactor } = useCanvasStore.getState();
         const gridHeightPx = gridHeightM * 1000 * scaleFactor;
-        
+
         // Position viewport to show bottom-left corner (0,0 in grid coordinates)
         // In canvas coordinates, bottom-left means pan Y should show the bottom of the grid
         const panX = 0; // Start from left edge
         const panY = canvasHeight - gridHeightPx; // Position to show bottom of grid at bottom of canvas
-        
+
         canvas.setViewportTransform([1, 0, 0, 1, panX, panY]);
         canvas.requestRenderAll();
       });
@@ -183,16 +213,10 @@ export default function CanvasArea() {
   // PDF property synchronization
   usePdfPropertySync();
 
-  // 3) Grid та Snapping (removed useGrid to prevent double grid)
-  // useGrid(canvas, scaleFactor, gridSizeMm);
-  
-  // Add origin indicator to show bottom-left coordinate system
-  useOriginIndicator(canvas);
-
   useSelection(canvas);
 
   useSnapping(canvas);
-  useScaleCalibration(canvas);
+  const calibrationModal = useScaleCalibration(canvas);
   usePdfLock(canvas);
 
   usePanZoom(canvas);
@@ -213,17 +237,17 @@ export default function CanvasArea() {
   useBathroomPodMovement(canvas);
   useIgnoreModulesFindTarget(canvas);
 
-  useBalconyTool(canvas)
-  useRenderBalconies(canvas)
-  useBalconyMovement(canvas)
+  useBalconyTool(canvas);
+  useRenderBalconies(canvas);
+  useBalconyMovement(canvas);
 
   // Group management
-  useGrouping(canvas)
-  useRenderGroups(canvas)
-  useGroupMovement(canvas)
-  
+  useGrouping(canvas);
+  useRenderGroups(canvas);
+  useGroupMovement(canvas);
+
   // Canvas cleanup to remove ghost objects
-  useCanvasCleanup(canvas)
+  useCanvasCleanup(canvas);
 
   // Розмір клітини в px
   const baseGridPx = gridSizeMm * scaleFactor;
@@ -256,8 +280,9 @@ export default function CanvasArea() {
       {canvas && <CanvasContextMenu canvas={canvas} />}
       {canvas && <PdfLoader canvas={canvas} />}
       {canvas && <PropertyPanel canvas={canvas} />}
-      <ZoomControl/>
-      <ControlWrap/>
+      <ZoomControl />
+      <ControlWrap />
+      {calibrationModal}
     </Wrapper>
   );
 }

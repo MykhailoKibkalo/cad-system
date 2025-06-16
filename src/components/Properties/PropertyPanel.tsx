@@ -362,13 +362,14 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
             <Text weight={700} size={20}>
               Information
             </Text>
-            <Button
-              variant="secondary"
-              onClick={() => setShowingAdvancedEditor(true)}
-              icon={<LuPencil size={16} />}
-            >
-              Advanced Edit
-            </Button>
+            {/*for test*/}
+            {/*<Button*/}
+            {/*  variant="secondary"*/}
+            {/*  onClick={() => setShowingAdvancedEditor(true)}*/}
+            {/*  icon={<LuPencil size={16} />}*/}
+            {/*>*/}
+            {/*  Advanced Edit*/}
+            {/*</Button>*/}
           </Row>
           <Field>
             <Text size={16}>Name</Text>

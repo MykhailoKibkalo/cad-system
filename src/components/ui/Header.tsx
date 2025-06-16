@@ -9,7 +9,7 @@ import { useFloorStore } from '@/state/floorStore';
 import Image from 'next/image';
 import logo from '../../assets/images/logo.png';
 import { Button } from '@/components/ui/Button';
-import { LuDownload, LuGroup, LuLayers, LuSettings2, LuTable } from 'react-icons/lu';
+import { LuDownload, LuGroup, LuLayers, LuSettings2, LuTable, LuInfo } from 'react-icons/lu';
 import { Divider } from '@/components/ui/Divider';
 import { RiHomeLine } from 'react-icons/ri';
 import { Text } from '@/components/ui/Text';
@@ -32,6 +32,35 @@ const Container = styled.div`
   flex-direction: column;
   align-items: center;
   background: ${colors.white};
+  position: relative;
+`;
+
+const CalibrationHint = styled.div`
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #2196f3;
+  color: white;
+  padding: 8px 24px;
+  border-radius: 0 0 8px 8px;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  animation: slideDown 0.3s ease-out;
+  
+  @keyframes slideDown {
+    from {
+      transform: translateX(-50%) translateY(-100%);
+    }
+    to {
+      transform: translateX(-50%) translateY(0);
+    }
+  }
 `;
 
 const MainWrap = styled.div`
@@ -194,7 +223,7 @@ export default function Header() {
     currentFloor,
   } = useCanvasStore();
 
-  const { setTool } = useToolStore();
+  const { setTool, tool } = useToolStore();
   const [showFloorElementsTable, setShowFloorElementsTable] = useState(false);
   const [showGroupsSidebar, setShowGroupsSidebar] = useState(false);
   const [showBuildingTable, setShowBuildingTable] = useState(false);
@@ -315,6 +344,12 @@ export default function Header() {
   return (
     <>
       <Container>
+        {tool === 'calibrate' && (
+          <CalibrationHint>
+            <LuInfo size={16} />
+            Find a scale reference on your PDF and draw a line along it to calibrate
+          </CalibrationHint>
+        )}
         <MainWrap>
           <Image width={153} height={40} src={logo} alt={'verida'} />
           <Button icon={<LuDownload size={20} />}>
@@ -348,17 +383,17 @@ export default function Header() {
             )}
 
             {/* Floor Elements Button */}
-            <FloorElementsButton
-              disabled={!hasElements}
-              onClick={openFloorElementsPanel}
-              title={hasElements ? `View all elements on ${floorName}` : 'No elements on current floor'}
-            >
-              <LuTable size={24} />
-              <Text size={16}>View Floor Elements</Text>
-            </FloorElementsButton>
-            
+            {/*<FloorElementsButton*/}
+            {/*  disabled={!hasElements}*/}
+            {/*  onClick={openFloorElementsPanel}*/}
+            {/*  title={hasElements ? `View all elements on ${floorName}` : 'No elements on current floor'}*/}
+            {/*>*/}
+            {/*  <LuTable size={24} />*/}
+            {/*  <Text size={16}>View Floor Elements</Text>*/}
+            {/*</FloorElementsButton>*/}
+
             {/* Building Table Button */}
-            <Divider orientation="vertical" length={'40px'} />
+            {/*<Divider orientation="vertical" length={'40px'} />*/}
             <FloorElementsButton
               disabled={false}
               onClick={() => setShowBuildingTable(true)}
@@ -482,7 +517,7 @@ export default function Header() {
 
       {/* Floor Elements Table Modal */}
       {showFloorElementsTable && <FloorElementsTable onClose={() => setShowFloorElementsTable(false)} />}
-      
+
       {/* Building Module Table Modal */}
       {showBuildingTable && (
         <div style={{
