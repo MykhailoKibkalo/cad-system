@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from '@emotion/styled';
 import { Canvas, Rect, Text as FabricText } from 'fabric';
+import * as fabric from 'fabric';
 import { useObjectStore } from '@/state/objectStore';
 import { useCurrentFloorElements } from '../Canvas/hooks/useFloorElements';
 import { Module } from '@/types/geometry';
@@ -370,6 +371,48 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
       transparentCorners: false,
       lockRotation: true,
     });
+
+    // Add origin indicator for bottom-left coordinate system
+    const originGroup = new fabric.Group([
+      // X-axis arrow (red)
+      new fabric.Path('M 0 0 L 20 0 L 17 -2 M 20 0 L 17 2', {
+        stroke: '#ef4444',
+        strokeWidth: 1.5,
+        fill: 'transparent',
+      }),
+      // Y-axis arrow (green) pointing up
+      new fabric.Path('M 0 0 L 0 -20 L -2 -17 M 0 -20 L 2 -17', {
+        stroke: '#10b981',
+        strokeWidth: 1.5,
+        fill: 'transparent',
+      }),
+      // Origin point
+      new fabric.Circle({
+        left: -2,
+        top: -2,
+        radius: 2,
+        fill: '#1f2937',
+        stroke: '#1f2937',
+      }),
+    ], {
+      left: 5,
+      top: container.clientHeight - 25,
+      selectable: false,
+      evented: false,
+    });
+    canvas.add(originGroup);
+
+    // Add coordinate labels
+    const coordLabel = new FabricText('(0, 0)', {
+      left: 5,
+      top: container.clientHeight - 10,
+      fontSize: 10,
+      fill: '#6b7280',
+      fontFamily: 'Atkinson Hyperlegible, sans-serif',
+      selectable: false,
+      evented: false,
+    });
+    canvas.add(coordLabel);
     podObjectRef.current = podRect;
     canvas.add(podRect);
 
@@ -449,15 +492,17 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
       const finalWidth = Math.round(obj.getScaledWidth());
       const finalHeight = Math.round(obj.getScaledHeight());
 
-      // Convert to real coordinates - ensure integers
+      // Convert to real coordinates with bottom-left origin
       const newXOffset = Math.round((Math.round(obj.left) - Math.round(moduleFloor.left)) * scaleX);
-      const newYOffset = Math.round((Math.round(obj.top) - Math.round(moduleFloor.top)) * scaleY);
+      // For Y, we need to invert because canvas Y increases downward
+      const canvasYOffset = Math.round(obj.top) - Math.round(moduleFloor.top);
+      const bottomYOffset = Math.round((Math.round(moduleFloor.height) - canvasYOffset - finalHeight) * scaleY);
       const newWidth = Math.round(finalWidth * scaleX);
       const newLength = Math.round(finalHeight * scaleY);
 
       // Update form state - ensure integers
       setXOffset(Math.max(0, Math.round(newXOffset)));
-      setYOffset(Math.max(0, Math.round(newYOffset)));
+      setYOffset(Math.max(0, Math.round(bottomYOffset)));
       setWidth(Math.max(1, Math.round(newWidth)));
       setLength(Math.max(1, Math.round(newLength)));
 
@@ -550,11 +595,12 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
       height: Math.round(moduleHeight),
     });
 
-    // Update pod size and position - ensure integers
+    // Update pod size and position with bottom-left coordinates
     const podWidth = Math.round(width * scale);
     const podHeight = Math.round(length * scale);
     const podLeft = Math.round(moduleLeft + xOffset * scale);
-    const podTop = Math.round(moduleTop + yOffset * scale);
+    // Convert Y from bottom-left to top-left for canvas rendering
+    const podTop = Math.round(moduleTop + moduleHeight - (yOffset + length) * scale);
 
     pod.set({
       left: Math.round(podLeft),
@@ -655,7 +701,7 @@ export default function BathroomPodEditor({ moduleId, onClose, podId }: Bathroom
                 Interactive Preview
               </Text>
               <Text size={14} color="#64748b">
-                Drag and resize the bathroom pod. Changes sync with form fields.
+                Drag and resize the bathroom pod. Origin (0,0) is at bottom-left corner.
               </Text>
               <Preview ref={canvasContainerRef}>
                 <canvas id="preview-canvas" />

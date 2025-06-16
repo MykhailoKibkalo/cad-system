@@ -25,6 +25,7 @@ import { MdBalcony } from 'react-icons/md';
 import { InputWithAffix } from '@/components/ui/InputWithAffix';
 import { ContextMenu } from '@/components/ui/ContextMenu';
 import BathroomPodEditor from '@/components/Properties/BathroomPodEditor';
+import ModuleEditor from '@/components/ModuleEditor';
 
 const Field = styled.div`
   display: flex;
@@ -155,6 +156,7 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
 
   const [addingBathroomPod, setAddingBathroomPod] = useState(false);
   const [editingBathroomPodId, setEditingBathroomPodId] = useState<string | null>(null);
+  const [showingAdvancedEditor, setShowingAdvancedEditor] = useState(false);
 
   const module = useMemo(() => modules.find((m: any) => m.id === selectedModuleId) ?? null, [modules, selectedModuleId]);
   const openings = useMemo(
@@ -291,6 +293,16 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
     return <BathroomPodProperties canvas={canvas} />;
   }
 
+  // Check for advanced module editor
+  if (showingAdvancedEditor && selectedModuleId) {
+    return (
+      <ModuleEditor
+        moduleId={selectedModuleId}
+        onClose={() => setShowingAdvancedEditor(false)}
+      />
+    );
+  }
+
   // Check for opening editor
   if (editingOpeningId && selectedModuleId) {
     return (
@@ -346,9 +358,19 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
       {/* Scrollable Content */}
       <ScrollContent>
         <MenuItem>
-          <Text weight={700} size={20}>
-            Information
-          </Text>
+          <Row>
+            <Text weight={700} size={20}>
+              Information
+            </Text>
+            {/*for test*/}
+            {/*<Button*/}
+            {/*  variant="secondary"*/}
+            {/*  onClick={() => setShowingAdvancedEditor(true)}*/}
+            {/*  icon={<LuPencil size={16} />}*/}
+            {/*>*/}
+            {/*  Advanced Edit*/}
+            {/*</Button>*/}
+          </Row>
           <Field>
             <Text size={16}>Name</Text>
             <InputWithAffix value={form.name} onChange={onChange('name')} />

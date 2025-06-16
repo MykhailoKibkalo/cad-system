@@ -47,6 +47,8 @@ export default function usePdfRestore(canvas: Canvas | null) {
             
             // Apply stored PDF properties
             img.set({
+              originX: 'left',
+              originY: 'top',
               left: pdfData.x,
               top: pdfData.y,
               scaleX: pdfData.width > 0 ? pdfData.width / (img.width || 1) : 1,

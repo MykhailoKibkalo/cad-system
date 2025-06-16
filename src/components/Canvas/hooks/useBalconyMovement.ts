@@ -1,17 +1,23 @@
 // src/components/Canvas/hooks/useBalconyMovement.ts
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import type { Canvas } from 'fabric';
 import { useObjectStore } from '@/state/objectStore';
 import { useCanvasStore } from '@/state/canvasStore';
 import { useCurrentFloorElements } from './useFloorElements';
+import { rectBottomToTopYMm } from '@/utils/coordinateTransform';
 
 export default function useBalconyMovement(canvas: Canvas | null) {
-  const { balconies, modules } = useCurrentFloorElements();
+  const floorElements = useCurrentFloorElements();
   const updateBalcony = useObjectStore(s => s.updateBalcony);
   const scale = useCanvasStore(s => s.scaleFactor);
   const snapMode = useCanvasStore(s => s.snapMode);
   const gridSizeMm = useCanvasStore(s => s.gridSizeMm);
+  const gridHeightM = useCanvasStore(s => s.gridHeightM);
   const elementGapMm = useCanvasStore(s => s.elementGapMm);
+  
+  // Use useMemo to ensure stable references for dependency array
+  const balconies = useMemo(() => floorElements.balconies || [], [floorElements.balconies]);
+  const modules = useMemo(() => floorElements.modules || [], [floorElements.modules]);
 
   useEffect(() => {
     if (!canvas) return;
@@ -32,9 +38,10 @@ export default function useBalconyMovement(canvas: Canvas | null) {
       const mod = modules.find(m => m.id === bc?.moduleId);
       if (!bc || !mod) return;
 
-      // Module bounds in pixels - ensure integers
+      // Convert module position from bottom-left to canvas coordinates
+      const moduleTopYMm = rectBottomToTopYMm(mod.y0!, mod.length!, gridHeightM);
       const mx = Math.round(mod.x0! * scale);
-      const my = Math.round(mod.y0! * scale);
+      const my = Math.round(moduleTopYMm * scale);
       const mw = Math.round(mod.width! * scale);
       const mh = Math.round(mod.length! * scale);
 
@@ -90,9 +97,10 @@ export default function useBalconyMovement(canvas: Canvas | null) {
       const mod = modules.find(m => m.id === bc?.moduleId);
       if (!bc || !mod) return;
 
-      // Module bounds - ensure integers
+      // Convert module position from bottom-left to canvas coordinates
+      const moduleTopYMm = rectBottomToTopYMm(mod.y0!, mod.length!, gridHeightM);
       const mx = Math.round(mod.x0! * scale);
-      const my = Math.round(mod.y0! * scale);
+      const my = Math.round(moduleTopYMm * scale);
       const mw = Math.round(mod.width! * scale);
       const mh = Math.round(mod.length! * scale);
 
@@ -172,20 +180,25 @@ export default function useBalconyMovement(canvas: Canvas | null) {
       const finalWidth = Math.round(obj.width * obj.scaleX);
       const finalHeight = Math.round(obj.height * obj.scaleY);
 
+      // Convert module position from bottom-left to canvas coordinates for calculation
+      const moduleTopYMm = rectBottomToTopYMm(mod.y0!, mod.length!, gridHeightM);
+      const mx = Math.round(mod.x0! * scale);
+      const my = Math.round(moduleTopYMm * scale);
+      
       // Calculate distance along wall based on wall side - ensure integers
       let distanceAlongWall: number, widthMm: number, lengthMm: number;
 
       switch (bc.wallSide) {
         case 1: // top wall
         case 3: // bottom wall
-          distanceAlongWall = Math.round((Math.round(obj.left) - Math.round(mod.x0! * scale)) / scale);
+          distanceAlongWall = Math.round((Math.round(obj.left) - mx) / scale);
           widthMm = Math.round(finalWidth / scale);
           lengthMm = Math.round(finalHeight / scale);
           break;
 
         case 2: // right wall
         case 4: // left wall
-          distanceAlongWall = Math.round((Math.round(obj.top) - Math.round(mod.y0! * scale)) / scale);
+          distanceAlongWall = Math.round((Math.round(obj.top) - my) / scale);
           widthMm = Math.round(finalHeight / scale);
           lengthMm = Math.round(finalWidth / scale);
           break;
@@ -217,5 +230,5 @@ export default function useBalconyMovement(canvas: Canvas | null) {
       canvas.off('object:scaling', onScaling);
       canvas.off('object:modified', onModified);
     };
-  }, [canvas, balconies, modules, scale, snapMode, gridSizeMm, elementGapMm, updateBalcony]);
+  }, [canvas, balconies, modules, scale, snapMode, gridSizeMm, gridHeightM, elementGapMm, updateBalcony]);
 }

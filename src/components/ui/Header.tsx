@@ -9,7 +9,7 @@ import { useFloorStore } from '@/state/floorStore';
 import Image from 'next/image';
 import logo from '../../assets/images/logo.png';
 import { Button } from '@/components/ui/Button';
-import { LuDownload, LuGroup, LuLayers, LuSettings2, LuTable } from 'react-icons/lu';
+import { LuDownload, LuGroup, LuLayers, LuSettings2, LuTable, LuInfo } from 'react-icons/lu';
 import { Divider } from '@/components/ui/Divider';
 import { RiHomeLine } from 'react-icons/ri';
 import { Text } from '@/components/ui/Text';
@@ -25,12 +25,42 @@ import FloorElementsTable from '@/components/ui/FloorElementsTable';
 import { useObjectStore } from '@/state/objectStore';
 import GroupsSidebar from '@/components/Groups/GroupsSidebar';
 import { useCanvasRefStore } from '@/state/canvasRefStore';
+import BuildingModuleTable from '@/components/BuildingModuleTable';
 
 const Container = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
   background: ${colors.white};
+  position: relative;
+`;
+
+const CalibrationHint = styled.div`
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #2196f3;
+  color: white;
+  padding: 8px 24px;
+  border-radius: 0 0 8px 8px;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  animation: slideDown 0.3s ease-out;
+  
+  @keyframes slideDown {
+    from {
+      transform: translateX(-50%) translateY(-100%);
+    }
+    to {
+      transform: translateX(-50%) translateY(0);
+    }
+  }
 `;
 
 const MainWrap = styled.div`
@@ -193,9 +223,10 @@ export default function Header() {
     currentFloor,
   } = useCanvasStore();
 
-  const { setTool } = useToolStore();
+  const { setTool, tool } = useToolStore();
   const [showFloorElementsTable, setShowFloorElementsTable] = useState(false);
   const [showGroupsSidebar, setShowGroupsSidebar] = useState(false);
+  const [showBuildingTable, setShowBuildingTable] = useState(false);
   const hasElements = useHasFloorElements();
   const groups = useObjectStore(s => s.groups);
   const hasGroups = groups && groups.length > 0;
@@ -313,6 +344,12 @@ export default function Header() {
   return (
     <>
       <Container>
+        {tool === 'calibrate' && (
+          <CalibrationHint>
+            <LuInfo size={16} />
+            Find a scale reference on your PDF and draw a line along it to calibrate
+          </CalibrationHint>
+        )}
         <MainWrap>
           <Image width={153} height={40} src={logo} alt={'verida'} />
           <Button icon={<LuDownload size={20} />}>
@@ -345,14 +382,25 @@ export default function Header() {
               </>
             )}
 
-            {/* Floor Elements Button - New addition */}
+            {/* Floor Elements Button */}
+            {/*<FloorElementsButton*/}
+            {/*  disabled={!hasElements}*/}
+            {/*  onClick={openFloorElementsPanel}*/}
+            {/*  title={hasElements ? `View all elements on ${floorName}` : 'No elements on current floor'}*/}
+            {/*>*/}
+            {/*  <LuTable size={24} />*/}
+            {/*  <Text size={16}>View Floor Elements</Text>*/}
+            {/*</FloorElementsButton>*/}
+
+            {/* Building Table Button */}
+            {/*<Divider orientation="vertical" length={'40px'} />*/}
             <FloorElementsButton
-              disabled={!hasElements}
-              onClick={openFloorElementsPanel}
-              title={hasElements ? `View all elements on ${floorName}` : 'No elements on current floor'}
+              disabled={false}
+              onClick={() => setShowBuildingTable(true)}
+              title="View building-wide module summary"
             >
               <LuTable size={24} />
-              <Text size={16}>View Floor Elements</Text>
+              <Text size={16}>Building Table</Text>
             </FloorElementsButton>
 
             {/* Groups Button - Only show when groups exist */}
@@ -469,6 +517,58 @@ export default function Header() {
 
       {/* Floor Elements Table Modal */}
       {showFloorElementsTable && <FloorElementsTable onClose={() => setShowFloorElementsTable(false)} />}
+
+      {/* Building Module Table Modal */}
+      {showBuildingTable && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          zIndex: 1003,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            maxWidth: '95vw',
+            maxHeight: '95vh',
+            overflow: 'auto',
+            position: 'relative'
+          }}>
+            <div style={{
+              position: 'sticky',
+              top: 0,
+              backgroundColor: 'white',
+              borderBottom: '1px solid #ddd',
+              padding: '16px 24px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              zIndex: 1
+            }}>
+              <h2 style={{ margin: 0 }}>Building-Wide Module Summary</h2>
+              <button
+                onClick={() => setShowBuildingTable(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  padding: '8px'
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <BuildingModuleTable />
+          </div>
+        </div>
+      )}
     </>
   );
 }

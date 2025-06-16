@@ -3,10 +3,12 @@ import { useEffect } from 'react';
 import type { Canvas } from 'fabric';
 import { useObjectStore } from '@/state/objectStore';
 import { useCanvasStore } from '@/state/canvasStore';
+import { rectTopToBottomYMm } from '@/utils/coordinateTransform';
 
 export default function useModuleResize(canvas: Canvas | null) {
   const updateModule = useObjectStore(s => s.updateModule);
   const scaleFactor = useCanvasStore(s => s.scaleFactor);
+  const gridHeightM = useCanvasStore(s => s.gridHeightM);
 
   useEffect(() => {
     if (!canvas) return;
@@ -28,12 +30,21 @@ export default function useModuleResize(canvas: Canvas | null) {
         // Calculate new position (important for top/left resize)
         const leftPx = Math.round(bounds.left);
         const topPx = Math.round(bounds.top);
+        
+        // Convert dimensions to mm
+        const widthMm = Math.round(wPx / scaleFactor);
+        const heightMm = Math.round(hPx / scaleFactor);
+        const leftMm = Math.round(leftPx / scaleFactor);
+        const topMm = Math.round(topPx / scaleFactor);
+        
+        // Convert from canvas top-left to bottom-left coordinate system
+        const bottomYMm = rectTopToBottomYMm(topMm, heightMm, gridHeightM);
 
         updateModule(moduleId, {
-          x0: Math.round(leftPx / scaleFactor),
-          y0: Math.round(topPx / scaleFactor),
-          width: Math.round(wPx / scaleFactor),
-          length: Math.round(hPx / scaleFactor),
+          x0: leftMm,
+          y0: bottomYMm,
+          width: widthMm,
+          length: heightMm,
         });
         return;
       }
@@ -55,5 +66,5 @@ export default function useModuleResize(canvas: Canvas | null) {
       canvas.off('object:resizing', handler);
       canvas.off('object:modified', handler);
     };
-  }, [canvas, scaleFactor, updateModule]);
+  }, [canvas, scaleFactor, gridHeightM, updateModule]);
 }

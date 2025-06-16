@@ -1,14 +1,20 @@
 // src/components/Canvas/hooks/useBathroomPodMovement.ts
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import type { Canvas } from 'fabric';
 import { useObjectStore } from '@/state/objectStore';
 import { useCanvasStore } from '@/state/canvasStore';
 import { useCurrentFloorElements } from './useFloorElements';
+import { rectBottomToTopYMm } from '@/utils/coordinateTransform';
 
 export default function useBathroomPodMovement(canvas: Canvas | null) {
   const updateBathroomPod = useObjectStore(s => s.updateBathroomPod);
-  const { bathroomPods, modules } = useCurrentFloorElements();
+  const floorElements = useCurrentFloorElements();
   const scaleFactor = useCanvasStore(s => s.scaleFactor);
+  const gridHeightM = useCanvasStore(s => s.gridHeightM);
+  
+  // Use useMemo to ensure stable references for dependency array
+  const bathroomPods = useMemo(() => floorElements.bathroomPods || [], [floorElements.bathroomPods]);
+  const modules = useMemo(() => floorElements.modules || [], [floorElements.modules]);
 
   useEffect(() => {
     if (!canvas) return;
@@ -23,9 +29,10 @@ export default function useBathroomPodMovement(canvas: Canvas | null) {
       const mod = modules.find(m => m.id === bp?.moduleId);
       if (!bp || !mod) return;
 
-      // межі модуля в пікселях - ensure integers
+      // Convert module boundaries to canvas coordinates
+      const moduleTopYMm = rectBottomToTopYMm(mod.y0!, mod.length!, gridHeightM);
       const modLeft = Math.round(mod.x0! * scaleFactor);
-      const modTop = Math.round(mod.y0! * scaleFactor);
+      const modTop = Math.round(moduleTopYMm * scaleFactor);
       const modRight = modLeft + Math.round(mod.width! * scaleFactor);
       const modBottom = modTop + Math.round(mod.length! * scaleFactor);
 
@@ -59,15 +66,21 @@ export default function useBathroomPodMovement(canvas: Canvas | null) {
       const mod = modules.find(m => m.id === bp?.moduleId);
       if (!bp || !mod) return;
 
-      // Only update position during movement, not dimensions
-      // Calculate position relative to parent module
+      // Calculate position relative to parent module in bottom-left coordinates
       const objLeft = Math.round(obj.left || 0);
       const objTop = Math.round(obj.top || 0);
-      const moduleLeft = Math.round(mod.x0! * scaleFactor);
-      const moduleTop = Math.round(mod.y0! * scaleFactor);
+      const objHeight = Math.round(obj.getScaledHeight());
       
+      // Convert module position to canvas coordinates
+      const moduleTopYMm = rectBottomToTopYMm(mod.y0!, mod.length!, gridHeightM);
+      const moduleLeft = Math.round(mod.x0! * scaleFactor);
+      const moduleTop = Math.round(moduleTopYMm * scaleFactor);
+      
+      // Calculate offsets relative to module
       const x1 = Math.round((objLeft - moduleLeft) / scaleFactor);
-      const y1 = Math.round((objTop - moduleTop) / scaleFactor);
+      // For Y, convert canvas position back to bottom-left relative position
+      const canvasYFromModuleTop = objTop - moduleTop;
+      const y1 = Math.round((mod.length! - (canvasYFromModuleTop / scaleFactor) - (objHeight / scaleFactor)));
 
       updateBathroomPod(bpId, {
         x_offset: Math.round(x1),
@@ -83,5 +96,5 @@ export default function useBathroomPodMovement(canvas: Canvas | null) {
       canvas.off('object:moving', onMoving);
       canvas.off('object:modified', onModified);
     };
-  }, [canvas, bathroomPods, modules, scaleFactor, updateBathroomPod]);
+  }, [canvas, bathroomPods, modules, scaleFactor, gridHeightM, updateBathroomPod]);
 }
