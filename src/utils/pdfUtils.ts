@@ -1,6 +1,3 @@
-// src/utils/pdfUtils.ts (Updated PdfManager section only)
-
-// ===== EXISTING PDF RENDERING FUNCTIONS (unchanged) =====
 const Base64Prefix = 'data:application/pdf;base64,';
 
 function getPdfHandler(): any {
@@ -230,7 +227,7 @@ export class PdfManager {
       originX: 'left',
       originY: 'top',
     });
-    
+
     // Mark as PDF (support both flags for compatibility)
     (pdfObj as any).isPdf = true;
     (pdfObj as any).isPdfImage = true;

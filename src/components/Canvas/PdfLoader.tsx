@@ -7,7 +7,7 @@ import { printPDF, PdfManager } from '@/utils/pdfUtils';
 import { useCanvasStore } from '@/state/canvasStore';
 import { useFloorStore } from '@/state/floorStore';
 import { useCurrentFloorPdfData } from './hooks/useFloorElements';
-import { rectBottomToTopYMm, topToBottomYMm, rectTopToBottomYMm } from '@/utils/coordinateTransform';
+import { rectBottomToTopYMm, rectTopToBottomYMm } from '@/utils/coordinateTransform';
 
 interface PdfLoaderProps {
   canvas: fabric.Canvas;
@@ -23,7 +23,7 @@ export default function PdfLoader({ canvas }: PdfLoaderProps) {
     resetPdfState,
     gridHeightM,
   } = useCanvasStore();
-  
+
   const pdfData = useCurrentFloorPdfData();
   const setActivePdfData = useFloorStore(s => s.setActivePdfData);
   const getActiveGridState = useFloorStore(s => s.getActiveGridState);
@@ -54,22 +54,22 @@ export default function PdfLoader({ canvas }: PdfLoaderProps) {
 
         for (const cEl of pages) {
           // Position PDF at grid coordinates (0,0) which is bottom-left of grid
-          
+
           // PDF dimensions in mm
           const pdfWidthMm = (cEl.width * scale) / scaleFactor;
           const pdfHeightMm = (cEl.height * scale) / scaleFactor;
-          
+
           // Grid coordinates (0,0) = bottom-left corner
           const gridX = 0; // Left edge of grid
           const gridY = 0; // Bottom edge of grid (in bottom-left coordinate system)
-          
+
           // Convert from bottom-left grid coordinates to top-left canvas coordinates
           const topYMm = rectBottomToTopYMm(gridY, pdfHeightMm, currentGridHeightM);
-          
+
           // Convert to pixels
           const canvasX = gridX * scaleFactor;
           const canvasY = topYMm * scaleFactor;
-          
+
           const img = new fabric.Image(cEl, {
             // Basic Fabric.js properties
             originX: 'left',
@@ -88,7 +88,7 @@ export default function PdfLoader({ canvas }: PdfLoaderProps) {
 
           // ===== IMPROVED: Use PdfManager to properly configure PDF =====
           pdfManager.configurePdfObject(img, pdfLocked, pdfOpacity);
-          
+
           // Also mark as PDF image for our tracking
           (img as any).isPdfImage = true;
 
@@ -254,53 +254,53 @@ export default function PdfLoader({ canvas }: PdfLoaderProps) {
     if (pdfManager.hasPdfObjects()) {
       const { widthGrid, heightGrid } = pdfManager.getPdfDimensionsInGrid(scaleFactor, gridSizeMm);
       setPdfDimensions(widthGrid, heightGrid);
-      
+
       // Reactive PDF positioning - mimic how modules handle scale factor changes
       const pdfObjects = canvas.getObjects().filter(obj => (obj as any).isPdfImage);
       if (pdfObjects.length > 0) {
         const pdf = pdfObjects[0];
-        
+
         // Get current PDF data
         const currentPdfData = useFloorStore.getState().getActiveGridState()?.pdfData;
         if (currentPdfData?.url) {
           // Get the active floor's grid dimensions
           const activeGridState = getActiveGridState();
           const currentGridHeightM = activeGridState?.gridHeightM || gridHeightM;
-          
+
           // Get the stored scale factor
           const storedScaleFactor = currentPdfData.scaleFactor || 1;
-          
+
           // Calculate the original PDF dimensions in mm
           const originalPdfWidthMm = currentPdfData.width / storedScaleFactor;
           const originalPdfHeightMm = currentPdfData.height / storedScaleFactor;
-          
+
           // Convert stored top-left position to grid coordinates (bottom-left system)
           const storedTopYMm = currentPdfData.y / storedScaleFactor;
           const storedLeftXMm = currentPdfData.x / storedScaleFactor;
-          
+
           // Calculate the bottom-left corner in grid coordinates
           // This is the position we want to maintain
           const gridBottomY = rectTopToBottomYMm(storedTopYMm, originalPdfHeightMm, currentGridHeightM);
           const gridLeftX = storedLeftXMm;
-          
+
           // Now calculate new canvas position with new scale factor
           // The PDF dimensions will scale with the new factor
           const newPdfWidthMm = originalPdfWidthMm;  // Logical size stays the same
           const newPdfHeightMm = originalPdfHeightMm; // Logical size stays the same
-          
+
           // Convert grid bottom-left back to canvas top-left with new scale
           const newTopYMm = rectBottomToTopYMm(gridBottomY, newPdfHeightMm, currentGridHeightM);
           const newCanvasX = gridLeftX * scaleFactor;
           const newCanvasY = newTopYMm * scaleFactor;
-          
+
           // Apply the calculated position (like modules do)
           pdf.set({
             left: newCanvasX,
             top: newCanvasY
           });
-          
+
           canvas.requestRenderAll();
-          
+
           // Update the floor store with new pixel position and scale factor
           setActivePdfData({
             ...currentPdfData,
@@ -308,7 +308,7 @@ export default function PdfLoader({ canvas }: PdfLoaderProps) {
             y: Math.round(newCanvasY),
             scaleFactor: scaleFactor,
           });
-          
+
           console.log(`📄 PDF repositioned after scale change:`, {
             oldScale: storedScaleFactor,
             newScale: scaleFactor,
@@ -329,11 +329,11 @@ export default function PdfLoader({ canvas }: PdfLoaderProps) {
     const updatePdfInFloorStore = (e: any) => {
       const pdf = e.target;
       if (!(pdf as any).isPdfImage) return;
-      
+
       // Get current PDF data from floor store
       const currentPdfData = useFloorStore.getState().getActiveGridState()?.pdfData;
       if (!currentPdfData?.url) return;
-      
+
       // Update PDF data in floor store with new position/size
       // Preserve all existing properties
       setActivePdfData({
@@ -344,7 +344,7 @@ export default function PdfLoader({ canvas }: PdfLoaderProps) {
         y: Math.round(pdf.top || 0),
         scaleFactor: scaleFactor,
       });
-      
+
       console.log(`📄 Updated PDF position in floor store: x=${pdf.left}, y=${pdf.top}`);
     };
 

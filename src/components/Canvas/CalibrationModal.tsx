@@ -65,7 +65,7 @@ const ModalBody = styled.div`
 
 const InfoText = styled.p`
   font-size: 14px;
-  color: ${colors.darkGray};
+  color: ${colors.gray};
   margin: 0 0 20px 0;
   line-height: 1.5;
 `;
@@ -110,7 +110,7 @@ const Unit = styled.span`
   position: absolute;
   right: 12px;
   font-size: 14px;
-  color: ${colors.darkGray};
+  color: ${colors.gray};
   pointer-events: none;
 `;
 
@@ -133,7 +133,7 @@ const HelpText = styled.div`
   padding: 12px;
   margin-bottom: 20px;
   font-size: 13px;
-  color: ${colors.darkGray};
+  color: ${colors.gray};
   line-height: 1.5;
 `;
 
@@ -163,12 +163,12 @@ export const CalibrationModal: React.FC<CalibrationModalProps> = ({
 
   const handleConfirm = () => {
     const value = parseFloat(distance);
-    
+
     if (isNaN(value) || value <= 0) {
       setError('Please enter a valid positive number');
       return;
     }
-    
+
     onConfirm(value);
     onClose();
   };
@@ -195,14 +195,14 @@ export const CalibrationModal: React.FC<CalibrationModalProps> = ({
             <LuX size={20} />
           </CloseButton>
         </ModalHeader>
-        
+
         <ModalBody>
           <HelpText>
-            You've drawn a line on the PDF. Now enter the real-world distance 
-            that this line represents. This will help us calculate the correct 
+            You've drawn a line on the PDF. Now enter the real-world distance
+            that this line represents. This will help us calculate the correct
             scale for your floor plan.
           </HelpText>
-          
+
           <InputGroup>
             <Label>Real-world distance</Label>
             <InputWrapper>
@@ -224,12 +224,12 @@ export const CalibrationModal: React.FC<CalibrationModalProps> = ({
             </InputWrapper>
             {error && <ErrorMessage>{error}</ErrorMessage>}
           </InputGroup>
-          
+
           <InfoText>
-            Tip: Find a scale reference on your PDF (like a ruler or dimension) 
+            Tip: Find a scale reference on your PDF (like a ruler or dimension)
             and draw the calibration line along it for best accuracy.
           </InfoText>
-          
+
           <ButtonGroup>
             <Button variant="secondary" onClick={onClose}>
               Cancel

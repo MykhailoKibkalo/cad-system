@@ -3,7 +3,6 @@
 
 import React, { useState } from 'react';
 import { useFloorStore } from '../store/floorStore';
-import { IFloor } from '../types/floor';
 
 interface FloorManagerProps {
   existingFloors: number[];
@@ -28,19 +27,19 @@ const FloorManagerEnhanced: React.FC<FloorManagerProps> = ({ existingFloors }) =
       setMessage({ type: 'error', text: 'Please select a source floor' });
       return;
     }
-    
+
     if (targetFloorNumber === '') {
       setMessage({ type: 'error', text: 'Please enter a target floor number' });
       return;
     }
-    
+
     if (!newPdfUrl.trim()) {
       setMessage({ type: 'error', text: 'Please enter a PDF URL' });
       return;
     }
 
     const targetNum = targetFloorNumber as number;
-    
+
     // Check if source floor exists
     if (!floors[sourceFloorNumber]) {
       setMessage({ type: 'error', text: `Source floor ${sourceFloorNumber} does not exist` });
@@ -57,21 +56,21 @@ const FloorManagerEnhanced: React.FC<FloorManagerProps> = ({ existingFloors }) =
       // Perform the clone and PDF update
       cloneFloor(sourceFloorNumber, targetNum);
       updatePDF(targetNum, newPdfUrl.trim());
-      
+
       // Success message
-      setMessage({ 
-        type: 'success', 
-        text: `Successfully cloned Floor ${sourceFloorNumber} to Floor ${targetNum} with new PDF` 
+      setMessage({
+        type: 'success',
+        text: `Successfully cloned Floor ${sourceFloorNumber} to Floor ${targetNum} with new PDF`
       });
-      
+
       // Reset form
       setSourceFloorNumber('');
       setTargetFloorNumber('');
       setNewPdfUrl('');
     } catch (error) {
-      setMessage({ 
-        type: 'error', 
-        text: `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}` 
+      setMessage({
+        type: 'error',
+        text: `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`
       });
     }
   };
@@ -79,7 +78,7 @@ const FloorManagerEnhanced: React.FC<FloorManagerProps> = ({ existingFloors }) =
   return (
     <div style={containerStyle}>
       <h3 style={titleStyle}>Floor Manager - Clone & Replace PDF</h3>
-      
+
       {message && (
         <div style={{
           ...messageStyle,
@@ -90,7 +89,7 @@ const FloorManagerEnhanced: React.FC<FloorManagerProps> = ({ existingFloors }) =
           {message.text}
         </div>
       )}
-      
+
       <div style={formGroupStyle}>
         <label style={labelStyle}>
           Source Floor:

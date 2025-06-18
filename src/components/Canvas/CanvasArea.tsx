@@ -39,7 +39,6 @@ import useGrouping from './hooks/useGrouping';
 import useRenderGroups from './hooks/useRenderGroups';
 import useGroupMovement from './hooks/useGroupMovement';
 import useCanvasCleanup from './hooks/useCanvasCleanup';
-import CanvasContextMenu from './CanvasContextMenu';
 
 const CanvasContainer = styled.div<{ gridSizePx?: number; offsetX?: number; offsetY?: number }>`
   flex: 1;
@@ -277,7 +276,6 @@ export default function CanvasArea() {
           zoom={zoomLevel}
         />
       </CanvasContainer>
-      {canvas && <CanvasContextMenu canvas={canvas} />}
       {canvas && <PdfLoader canvas={canvas} />}
       {canvas && <PropertyPanel canvas={canvas} />}
       <ZoomControl />

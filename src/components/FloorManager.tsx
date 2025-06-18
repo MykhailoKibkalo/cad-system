@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useFloorStore } from '../store/floorStore';
-import { IFloor } from '../types/floor';
 
 interface FloorManagerProps {
   // Optional: an array of existing floor numbers to populate a dropdown
@@ -12,14 +11,13 @@ const FloorManager: React.FC<FloorManagerProps> = ({ existingFloors }) => {
   const [targetFloorNumber, setTargetFloorNumber] = useState<number | ''>('');
   const [newPdfUrl, setNewPdfUrl] = useState<string>('');
 
-  const floors = useFloorStore(state => state.floors);
   const cloneFloor = useFloorStore(state => state.cloneFloor);
   const updatePDF = useFloorStore(state => state.updatePDF);
 
   return (
     <div style={containerStyle}>
       <h3 style={titleStyle}>Floor Manager - Clone & Replace PDF</h3>
-      
+
       <div style={formGroupStyle}>
         <label style={labelStyle}>
           Source Floor:

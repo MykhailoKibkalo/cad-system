@@ -32,13 +32,12 @@ const MainContent = styled.div<{ sidebarOpen: boolean }>`
 
 export default function Page() {
   const isSidebarOpen = useFloorStore(state => state.isSidebarOpen);
-  
+
   return (
     <PageContainer>
       <FloorsSidebar />
       <MainContent sidebarOpen={isSidebarOpen}>
         <Header />
-        {/*<Ribbon />*/}
         <CanvasArea />
         <FloorInfoPanel />
       </MainContent>

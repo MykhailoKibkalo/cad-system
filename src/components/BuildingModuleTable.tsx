@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useFloorStore } from '../state/floorStore';
-import { Module, Opening, Balcony, BathroomPod, Corridor, Roof } from '@/types/geometry';
+import { Module } from '@/types/geometry';
 
 interface ModuleTableRow {
   type: 'module' | 'opening' | 'balcony' | 'bathroomPod';
@@ -327,7 +327,6 @@ const BuildingModuleTable: React.FC = () => {
 
   const moduleRows = generateModuleSummary();
   const corridorRows = generateCorridorsSummary();
-  const roofRows = generateRoofsSummary();
 
   return (
     <div style={{ padding: '20px', overflowX: 'auto' }}>
@@ -384,9 +383,6 @@ const BuildingModuleTable: React.FC = () => {
         <tbody>
           {moduleRows.map((row, index) => {
             const isSubRow = row.type !== 'module';
-            const isOpeningRow = row.type === 'opening';
-            const isBalconyRow = row.type === 'balcony';
-            const isBathroomPodRow = row.type === 'bathroomPod';
 
             return (
               <tr key={index} style={{ borderBottom: '1px solid #ddd' }}>

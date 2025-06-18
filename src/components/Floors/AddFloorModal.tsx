@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import styled from '@emotion/styled';
 import { colors } from '@/styles/theme';
 import { useFloorStore } from '@/state/floorStore';
-import { LuX, LuUpload } from 'react-icons/lu';
+import { LuX } from 'react-icons/lu';
 import {Button} from "@/components/ui/Button";
 
 const ModalOverlay = styled.div`

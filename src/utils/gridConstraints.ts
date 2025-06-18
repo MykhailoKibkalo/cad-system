@@ -1,5 +1,3 @@
-// src/utils/gridConstraints.ts
-import { useCanvasStore } from '@/state/canvasStore';
 
 export interface Bounds {
   left: number;
