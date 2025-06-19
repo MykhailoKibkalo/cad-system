@@ -2,14 +2,14 @@
 import { useEffect } from 'react';
 import type { Canvas } from 'fabric';
 import * as fabric from 'fabric';
-import { useCurrentFloorCorridors } from './useFloorElements';
+import { useCurrentFloorCorridors, useCurrentFloorGridSettings } from './useFloorElements';
 import { useCanvasStore } from '@/state/canvasStore';
 import { bottomToTopYMm } from '@/utils/coordinateTransform';
 
 export default function useRenderCorridors(canvas: Canvas | null) {
   const corridors = useCurrentFloorCorridors();
   const scaleFactor = useCanvasStore(s => s.scaleFactor);
-  const gridHeightM = useCanvasStore(s => s.gridHeightM);
+  const { gridHeightM } = useCurrentFloorGridSettings();
 
   useEffect(() => {
     if (!canvas) return;
@@ -96,6 +96,7 @@ export default function useRenderCorridors(canvas: Canvas | null) {
           height: height,
           fill: 'rgba(128,128,128,0.3)',
           stroke: '#666',
+          strokeWidth: 1,
           strokeDashArray: [4, 4],
           selectable: true,
           evented: true,

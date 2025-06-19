@@ -2,7 +2,7 @@
 import { useEffect } from 'react';
 import type { Canvas } from 'fabric';
 import * as fabric from 'fabric';
-import { useCurrentFloorModules } from './useFloorElements';
+import { useCurrentFloorModules, useCurrentFloorGridSettings } from './useFloorElements';
 import { useCanvasStore } from '@/state/canvasStore';
 import { rectBottomToTopYMm } from '@/utils/coordinateTransform';
 
@@ -13,7 +13,9 @@ import { rectBottomToTopYMm } from '@/utils/coordinateTransform';
 export default function useRenderModules(canvas: Canvas | null) {
   const modules = useCurrentFloorModules();
   const scaleFactor = useCanvasStore(s => s.scaleFactor);
-  const gridHeightM = useCanvasStore(s => s.gridHeightM);
+  const { gridHeightM } = useCurrentFloorGridSettings();
+  
+  console.log(`🔍 useRenderModules - floor gridHeightM: ${gridHeightM}`);
 
   useEffect(() => {
     if (!canvas) return;
@@ -71,7 +73,20 @@ export default function useRenderModules(canvas: Canvas | null) {
           Math.abs((rect.height || 0) - expectedHeight) > 1;
           
         if (needsUpdate) {
-          console.log(`🔧 Updating module geometry: ${module.id}`);
+          console.log(`🔧 Updating module geometry: ${module.id}`, {
+            current: {
+              left: rect.left, top: rect.top,
+              width: rect.width, height: rect.height
+            },
+            expected: {
+              left: expectedLeft, top: expectedTop,
+              width: expectedWidth, height: expectedHeight
+            },
+            store: {
+              x0: module.x0, y0: module.y0,
+              width: module.width, length: module.length
+            }
+          });
           rect.set({
             left: expectedLeft,
             top: expectedTop,
@@ -115,6 +130,8 @@ export default function useRenderModules(canvas: Canvas | null) {
           lockUniScaling: false,
           lockMovementX: false,
           lockMovementY: false,
+          scaleX: 1,
+          scaleY: 1,
         });
 
         // Store module ID for identification
