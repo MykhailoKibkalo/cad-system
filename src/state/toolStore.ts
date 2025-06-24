@@ -1,4 +1,3 @@
-// src/state/toolStore.ts
 import { create } from 'zustand';
 
 export type Tool =

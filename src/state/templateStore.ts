@@ -1,4 +1,3 @@
-// src/state/templateStore.ts
 import { create } from 'zustand';
 import { Opening } from '../types/geometry';
 

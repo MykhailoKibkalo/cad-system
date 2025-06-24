@@ -1,4 +1,3 @@
-// src/types/geometry.d.ts
 export interface Module {
   id: string;
   name: string;
@@ -10,19 +9,19 @@ export interface Module {
   zOffset: number;
   rotation: number;
   stackedFloors: number;
-  showBorder?: boolean; // нове
-  isGrouped?: boolean; // Track if module is part of a group
-  groupId?: string; // Track which group this belongs to
+  showBorder?: boolean;
+  isGrouped?: boolean;
+  groupId?: string;
 }
 
 export interface Opening {
   id: string;
   moduleId: string;
-  wallSide: 1 | 2 | 3 | 4; // 1–низ, 2–ліва, 3–верх, 4–права стіна (за CCW)
-  distanceAlongWall: number; // в мм
-  yOffset: number; // в мм, від низу перегляду фасаду
-  width: number; // в мм
-  height: number; // в мм
+  wallSide: 1 | 2 | 3 | 4;
+  distanceAlongWall: number;
+  yOffset: number;
+  width: number;
+  height: number;
 }
 
 export interface Balcony {

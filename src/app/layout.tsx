@@ -1,4 +1,3 @@
-// src/app/layout.tsx
 import './globals.css';
 import Script from 'next/script';
 

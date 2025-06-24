@@ -1,4 +1,3 @@
-// components/Button.tsx
 import React, { ButtonHTMLAttributes, ReactNode } from 'react';
 import styled from '@emotion/styled';
 import { Text } from '@/components/ui/Text';

@@ -1,4 +1,3 @@
-// src/components/Floors/EditFloorModal.tsx
 import React, { useState, useEffect } from 'react';
 import styled from '@emotion/styled';
 import { colors } from '@/styles/theme';

@@ -1,4 +1,3 @@
-// src/state/canvasStore.ts
 import { create } from 'zustand';
 
 interface CanvasState {

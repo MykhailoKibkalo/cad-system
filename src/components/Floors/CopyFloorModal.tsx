@@ -1,4 +1,3 @@
-// src/components/Floors/CopyFloorModal.tsx
 import React, { useState } from 'react';
 import styled from '@emotion/styled';
 import { colors } from '@/styles/theme';
@@ -145,7 +144,7 @@ interface CopyFloorModalProps {
 const CopyFloorModal: React.FC<CopyFloorModalProps> = ({ sourceFloorId, onClose }) => {
   const { floors, copyFloorMultiple } = useFloorStore();
   const sourceFloor = floors.find(f => f.id === sourceFloorId);
-  
+
   const [name, setName] = useState(sourceFloor ? `${sourceFloor.name} (Copy)` : 'Copy');
   const [copyCount, setCopyCount] = useState('1');
   const [errors, setErrors] = useState<{ name?: string; copyCount?: string }>({});

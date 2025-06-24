@@ -1,4 +1,3 @@
-// src/components/ui/ControlItem.tsx
 'use client';
 
 import React from 'react';

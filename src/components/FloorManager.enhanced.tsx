@@ -1,6 +1,3 @@
-// src/components/FloorManager.enhanced.tsx
-// Enhanced version with validation and user feedback
-
 import React, { useState } from 'react';
 import { useFloorStore } from '../store/floorStore';
 
@@ -19,10 +16,8 @@ const FloorManagerEnhanced: React.FC<FloorManagerProps> = ({ existingFloors }) =
   const updatePDF = useFloorStore(state => state.updatePDF);
 
   const handleCloneAndReplace = () => {
-    // Clear previous message
     setMessage(null);
 
-    // Validation
     if (sourceFloorNumber === '') {
       setMessage({ type: 'error', text: 'Please select a source floor' });
       return;
@@ -40,24 +35,20 @@ const FloorManagerEnhanced: React.FC<FloorManagerProps> = ({ existingFloors }) =
 
     const targetNum = targetFloorNumber as number;
 
-    // Check if source floor exists
     if (!floors[sourceFloorNumber]) {
       setMessage({ type: 'error', text: `Source floor ${sourceFloorNumber} does not exist` });
       return;
     }
 
-    // Warn if target floor will be overwritten
     const willOverwrite = !!floors[targetNum];
     if (willOverwrite && !confirm(`Floor ${targetNum} already exists. This will overwrite it. Continue?`)) {
       return;
     }
 
     try {
-      // Perform the clone and PDF update
       cloneFloor(sourceFloorNumber, targetNum);
       updatePDF(targetNum, newPdfUrl.trim());
 
-      // Success message
       setMessage({
         type: 'success',
         text: `Successfully cloned Floor ${sourceFloorNumber} to Floor ${targetNum} with new PDF`
@@ -175,7 +166,6 @@ const FloorManagerEnhanced: React.FC<FloorManagerProps> = ({ existingFloors }) =
   );
 };
 
-// Styles
 const containerStyle: React.CSSProperties = {
   padding: '24px',
   border: '1px solid #ddd',

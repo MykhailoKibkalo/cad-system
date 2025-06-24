@@ -1,9 +1,8 @@
-// src/components/FloorInfoPanel.tsx
 'use client';
 import React from 'react';
 import styled from '@emotion/styled';
 import { useCanvasStore } from '@/state/canvasStore';
-import { useObjectStore } from '@/state/objectStore'; // де зберігаються ваші дані
+import { useObjectStore } from '@/state/objectStore';
 
 const Overlay = styled.div`
   position: fixed;
@@ -39,7 +38,6 @@ export default function FloorInfoPanel() {
   const isOpen = useCanvasStore(s => s.isInfoOpen);
   const toggle = useCanvasStore(s => s.toggleInfo);
 
-  // Підтягуємо дані всіх елементів поверху
   const modules = useObjectStore(s => s.modules);
   const openings = useObjectStore(s => s.openings);
   const corridors = useObjectStore(s => s.corridors);

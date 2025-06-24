@@ -152,7 +152,6 @@ export const Input: React.FC<InputProps> = ({
   const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     setIsFocused(false);
 
-    // For number inputs, ensure integer values on blur
     if (type === 'number') {
       const value = e.target.value;
       const numValue = parseInt(value) || 0;
@@ -161,10 +160,8 @@ export const Input: React.FC<InputProps> = ({
 
       const clampedValue = Math.max(min, Math.min(max, Math.round(numValue)));
 
-      // Update the input value if it differs from the clamped integer value
       if (value !== clampedValue.toString()) {
         e.target.value = clampedValue.toString();
-        // Trigger onChange with the corrected value
         if (onChange) {
           const syntheticEvent = {
             ...e,
@@ -179,12 +176,10 @@ export const Input: React.FC<InputProps> = ({
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // For number inputs, filter out non-integer values during typing
     if (type === 'number') {
       let value = e.target.value;
-      // Allow empty string, digits, and single minus sign at the beginning
       if (value !== '' && !/^-?\d*$/.test(value)) {
-        return; // Don't update if it contains decimals or invalid characters
+        return;
       }
     }
 

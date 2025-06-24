@@ -1,4 +1,3 @@
-// src/components/ui/PdfSettingsMenu.tsx
 'use client';
 
 import React from 'react';

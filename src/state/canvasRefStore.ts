@@ -1,4 +1,3 @@
-// src/state/canvasRefStore.ts
 import { create } from 'zustand';
 import type { Canvas } from 'fabric';
 

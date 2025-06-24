@@ -1,3 +1,4 @@
+import type {Canvas, Image} from 'fabric';
 const Base64Prefix = 'data:application/pdf;base64,';
 
 function getPdfHandler(): any {
@@ -13,9 +14,6 @@ function readBlob(blob: Blob): Promise<string> {
   });
 }
 
-/**
- * Renders all PDF pages to HTMLCanvasElement[]
- */
 export async function printPDF(pdfData: Blob | string): Promise<HTMLCanvasElement[]> {
   const pdfjsLib = getPdfHandler();
   if (!pdfjsLib?.getDocument) {
@@ -42,12 +40,8 @@ export async function printPDF(pdfData: Blob | string): Promise<HTMLCanvasElemen
   return canvases;
 }
 
-// ===== IMPROVED PDF MANAGEMENT CLASS =====
-import type {Canvas, Image} from 'fabric';
 
-/**
- * Enhanced PdfManager with improved lock and stacking control
- */
+
 export class PdfManager {
   private canvas: Canvas;
 
@@ -55,27 +49,19 @@ export class PdfManager {
     this.canvas = canvas;
   }
 
-  /**
-   * Find all PDF objects on the canvas
-   */
   getPdfObjects(): Image[] {
     return this.canvas.getObjects().filter(obj => (obj as any).isPdf || (obj as any).isPdfImage) as Image[];
   }
 
-  /**
-   * IMPROVED: Force all PDF objects to the back with more aggressive stacking
-   */
   sendPdfToBack(): void {
     const pdfObjects = this.getPdfObjects();
 
-    // Multiple passes to ensure PDFs are truly at the bottom
     for (let pass = 0; pass < 3; pass++) {
       pdfObjects.forEach(pdfObj => {
         this.canvas.sendObjectToBack(pdfObj);
       });
     }
 
-    // Final verification: move PDFs to absolute bottom
     pdfObjects.forEach(pdfObj => {
       const objects = this.canvas.getObjects();
       const currentIndex = objects.indexOf(pdfObj);
@@ -85,9 +71,7 @@ export class PdfManager {
     });
   }
 
-  /**
-   * IMPROVED: Enhanced lock state management with more restrictions
-   */
+
   updatePdfLockState(locked: boolean): void {
     const pdfObjects = this.getPdfObjects();
 
@@ -97,22 +81,17 @@ export class PdfManager {
         evented: !locked,
         hoverCursor: locked ? 'default' : 'move',
         moveCursor: locked ? 'default' : 'move',
-
-        // Additional restrictions when locked
         hasControls: !locked,
         hasBorders: !locked,
         lockMovementX: locked,
         lockMovementY: locked,
         lockScalingX: locked,
         lockScalingY: locked,
-        lockRotation: true, // Always lock rotation for PDFs
-
-        // Visual feedback when locked
+        lockRotation: true,
         strokeWidth: locked ? 0 : 1,
         stroke: locked ? 'transparent' : 'rgba(0,0,0,0.2)',
       });
 
-      // Force PDF to back when locking
       if (locked) {
         this.canvas.sendObjectToBack(pdfObj);
       }
@@ -121,9 +100,6 @@ export class PdfManager {
     this.canvas.requestRenderAll();
   }
 
-  /**
-   * Update PDF object opacity
-   */
   updatePdfOpacity(opacity: number): void {
     const pdfObjects = this.getPdfObjects();
     const clampedOpacity = Math.max(0, Math.min(1, opacity));
@@ -134,9 +110,7 @@ export class PdfManager {
     this.canvas.requestRenderAll();
   }
 
-  /**
-   * Remove all PDF objects from canvas
-   */
+
   removePdfObjects(): void {
     const pdfObjects = this.getPdfObjects();
     pdfObjects.forEach(pdfObj => {
@@ -145,9 +119,7 @@ export class PdfManager {
     this.canvas.requestRenderAll();
   }
 
-  /**
-   * Calculate PDF dimensions in grid units
-   */
+
   getPdfDimensionsInGrid(scaleFactor: number, gridSizeMm: number): { widthGrid: number; heightGrid: number } {
     const pdfObjects = this.getPdfObjects();
     if (pdfObjects.length === 0) {
@@ -167,28 +139,22 @@ export class PdfManager {
     return { widthGrid, heightGrid };
   }
 
-  /**
-   * Check if canvas has any PDF objects
-   */
+
   hasPdfObjects(): boolean {
     return this.getPdfObjects().length > 0;
   }
 
-  /**
-   * NEW: Force clear any PDF selections
-   */
+
   clearPdfSelection(): void {
     const activeObject = this.canvas.getActiveObject();
 
     if (activeObject) {
-      // Check if active object is a PDF
       if ((activeObject as any).isPdf || (activeObject as any).isPdfImage) {
         this.canvas.discardActiveObject();
         this.sendPdfToBack();
         this.canvas.requestRenderAll();
       }
 
-      // Check if active selection contains PDFs
       if ((activeObject as any).type === 'activeSelection') {
         const objects = (activeObject as any)._objects || [];
         const hasPdf = objects.some((obj: any) => obj.isPdf || obj.isPdfImage);
@@ -202,12 +168,9 @@ export class PdfManager {
     }
   }
 
-  /**
-   * NEW: Ensure PDF objects are properly configured on creation
-   */
+
   configurePdfObject(pdfObj: Image, locked: boolean = false, opacity: number = 1): void {
     pdfObj.set({
-      // Lock state
       selectable: !locked,
       evented: !locked,
       hasControls: !locked,
@@ -216,38 +179,28 @@ export class PdfManager {
       lockMovementY: locked,
       lockScalingX: locked,
       lockScalingY: locked,
-      lockRotation: true, // Always lock rotation
-
-      // Visual properties
+      lockRotation: true,
       opacity: Math.max(0, Math.min(1, opacity)),
       hoverCursor: locked ? 'default' : 'move',
       moveCursor: locked ? 'default' : 'move',
-
-      // Positioning
       originX: 'left',
       originY: 'top',
     });
 
-    // Mark as PDF (support both flags for compatibility)
     (pdfObj as any).isPdf = true;
     (pdfObj as any).isPdfImage = true;
   }
 
-  /**
-   * NEW: Emergency PDF management - force all PDFs to behave correctly
-   */
+
   emergencyPdfReset(locked: boolean, opacity: number): void {
     const pdfObjects = this.getPdfObjects();
 
-    // Clear any selections first
     this.canvas.discardActiveObject();
 
-    // Reconfigure all PDF objects
     pdfObjects.forEach(pdfObj => {
       this.configurePdfObject(pdfObj, locked, opacity);
     });
 
-    // Force to back multiple times
     for (let i = 0; i < 5; i++) {
       this.sendPdfToBack();
     }

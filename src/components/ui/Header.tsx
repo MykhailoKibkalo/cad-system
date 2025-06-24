@@ -1,4 +1,3 @@
-// src/components/ui/Header.tsx
 'use client';
 
 import styled from '@emotion/styled';
@@ -232,26 +231,22 @@ export default function Header() {
   const hasGroups = groups && groups.length > 0;
   const canvas = useCanvasRefStore(s => s.canvas);
 
-  // Add floor store
   const { getSelectedFloor, setSidebarOpen, hasActivePdf, getActiveGridState, updateActiveGridState } = useFloorStore();
 
   const gridSizeMm = useCanvasStore(s => s.gridSizeMm);
   const setGridSize = useCanvasStore(s => s.setGridSize);
 
-  // Get grid dimensions from active floor or fallback to canvas store
   const activeGridState = getActiveGridState();
   const gridWidthM = activeGridState?.gridWidthM || useCanvasStore(s => s.gridWidthM);
   const gridHeightM = activeGridState?.gridHeightM || useCanvasStore(s => s.gridHeightM);
 
   const setGridDimensions = (width: number, height: number) => {
-    // Update both floor store and canvas store
     updateActiveGridState({ gridWidthM: width, gridHeightM: height });
     useCanvasStore.getState().setGridDimensions(width, height);
   };
 
   const onChangeGrid = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value;
-    // Remove any decimal points and non-numeric characters
     value = value.replace(/[^\d]/g, '');
 
     const v = parseInt(value, 10);
@@ -267,7 +262,6 @@ export default function Header() {
 
   const onChangeGap = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value;
-    // Remove any decimal points and non-numeric characters
     value = value.replace(/[^\d]/g, '');
 
     const numValue = Math.max(0, Math.round(parseInt(value) || 0));
@@ -281,7 +275,6 @@ export default function Header() {
 
   const onChangeGridWidth = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value;
-    // Remove any decimal points and non-numeric characters
     value = value.replace(/[^\d]/g, '');
 
     const v = parseInt(value, 10);
@@ -297,7 +290,6 @@ export default function Header() {
 
   const onChangeGridHeight = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value;
-    // Remove any decimal points and non-numeric characters
     value = value.replace(/[^\d]/g, '');
 
     const v = parseInt(value, 10);
@@ -312,14 +304,11 @@ export default function Header() {
   };
 
   const handleDeletePdf = () => {
-    // Remove PDF from active floor
     useFloorStore.getState().setActivePdfData(null);
-    // Reset global PDF state
     resetPdfState();
   };
 
   const handleRecalibrate = () => {
-    // Switch to calibrate tool
     setTool('calibrate');
   };
 
@@ -336,9 +325,6 @@ export default function Header() {
   };
 
   const handlePdfImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // The actual PDF loading is handled by PdfLoader component
-    // We don't need to do anything here except let the file input trigger
-    // the PdfLoader will handle the import and save to floor store
   };
 
   return (

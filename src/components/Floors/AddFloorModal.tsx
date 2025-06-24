@@ -1,4 +1,3 @@
-// src/components/Floors/AddFloorModal.tsx
 import React, { useState } from 'react';
 import styled from '@emotion/styled';
 import { colors } from '@/styles/theme';

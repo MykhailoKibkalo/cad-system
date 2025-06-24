@@ -1,4 +1,3 @@
-// src/state/selectionStore.ts
 import { create } from 'zustand';
 
 interface SelectionState {
@@ -12,8 +11,7 @@ interface SelectionState {
   setSelectedBathroomPodId: (id: string | null) => void;
   selectedBalconyId: string | null;
   setSelectedBalconyId(id: string | null): void;
-  
-  // For grouping functionality
+
   selectedObjectIds: string[];
   selectedElementTypes: Record<string, 'module' | 'corridor' | 'balcony' | 'bathroomPod'>;
   setSelectedObjectIds: (ids: string[]) => void;
@@ -69,8 +67,7 @@ export const useSelectionStore = create<SelectionState>(set => ({
       selectedOpeningId: null,
       selectedCorridorId: null,
     }),
-    
-  // For grouping functionality
+
   setSelectedObjectIds: (ids) => set({ selectedObjectIds: ids }),
   setSelectedElements: (elements) => {
     const ids = elements.map(e => e.id);
@@ -80,7 +77,7 @@ export const useSelectionStore = create<SelectionState>(set => ({
     }, {} as Record<string, 'module' | 'corridor' | 'balcony' | 'bathroomPod'>);
     set({ selectedObjectIds: ids, selectedElementTypes: types });
   },
-  clearSelection: () => set({ 
+  clearSelection: () => set({
     selectedObjectIds: [],
     selectedElementTypes: {},
     selectedModuleId: null,

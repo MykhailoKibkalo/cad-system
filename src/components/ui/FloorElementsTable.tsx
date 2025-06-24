@@ -1,4 +1,3 @@
-// src/components/FloorElementsTable.tsx
 'use client';
 
 import React, { useMemo, useState } from 'react';
@@ -168,7 +167,6 @@ const PaginationControls = styled.div`
   gap: 8px;
 `;
 
-// Tab Navigation Styles
 const TabNav = styled.div`
   display: flex;
   border-bottom: 1px solid #e5e7eb;
@@ -203,7 +201,7 @@ export default function FloorElementsTable({ onClose }: FloorElementsTableProps)
   const selectedFloor = useFloorStore(s => s.getSelectedFloor());
   const rawElements = useFloorElements(currentFloor || undefined);
   const groups = useFloorStore(s => s.getActiveGridState()?.groups || []);
-  
+
   // Don't filter out grouped elements - they should still appear in the table
   // Groups are shown as separate entries, but individual elements should remain visible
   const filteredElements = useMemo(() => {
@@ -216,14 +214,14 @@ export default function FloorElementsTable({ onClose }: FloorElementsTableProps)
       roofs: rawElements.roofs
     };
   }, [rawElements]);
-  
+
   const { modules, openings, balconies, bathroomPods, corridors, roofs } = filteredElements;
 
   // Tab state
   const [activeTab, setActiveTab] = useState<TabType>('all');
 
   // Calculate total elements for All tab
-  const totalElements = modules.length + openings.length + balconies.length + 
+  const totalElements = modules.length + openings.length + balconies.length +
                        bathroomPods.length + corridors.length + roofs.length + groups.length;
 
   // Unified search state
@@ -523,55 +521,55 @@ export default function FloorElementsTable({ onClose }: FloorElementsTableProps)
         </Header>
 
         <TabNav>
-          <Tab 
-            isActive={activeTab === 'all'} 
+          <Tab
+            isActive={activeTab === 'all'}
             onClick={() => setActiveTab('all')}
           >
             All ({totalElements})
           </Tab>
           {groups.length > 0 && (
-            <Tab 
-              isActive={activeTab === 'groups'} 
+            <Tab
+              isActive={activeTab === 'groups'}
               onClick={() => setActiveTab('groups')}
             >
               Groups ({groups.length})
             </Tab>
           )}
           {modules.length > 0 && (
-            <Tab 
-              isActive={activeTab === 'modules'} 
+            <Tab
+              isActive={activeTab === 'modules'}
               onClick={() => setActiveTab('modules')}
             >
               Modules ({modules.length})
             </Tab>
           )}
           {openings.length > 0 && (
-            <Tab 
-              isActive={activeTab === 'openings'} 
+            <Tab
+              isActive={activeTab === 'openings'}
               onClick={() => setActiveTab('openings')}
             >
               Openings ({openings.length})
             </Tab>
           )}
           {balconies.length > 0 && (
-            <Tab 
-              isActive={activeTab === 'balconies'} 
+            <Tab
+              isActive={activeTab === 'balconies'}
               onClick={() => setActiveTab('balconies')}
             >
               Balconies ({balconies.length})
             </Tab>
           )}
           {bathroomPods.length > 0 && (
-            <Tab 
-              isActive={activeTab === 'bathroomPods'} 
+            <Tab
+              isActive={activeTab === 'bathroomPods'}
               onClick={() => setActiveTab('bathroomPods')}
             >
               Bathroom pods ({bathroomPods.length})
             </Tab>
           )}
           {corridors.length > 0 && (
-            <Tab 
-              isActive={activeTab === 'corridors'} 
+            <Tab
+              isActive={activeTab === 'corridors'}
               onClick={() => setActiveTab('corridors')}
             >
               Corridors ({corridors.length})
@@ -582,7 +580,7 @@ export default function FloorElementsTable({ onClose }: FloorElementsTableProps)
         <Content>
           {getActiveTabData().map(({ type, data }) => {
             if (data.length === 0) return null;
-            
+
             switch (type) {
               case 'groups':
                 return renderTable(

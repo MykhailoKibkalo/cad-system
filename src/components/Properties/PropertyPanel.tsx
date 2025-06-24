@@ -40,6 +40,23 @@ const Label = styled.label`
   margin-bottom: 4px;
 `;
 
+const Select = styled.select`
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: white;
+  font-size: 16px;
+  color: #1e293b;
+  cursor: pointer;
+  
+  &:focus {
+    outline: none;
+    border-color: #636df8;
+    box-shadow: 0 0 0 3px rgba(99, 109, 248, 0.1);
+  }
+`;
+
 const MenuHeader = styled.div`
   display: flex;
   justify-content: space-between;
@@ -167,7 +184,7 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
   const bathroomPods = bathroomPodsAll.filter((bp: any) => bp.moduleId === selectedModuleId);
   const balconies = balconiesAll.filter((b: any) => b.moduleId === selectedModuleId);
 
-  const [form, setForm] = useState({ name: '', width: '', length: '' });
+  const [form, setForm] = useState({ name: '', width: '', length: '', rotation: 0 });
 
   useEffect(() => {
     if (module) {
@@ -175,13 +192,14 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
         name: module.name,
         width: Math.round(module.width).toString(),
         length: Math.round(module.length).toString(),
+        rotation: module.rotation || 0,
       });
     } else {
-      setForm({ name: '', width: '', length: '' });
+      setForm({ name: '', width: '', length: '', rotation: 0 });
     }
   }, [module]);
 
-  const onChange = (field: 'name' | 'width' | 'length' | 'showBorder') => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onChange = (field: 'name' | 'width' | 'length' | 'showBorder' | 'rotation') => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     let v = e.target.value;
 
     if (field === 'width' || field === 'length') {
@@ -194,11 +212,31 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
 
     const updates: Partial<typeof module> = {};
     if (field === 'showBorder') {
-      const show = e.target.checked;
+      const show = (e.target as HTMLInputElement).checked;
       updateModule(module.id, { showBorder: show });
       const obj = canvas?.getObjects().find(o => (o as any).isModule === module.id);
       obj?.set({ strokeWidth: show ? 2 : 0 });
       canvas?.requestRenderAll();
+      return;
+    }
+    if (field === 'rotation') {
+      const rotationVal = parseInt(v);
+      setForm(f => ({ ...f, [field]: rotationVal }));
+      updateModule(module.id, { rotation: rotationVal });
+      
+      // Directly update the fabric.js object for immediate visual feedback
+      const obj = canvas?.getObjects().find(o => (o as any).isModule === module.id);
+      if (obj) {
+        // Set rotation with bottom-left origin
+        obj.set({
+          angle: rotationVal,
+          originX: 'left',
+          originY: 'bottom'
+        });
+        
+        obj.setCoords();
+        canvas?.requestRenderAll();
+      }
       return;
     }
     if (field === 'name') {
@@ -419,6 +457,15 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
               />
             </Field>
           </Row>
+          <Field>
+            <Label htmlFor="prop-rotation">Rotation</Label>
+            <Select id="prop-rotation" value={form.rotation} onChange={onChange('rotation')}>
+              <option value={0}>0°</option>
+              <option value={90}>90°</option>
+              <option value={180}>180°</option>
+              <option value={270}>270°</option>
+            </Select>
+          </Field>
         </MenuItem>
 
         <Divider orientation={'horizontal'} />

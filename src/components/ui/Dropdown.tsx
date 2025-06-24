@@ -1,4 +1,3 @@
-// src/components/ui/Dropdown.tsx
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -183,7 +182,6 @@ export const Dropdown: React.FC<DropdownProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Handle keyboard navigation
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!isOpen) return;

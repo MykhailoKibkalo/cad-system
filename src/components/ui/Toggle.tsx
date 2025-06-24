@@ -1,11 +1,8 @@
-// components/Toggle.tsx
 import React from 'react';
 import styled from '@emotion/styled';
 
 interface ToggleProps {
-  /** Поточний стан */
   checked: boolean;
-  /** Обробник перемикання */
   onChange: (newState: boolean) => void;
   width?: number;
   height?: number;

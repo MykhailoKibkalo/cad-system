@@ -1,11 +1,8 @@
-// src/state/objectStore.ts
-// Compatibility layer - delegates all operations to floorStore
 import { create } from 'zustand';
 import { Balcony, BathroomPod, Corridor, Module, Opening, ModuleGroup } from '@/types/geometry';
 import { useFloorStore } from './floorStore';
 
 interface ObjState {
-  // Getters that delegate to active floor
   modules: Module[];
   openings: Opening[];
   corridors: Corridor[];
@@ -13,8 +10,6 @@ interface ObjState {
   bathroomPods: BathroomPod[];
   groups: ModuleGroup[];
   roofs: [];
-
-  // Object management methods that delegate to floorStore
   addModule: (m: Module) => void;
   updateModule: (id: string, updates: Partial<Module>) => void;
   deleteModule: (id: string) => void;
@@ -42,7 +37,6 @@ interface ObjState {
 }
 
 export const useObjectStore = create<ObjState>((set, get) => ({
-  // Getters that delegate to active floor in floorStore
   get modules() {
     const gridState = useFloorStore.getState().getActiveGridState();
     return gridState?.modules || [];
@@ -84,10 +78,8 @@ export const useObjectStore = create<ObjState>((set, get) => ({
 
   roofs: [],
 
-  // Module methods - delegate to floorStore
   addModule: (module) => {
     useFloorStore.getState().addModule(module);
-    // Trigger re-render of components using objectStore
     set({});
   },
 
@@ -101,7 +93,6 @@ export const useObjectStore = create<ObjState>((set, get) => ({
     set({});
   },
 
-  // Opening methods - delegate to floorStore
   addOpening: (opening) => {
     useFloorStore.getState().addOpening(opening);
     set({});
@@ -117,7 +108,6 @@ export const useObjectStore = create<ObjState>((set, get) => ({
     set({});
   },
 
-  // Corridor methods - delegate to floorStore
   addCorridor: (corridor) => {
     useFloorStore.getState().addCorridor(corridor);
     set({});
@@ -133,7 +123,6 @@ export const useObjectStore = create<ObjState>((set, get) => ({
     set({});
   },
 
-  // Balcony methods - delegate to floorStore
   addBalcony: (balcony) => {
     useFloorStore.getState().addBalcony(balcony);
     set({});
@@ -149,7 +138,6 @@ export const useObjectStore = create<ObjState>((set, get) => ({
     set({});
   },
 
-  // Bathroom Pod methods - delegate to floorStore
   addBathroomPod: (pod) => {
     useFloorStore.getState().addBathroomPod(pod);
     set({});
@@ -165,7 +153,6 @@ export const useObjectStore = create<ObjState>((set, get) => ({
     set({});
   },
 
-  // Group methods - delegate to floorStore
   addGroup: (group) => {
     useFloorStore.getState().addGroup(group);
     set({});

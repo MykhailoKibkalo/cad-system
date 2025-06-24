@@ -1,5 +1,3 @@
-// src/utils/deepCloneFloor.ts
-
 import { IFloor, IModule, IOpening, IBalcony, IBathroomPod } from '../types/floor';
 
 export function deepCloneFloor(original: IFloor): IFloor {

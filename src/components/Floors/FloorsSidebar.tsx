@@ -1,4 +1,3 @@
-// src/components/Floors/FloorsSidebar.tsx
 import React, { useState, useEffect } from 'react';
 import styled from '@emotion/styled';
 import { colors } from '@/styles/theme';
@@ -234,7 +233,7 @@ const FloorsSidebar: React.FC = () => {
   const [copyingFloorId, setCopyingFloorId] = useState<string | null>(null);
   const [floorToDelete, setFloorToDelete] = useState<string | null>(null);
   const [contextMenuFloorId, setContextMenuFloorId] = useState<string | null>(null);
-  
+
   // Debug: Log context menu state changes
   useEffect(() => {
     console.log('Context menu floor ID changed:', contextMenuFloorId);
@@ -256,7 +255,7 @@ const FloorsSidebar: React.FC = () => {
       alert('Cannot delete the last remaining floor. At least one floor must exist.');
       return;
     }
-    
+
     const floor = floors.find(f => f.id === floorId);
     if (floor && window.confirm(`Are you sure you want to permanently delete floor "${floor.name}"?`)) {
       deleteFloor(floorId);
@@ -297,7 +296,7 @@ const FloorsSidebar: React.FC = () => {
         setContextMenuFloorId(null);
       }
     };
-    
+
     if (contextMenuFloorId) {
       document.addEventListener('click', handleClickOutside);
       return () => document.removeEventListener('click', handleClickOutside);
@@ -352,7 +351,7 @@ const FloorsSidebar: React.FC = () => {
               </FloorInfo>
               <FloorActions className="actions">
                 <ContextMenuButton data-context-menu>
-                  <ActionButton 
+                  <ActionButton
                     onClick={e => handleContextMenuClick(e, floor.id)}
                     title="More options"
                     type="button"
@@ -368,7 +367,7 @@ const FloorsSidebar: React.FC = () => {
                       <LuCopy size={16} />
                       Copy Floor...
                     </ContextMenuItem>
-                    <ContextMenuItem 
+                    <ContextMenuItem
                       variant={floors.length <= 1 ? 'disabled' : 'danger'}
                       onClick={floors.length <= 1 ? undefined : e => handleContextDelete(e, floor.id)}
                     >

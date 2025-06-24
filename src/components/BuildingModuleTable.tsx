@@ -13,7 +13,6 @@ interface ModuleTableRow {
   zOffset: number;
   rotation: number;
   numberOfModulesStacked: number;
-  // For sub-rows
   wallSide?: 1 | 2 | 3 | 4;
   distanceAlongWall?: number;
   yOffset?: number;
@@ -48,17 +47,15 @@ const BuildingModuleTable: React.FC = () => {
   const floors = useFloorStore(state => state.floors);
   const [exportFormat, setExportFormat] = useState<'json' | 'csv'>('json');
 
-  // Generate module summary with attachments
   const generateModuleSummary = (): ModuleTableRow[] => {
     const moduleConfigs = new Map<string, { module: Module, attachments: any[], floors: string[], baseZOffset: number }>();
 
-    // Calculate cumulative floor heights to determine actual z_offset
     let cumulativeHeight = 0;
     const floorHeights = new Map<string, number>();
 
     floors.forEach((floor, index) => {
       if (index === 0) {
-        floorHeights.set(floor.id, 0); // First floor starts at 0
+        floorHeights.set(floor.id, 0);
       } else {
         cumulativeHeight += floors[index - 1].height;
         floorHeights.set(floor.id, cumulativeHeight);
@@ -69,29 +66,25 @@ const BuildingModuleTable: React.FC = () => {
       const floorBaseHeight = floorHeights.get(floor.id) || 0;
 
       floor.gridState.modules.forEach(module => {
-        // Get all attachments for this module
         const moduleOpenings = floor.gridState.openings.filter(o => o.moduleId === module.id);
         const moduleBalconies = floor.gridState.balconies.filter(b => b.moduleId === module.id);
         const moduleBathroomPods = floor.gridState.bathroomPods.filter(bp => bp.moduleId === module.id);
 
-        // Create a signature based on MODULE CONFIGURATION ONLY (not position or z_offset)
         const attachmentSignature = [
           ...moduleOpenings.map(o => `o_${o.wallSide}_${o.width}_${o.height}_${o.distanceAlongWall}_${o.yOffset}`),
           ...moduleBalconies.map(b => `b_${b.wallSide}_${b.width}_${b.length}_${b.distanceAlongWall}`),
           ...moduleBathroomPods.map(bp => `bp_${bp.width}_${bp.length}_${bp.x_offset}_${bp.y_offset}`)
         ].sort().join('|');
 
-        // Module signature includes dimensions, rotation, and attachments - NOT position or z_offset
         const moduleSignature = `${module.width}_${module.length}_${module.height}_${module.rotation}_${attachmentSignature}`;
 
         if (moduleConfigs.has(moduleSignature)) {
           const existing = moduleConfigs.get(moduleSignature)!;
           existing.floors.push(floor.name);
-          // Keep the lowest z_offset as the base level
           const currentZOffset = floorBaseHeight + module.zOffset;
           if (currentZOffset < existing.baseZOffset) {
             existing.baseZOffset = currentZOffset;
-            existing.module = module; // Update to use the module with lowest z_offset
+            existing.module = module;
           }
         } else {
           moduleConfigs.set(moduleSignature, {
@@ -108,13 +101,10 @@ const BuildingModuleTable: React.FC = () => {
       });
     });
 
-    // Convert to table rows
     const tableRows: ModuleTableRow[] = [];
 
-    // Generate sequential names for modules
     const moduleEntries = Array.from(moduleConfigs.values())
       .sort((a, b) => {
-        // Sort by base z_offset first, then by x0, then by y0
         if (a.baseZOffset !== b.baseZOffset) {
           return a.baseZOffset - b.baseZOffset;
         }
@@ -125,10 +115,8 @@ const BuildingModuleTable: React.FC = () => {
       });
 
     moduleEntries.forEach(({ module, attachments, floors, baseZOffset }, moduleIndex) => {
-        // Generate sequential module name
         const moduleName = `M${moduleIndex + 1}`;
 
-        // Add module row
         tableRows.push({
           type: 'module',
           moduleName: moduleName,
@@ -142,7 +130,6 @@ const BuildingModuleTable: React.FC = () => {
           numberOfModulesStacked: floors.length
         });
 
-        // Add attachment rows with sequential naming
         let balconyCount = 1;
         let bathroomPodCount = 1;
 
@@ -151,7 +138,7 @@ const BuildingModuleTable: React.FC = () => {
             tableRows.push({
               type: 'opening',
               width: attachment.width,
-              length: attachment.height, // Height goes to length column for openings
+              length: attachment.height,
               height: 0,
               x0: attachment.distanceAlongWall,
               y0: attachment.yOffset,
@@ -195,7 +182,6 @@ const BuildingModuleTable: React.FC = () => {
     return tableRows;
   };
 
-  // Generate corridors summary
   const generateCorridorsSummary = (): CorridorTableRow[] => {
     const corridors: CorridorTableRow[] = [];
     let corridorCount = 1;
@@ -221,13 +207,6 @@ const BuildingModuleTable: React.FC = () => {
     return corridors;
   };
 
-  // Generate roofs summary (placeholder since we don't have roof objects yet)
-  const generateRoofsSummary = (): RoofTableRow[] => {
-    // Return empty array for now - roofs would be implemented similar to corridors
-    return [];
-  };
-
-  // Export functions
   const convertToCSV = (data: any[], headers: string[]) => {
     const csvRows = [];
     csvRows.push(headers.join(','));
@@ -236,7 +215,6 @@ const BuildingModuleTable: React.FC = () => {
       const values = headers.map(header => {
         const keys = header.toLowerCase().replace(/ /g, '');
         const value = row[keys] || row[header] || '';
-        // Escape commas and quotes in CSV
         return typeof value === 'string' && value.includes(',')
           ? `"${value.replace(/"/g, '""')}"`
           : value;

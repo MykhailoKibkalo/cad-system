@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useFloorStore } from '../store/floorStore';
 
 interface FloorManagerProps {
-  // Optional: an array of existing floor numbers to populate a dropdown
   existingFloors: number[];
 }
 
@@ -67,7 +66,6 @@ const FloorManager: React.FC<FloorManagerProps> = ({ existingFloors }) => {
           if (sourceFloorNumber === '' || targetFloorNumber === '' || !newPdfUrl) return;
           cloneFloor(sourceFloorNumber, targetFloorNumber as number);
           updatePDF(targetFloorNumber as number, newPdfUrl);
-          // Optionally reset local state or show success notification
           setSourceFloorNumber('');
           setTargetFloorNumber('');
           setNewPdfUrl('');
@@ -79,7 +77,6 @@ const FloorManager: React.FC<FloorManagerProps> = ({ existingFloors }) => {
   );
 };
 
-// Styles
 const containerStyle: React.CSSProperties = {
   padding: '20px',
   border: '1px solid #ddd',

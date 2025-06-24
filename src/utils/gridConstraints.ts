@@ -26,11 +26,9 @@ export function constrainToGrid(
   gridHeightM: number,
   scaleFactor: number
 ): { left: number; top: number } {
-  // Convert grid dimensions from meters to pixels (1m = 1000mm)
   const gridWidthPx = gridWidthM * 1000 * scaleFactor;
   const gridHeightPx = gridHeightM * 1000 * scaleFactor;
 
-  // Constrain position to keep object fully within grid
   const constrainedLeft = Math.max(0, Math.min(gridWidthPx - width, left));
   const constrainedTop = Math.max(0, Math.min(gridHeightPx - height, top));
 
@@ -52,11 +50,9 @@ export function constrainBoundsToGrid(
   gridWidthM: number,
   gridHeightM: number
 ): Bounds {
-  // Convert grid dimensions from meters to mm
   const gridWidthMm = gridWidthM * 1000;
   const gridHeightMm = gridHeightM * 1000;
 
-  // Calculate constrained position
   const maxLeft = gridWidthMm - bounds.width;
   const maxTop = gridHeightMm - bounds.height;
 
@@ -71,17 +67,6 @@ export function constrainBoundsToGrid(
   };
 }
 
-/**
- * Checks if a position is within grid boundaries
- * @param left - Left position in pixels
- * @param top - Top position in pixels
- * @param width - Width in pixels
- * @param height - Height in pixels
- * @param gridWidthM - Grid width in meters
- * @param gridHeightM - Grid height in meters
- * @param scaleFactor - Scale factor
- * @returns True if position is valid
- */
 export function isWithinGrid(
   left: number,
   top: number,
