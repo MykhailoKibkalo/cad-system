@@ -1,4 +1,3 @@
-// src/components/Properties/PropertyPanel.tsx
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -223,7 +222,7 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
       const rotationVal = parseInt(v);
       setForm(f => ({ ...f, [field]: rotationVal }));
       updateModule(module.id, { rotation: rotationVal });
-      
+
       // Directly update the fabric.js object for immediate visual feedback
       const obj = canvas?.getObjects().find(o => (o as any).isModule === module.id);
       if (obj) {
@@ -233,7 +232,7 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
           originX: 'left',
           originY: 'bottom'
         });
-        
+
         obj.setCoords();
         canvas?.requestRenderAll();
       }
@@ -457,15 +456,15 @@ export default function PropertyPanel({ canvas }: { canvas: Canvas | null }) {
               />
             </Field>
           </Row>
-          <Field>
-            <Label htmlFor="prop-rotation">Rotation</Label>
-            <Select id="prop-rotation" value={form.rotation} onChange={onChange('rotation')}>
-              <option value={0}>0°</option>
-              <option value={90}>90°</option>
-              <option value={180}>180°</option>
-              <option value={270}>270°</option>
-            </Select>
-          </Field>
+          {/*<Field>*/}
+          {/*  <Label htmlFor="prop-rotation">Rotation</Label>*/}
+          {/*  <Select id="prop-rotation" value={form.rotation} onChange={onChange('rotation')}>*/}
+          {/*    <option value={0}>0°</option>*/}
+          {/*    <option value={90}>90°</option>*/}
+          {/*    <option value={180}>180°</option>*/}
+          {/*    <option value={270}>270°</option>*/}
+          {/*  </Select>*/}
+          {/*</Field>*/}
         </MenuItem>
 
         <Divider orientation={'horizontal'} />
