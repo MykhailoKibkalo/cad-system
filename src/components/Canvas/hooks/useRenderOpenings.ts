@@ -4,10 +4,9 @@ import {Canvas, Rect} from 'fabric';
 import {useCurrentFloorElements} from './useFloorElements';
 import {useCanvasStore} from '@/state/canvasStore';
 import { rectBottomToTopYMm } from '@/utils/coordinateTransform';
+import { rotatePointAroundOrigin, transformWallSide } from '@/utils/rotationTransform';
 
-/**
- * На плані (top-view) малюємо opening як тонку смугу на межі модуля.
- */
+
 export default function useRenderOpenings(canvas: Canvas | null) {
   const { openings, modules } = useCurrentFloorElements();
   const scale = useCanvasStore(s => s.scaleFactor);
@@ -28,43 +27,73 @@ export default function useRenderOpenings(canvas: Canvas | null) {
       const mod = modules.find(m => m.id === o.moduleId);
       if (!mod) return;
 
+      const rotation = mod.rotation || 0;
+
       // Convert module position from bottom-left to canvas coordinates
       const moduleTopYMm = rectBottomToTopYMm(mod.y0, mod.length, gridHeightM);
-      const x = Math.round(mod.x0 * scale); // Left edge stays the same
-      const y = Math.round(moduleTopYMm * scale); // Top edge in canvas coordinates
-      const w = Math.round(mod.width * scale);
-      const h = Math.round(mod.length * scale);
+      const moduleBottomLeftX = Math.round(mod.x0 * scale);
+      const moduleBottomLeftY = Math.round((moduleTopYMm + mod.length) * scale);
 
       // товщина маркера в px
       const THICK = 3;
 
-      let left: number, top: number, rw: number, rh: number;
+      // Calculate opening position in module coordinates (bottom-left system)
+      let openingX = 0;
+      let openingY = 0;
+      let rw: number, rh: number;
 
-      if (o.wallSide === 1) {
-        // bottom wall: по X — довжина отвору, Y — 3px товщина
-        left = Math.round(x + Math.round(o.distanceAlongWall * scale));
-        top = Math.round(y + h - THICK);
-        rw = Math.round(o.width * scale);
-        rh = THICK;
-      } else if (o.wallSide === 3) {
-        // top wall
-        left = Math.round(x + Math.round(o.distanceAlongWall * scale));
-        top = y;
-        rw = Math.round(o.width * scale);
-        rh = THICK;
-      } else if (o.wallSide === 2) {
-        // left wall
-        left = x;
-        top = Math.round(y + h - Math.round(o.distanceAlongWall * scale) - Math.round(o.width * scale));
-        rw = THICK;
-        rh = Math.round(o.width * scale);
-      } else {
-        // right wall (4)
-        left = Math.round(x + w - THICK);
-        top = Math.round(y + Math.round(o.distanceAlongWall * scale));
-        rw = THICK;
-        rh = Math.round(o.width * scale);
+      // Position based on original wall side (before rotation)
+      switch (o.wallSide) {
+        case 1: // bottom wall (Y=0)
+          openingX = o.distanceAlongWall * scale;
+          openingY = 0;
+          rw = Math.round(o.width * scale);
+          rh = THICK;
+          break;
+        case 2: // right wall (X=width)
+          openingX = mod.width * scale;
+          openingY = o.distanceAlongWall * scale;
+          rw = THICK;
+          rh = Math.round(o.width * scale);
+          break;
+        case 3: // top wall (Y=length)
+          openingX = o.distanceAlongWall * scale;
+          openingY = mod.length * scale;
+          rw = Math.round(o.width * scale);
+          rh = THICK;
+          break;
+        case 4: // left wall (X=0)
+          openingX = 0;
+          openingY = o.distanceAlongWall * scale;
+          rw = THICK;
+          rh = Math.round(o.width * scale);
+          break;
+        default:
+          openingX = 0;
+          openingY = 0;
+          rw = THICK;
+          rh = THICK;
       }
+
+      // If module is rotated, rotate the opening position around module's bottom-left
+      let finalOpeningX = openingX;
+      let finalOpeningY = openingY;
+
+      if (rotation !== 0) {
+        const rotated = rotatePointAroundOrigin(
+          openingX,
+          openingY,
+          0,
+          0,
+          rotation
+        );
+        finalOpeningX = rotated.x;
+        finalOpeningY = rotated.y;
+      }
+
+      // Convert to canvas coordinates
+      const left = Math.round(moduleBottomLeftX + finalOpeningX);
+      const top = Math.round(moduleBottomLeftY - finalOpeningY - rh); // Subtract height for top-left positioning
 
       const mark = new Rect({
         left: Math.round(left),
@@ -74,6 +103,9 @@ export default function useRenderOpenings(canvas: Canvas | null) {
         fill: 'rgba(245,158,11,0.6)',
         selectable: false,
         evented: false,
+        angle: 0, // Don't apply rotation to object - position is already rotated
+        originX: 'left',
+        originY: 'top',
       });
       (mark as any).isOpening = o.id;
       canvas.add(mark);

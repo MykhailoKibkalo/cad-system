@@ -5,6 +5,7 @@ import * as fabric from 'fabric';
 import { useCurrentFloorElements } from './useFloorElements';
 import { useCanvasStore } from '@/state/canvasStore';
 import { rectBottomToTopYMm } from '@/utils/coordinateTransform';
+import { rotatePointAroundOrigin, transformWallSide } from '@/utils/rotationTransform';
 
 export default function useRenderBalconies(canvas: Canvas | null) {
   const { balconies, modules } = useCurrentFloorElements();
@@ -22,35 +23,65 @@ export default function useRenderBalconies(canvas: Canvas | null) {
       const mod = modules.find(m => m.id === bc.moduleId);
       if (!mod) return;
 
+      const rotation = mod.rotation || 0;
+      
+      // Transform the wall side based on rotation
+      const effectiveWallSide = transformWallSide(bc.wallSide, rotation);
+
       // Convert module position from bottom-left to canvas coordinates
       const moduleTopYMm = rectBottomToTopYMm(mod.y0!, mod.length!, gridHeightM);
-      let left = Math.round(mod.x0! * scale);
-      let top = Math.round(moduleTopYMm * scale);
+      const moduleBottomLeftX = Math.round(mod.x0! * scale);
+      const moduleBottomLeftY = Math.round((moduleTopYMm + mod.length!) * scale);
+      
+      // Calculate balcony position in module coordinates (bottom-left system)
+      let balconyX = 0;
+      let balconyY = 0;
       let w = Math.round(bc.width * scale);
       let h = Math.round(bc.length * scale);
 
+      // Position based on original wall side (before rotation)
       switch (bc.wallSide) {
-        case 1: // top (in bottom-left system, this is actually the "top" wall)
-          left += Math.round(bc.distanceAlongWall * scale);
-          top -= h; // Balcony extends upward from top wall
+        case 1: // bottom wall (Y=0)
+          balconyX = bc.distanceAlongWall * scale;
+          balconyY = -bc.width * scale; // Extend outward from wall
           break;
-        case 2: // right
-          left += Math.round(mod.width! * scale);
-          top += Math.round(bc.distanceAlongWall * scale);
+        case 2: // right wall (X=width)
+          balconyX = mod.width! * scale;
+          balconyY = bc.distanceAlongWall * scale;
           w = Math.round(bc.length * scale);
           h = Math.round(bc.width * scale);
           break;
-        case 3: // bottom (in bottom-left system, this is actually the "bottom" wall)
-          left += Math.round(bc.distanceAlongWall * scale);
-          top += Math.round(mod.length! * scale); // Balcony extends downward from bottom wall
+        case 3: // top wall (Y=length)
+          balconyX = bc.distanceAlongWall * scale;
+          balconyY = mod.length! * scale;
           break;
-        case 4: // left
-          left -= Math.round(bc.length * scale);
-          top += Math.round(bc.distanceAlongWall * scale);
+        case 4: // left wall (X=0)
+          balconyX = -bc.length * scale;
+          balconyY = bc.distanceAlongWall * scale;
           w = Math.round(bc.length * scale);
           h = Math.round(bc.width * scale);
           break;
       }
+      
+      // If module is rotated, rotate the balcony position around module's bottom-left
+      let finalBalconyX = balconyX;
+      let finalBalconyY = balconyY;
+      
+      if (rotation !== 0) {
+        const rotated = rotatePointAroundOrigin(
+          balconyX,
+          balconyY,
+          0,
+          0,
+          rotation
+        );
+        finalBalconyX = rotated.x;
+        finalBalconyY = rotated.y;
+      }
+      
+      // Convert to canvas coordinates
+      const left = Math.round(moduleBottomLeftX + finalBalconyX);
+      const top = Math.round(moduleBottomLeftY - finalBalconyY - h); // Subtract height for top-left positioning
 
       const rect = new fabric.Rect({
         left: Math.round(left),
@@ -61,8 +92,9 @@ export default function useRenderBalconies(canvas: Canvas | null) {
         stroke: '#9600c8',
         strokeWidth: 2,
         strokeUniform: true,
+        angle: 0, // Don't apply rotation to object - position is already rotated
 
-        // IMPORTANT: Set origin to left/top for predictable movement
+        // IMPORTANT: Set origin to left/top for predictable positioning
         originX: 'left',
         originY: 'top',
 
@@ -73,14 +105,15 @@ export default function useRenderBalconies(canvas: Canvas | null) {
         // Lock rotation but allow scaling
         lockRotation: true,
 
-        // Hide rotation control
-        setControlsVisibility: {
-          mtr: false, // rotation control
-        } as any,
-
         // Disable pixel hit-test for better performance
         perPixelTargetFind: false,
       });
+      
+      // Hide rotation control
+      rect.setControlsVisibility({
+        mtr: false, // rotation control
+      });
+      
       (rect as any).isBalcony = bc.id;
       (rect as any).balconyData = {
         wallSide: bc.wallSide,

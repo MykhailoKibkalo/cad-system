@@ -74,6 +74,10 @@ export default function useRenderCorridors(canvas: Canvas | null) {
             top: expectedTop,
             width: expectedWidth,
             height: expectedHeight,
+            lockRotation: true,
+          });
+          rect.setControlsVisibility({
+            mtr: false, // rotation control
           });
           rect.setCoords();
         }
@@ -103,7 +107,13 @@ export default function useRenderCorridors(canvas: Canvas | null) {
           hasControls: true,
           hasBorders: true,
           lockUniScaling: false,
+          lockRotation: true, // Disable manual rotation
           perPixelTargetFind: true, // Improve selection accuracy
+        });
+        
+        // Hide rotation control
+        rect.setControlsVisibility({
+          mtr: false, // rotation control
         });
 
         // Store corridor ID for identification

@@ -70,7 +70,8 @@ export default function useRenderModules(canvas: Canvas | null) {
           Math.abs((rect.left || 0) - expectedLeft) > 1 ||
           Math.abs((rect.top || 0) - expectedTop) > 1 ||
           Math.abs((rect.width || 0) - expectedWidth) > 1 ||
-          Math.abs((rect.height || 0) - expectedHeight) > 1;
+          Math.abs((rect.height || 0) - expectedHeight) > 1 ||
+          Math.abs((rect.angle || 0) - (module.rotation || 0)) > 1;
           
         if (needsUpdate) {
           console.log(`🔧 Updating module geometry: ${module.id}`, {
@@ -92,6 +93,9 @@ export default function useRenderModules(canvas: Canvas | null) {
             top: expectedTop,
             width: expectedWidth,
             height: expectedHeight,
+            angle: module.rotation || 0,
+            originX: 'left',
+            originY: 'bottom',
           });
           rect.setCoords();
         }
@@ -100,10 +104,28 @@ export default function useRenderModules(canvas: Canvas | null) {
         const newStroke = module.showBorder ? '#36a2eb' : 'transparent';
         const newStrokeWidth = module.showBorder ? 2 : 0;
         
-        if (rect.stroke !== newStroke || rect.strokeWidth !== newStrokeWidth) {
+        if (rect.stroke !== newStroke || rect.strokeWidth !== newStrokeWidth || !rect.lockRotation) {
           rect.set({
             stroke: newStroke,
             strokeWidth: newStrokeWidth,
+            lockRotation: true,
+          });
+          rect.setControlsVisibility({
+            mtr: false, // rotation control
+          });
+          
+          // Add rotation event blocking for existing objects
+          rect.off('rotating');
+          rect.off('before:transform');
+          rect.on('rotating', function(e) {
+            e.e.preventDefault();
+            return false;
+          });
+          rect.on('before:transform', function(e) {
+            if (e.action === 'rotate') {
+              e.e.preventDefault();
+              return false;
+            }
           });
         }
       } else {
@@ -130,8 +152,30 @@ export default function useRenderModules(canvas: Canvas | null) {
           lockUniScaling: false,
           lockMovementX: false,
           lockMovementY: false,
+          lockRotation: true, // Disable manual rotation
           scaleX: 1,
           scaleY: 1,
+          angle: module.rotation || 0,
+          originX: 'left',
+          originY: 'bottom',
+        });
+        
+        // Hide rotation control and completely disable rotation
+        rect.setControlsVisibility({
+          mtr: false, // rotation control
+        });
+        
+        // Additional rotation blocking
+        rect.on('rotating', function(e) {
+          e.e.preventDefault();
+          return false;
+        });
+        
+        rect.on('before:transform', function(e) {
+          if (e.action === 'rotate') {
+            e.e.preventDefault();
+            return false;
+          }
         });
 
         // Store module ID for identification
