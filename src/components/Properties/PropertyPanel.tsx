@@ -39,23 +39,6 @@ const Label = styled.label`
   margin-bottom: 4px;
 `;
 
-const Select = styled.select`
-  width: 100%;
-  padding: 12px 16px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: white;
-  font-size: 16px;
-  color: #1e293b;
-  cursor: pointer;
-  
-  &:focus {
-    outline: none;
-    border-color: #636df8;
-    box-shadow: 0 0 0 3px rgba(99, 109, 248, 0.1);
-  }
-`;
-
 const MenuHeader = styled.div`
   display: flex;
   justify-content: space-between;
